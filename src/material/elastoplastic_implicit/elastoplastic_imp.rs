@@ -63,15 +63,20 @@ impl StressStrainTrait for ElastoplasticImp {
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
+        // Calcualte the elastic moduli just once since we only consider linear elasticity here
         if !self.args.elastic_moduli_calculated {
             self.args.model.calc_dde(&mut self.args.dde, state)?;
             mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
             self.args.elastic_moduli_calculated = true;
         }
+
+        // Return elastic modulus if the state is elastic
         if state.elastic {
             dd.set_tensor(1.0, &self.args.dde);
             return Ok(());
         }
+
+        // Set the extended vector of unknowns x = {σ, z, λ}
         let ns = self.args.ncp;
         let nz = self.args.niv;
         let nsz = ns + nz;
@@ -82,8 +87,14 @@ impl StressStrainTrait for ElastoplasticImp {
             self.x[ns + i] = state.int_vars[i];
         }
         self.x[nsz] = state.lambda_alg;
+
+        // Compute the Jacobian matrix
         callback_jacobian(&mut self.jac, &self.x, &mut self.args)?;
+
+        // Compute the inverse Jacobian matrix
         mat_inverse(&mut self.inv_jac, &self.jac)?;
+
+        // Set the consistent tangent stiffness as the upper-left block of the inverse Jacobian matrix
         for i in 0..ns {
             for j in 0..ns {
                 dd.matrix_mut().set(i, j, self.inv_jac.get(i, j));
@@ -100,25 +111,38 @@ impl StressStrainTrait for ElastoplasticImp {
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
+        // Calcualte the elastic moduli just once since we only consider linear elasticity here
         if !self.args.elastic_moduli_calculated {
             self.args.model.calc_dde(&mut self.args.dde, state)?;
             mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
             self.args.elastic_moduli_calculated = true;
         }
+
+        // Pre-set the state as an elastic update
         state.elastic = true;
         state.lambda_alg = 0.0;
+
+        // Compute the trial stress and check if it is elastic
         t4_ddot_t2_update(&mut state.stress, 1.0, &self.args.dde, delta_strain, 1.0);
+
+        // Check if the trial stress is elastic and exist if it is
         let f_trial = self.args.model.calc_f(state)?;
         if f_trial < F_TOL * self.args.model.calc_f_ref() {
             return Ok(());
         }
+
+        // Compute the trial strain
         mat_vec_mul(
             &mut self.args.eps_trial,
             1.0,
             self.args.cce.matrix(),
             state.stress.vector(),
         )?;
+
+        // Set the internal variables to the previous state
         self.args.z_old.set_vector(state.int_vars.as_data());
+
+        // Set the extended vector of unknowns x = {σ, z, λ}
         let ns = self.args.ncp;
         let nz = self.args.niv;
         let nsz = ns + nz;
@@ -129,15 +153,21 @@ impl StressStrainTrait for ElastoplasticImp {
             self.x[ns + i] = state.int_vars[i];
         }
         self.x[nsz] = state.lambda_alg;
+
+        // Solve the nonlinear system of equations using Newton-Raphson method
         let ndim = ns + nz + 1;
         let mut newton = NewtonSolver::new(ndim)?;
         newton.solve(&mut self.x, &mut self.args, callback_residual, callback_jacobian)?;
+
+        // Update the state with the solution
         for i in 0..ns {
             state.stress.vector_mut()[i] = self.x[i];
         }
         for i in 0..nz {
             state.int_vars[i] = self.x[ns + i];
         }
+
+        // Set the update state as plastic, inluding the plastic multiplier, since we are in the plastic regime
         state.lambda_alg = self.x[nsz];
         state.elastic = false;
         Ok(())
