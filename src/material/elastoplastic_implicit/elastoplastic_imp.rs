@@ -40,18 +40,22 @@ impl ElastoplasticImp {
 }
 
 impl StressStrainTrait for ElastoplasticImp {
+    /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         self.args.model.symmetric_stiffness()
     }
 
+    /// Returns the number of internal variables
     fn n_int_vars(&self) -> usize {
         self.args.model.n_int_vars()
     }
 
+    /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
         self.args.model.initialize_int_vars(state)
     }
 
+    /// Computes the consistent tangent stiffness using the implicit method
     fn stiffness(
         &mut self,
         dd: &mut Tensor4,
@@ -88,6 +92,7 @@ impl StressStrainTrait for ElastoplasticImp {
         Ok(())
     }
 
+    /// Updates the stress tensor given the strain increment tensor using the implicit method
     fn update_stress(
         &mut self,
         state: &mut LocalState,

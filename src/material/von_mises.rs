@@ -82,7 +82,7 @@ impl VonMises {
 }
 
 impl StressStrainTrait for VonMises {
-    /// Indicates that the stiffness matrix is symmetric and constant
+    /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         true
     }
@@ -308,9 +308,11 @@ impl PlasticityTrait for VonMises {
     /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
     /// ```text
-    ///        ∂(gs)
-    /// Gz|k = ─────
-    ///         ∂zₖ
+    ///               ∂(gs)
+    /// ggz := Gz|k = ─────
+    ///                ∂zₖ
+    ///
+    /// ggz is (ncp x niv)
     /// ```
     fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // g = f
@@ -323,9 +325,11 @@ impl PlasticityTrait for VonMises {
     /// Calculates the second derivatives of the hardening function with respect to stress
     ///
     /// ```text
-    ///        ∂hₖ
-    /// Hσ|k = ───
-    ///        ∂σ
+    ///               ∂hₖ
+    /// hhs := Hσ|k = ───
+    ///               ∂σ
+    ///
+    /// hhs is (niv x ncp)
     /// ```
     fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // h0 = constant
@@ -336,9 +340,11 @@ impl PlasticityTrait for VonMises {
     /// Calculates the second derivatives of the hardening function with respect to internal variables
     ///
     /// ```text
-    ///         ∂hᵢ
-    /// Hz|ij = ───
-    ///         ∂zⱼ
+    ///                ∂hᵢ
+    /// hhz := Hz|ij = ───
+    ///                ∂zⱼ
+    ///
+    /// hhz is (niv x niv)
     /// ```
     fn calc_hhz(&self, hhz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // h0 = constant

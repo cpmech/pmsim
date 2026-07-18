@@ -62,7 +62,7 @@ impl VonMisesSoft {
 }
 
 impl StressStrainTrait for VonMisesSoft {
-    /// Indicates that the stiffness matrix is symmetric and constant
+    /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         true
     }
@@ -84,7 +84,7 @@ impl StressStrainTrait for VonMisesSoft {
         Ok(())
     }
 
-    /// Computes the consistent tangent stiffness
+    /// Returns an error because this model must be used through the general Elastoplastic implementation
     fn stiffness(
         &mut self,
         _dd: &mut Tensor4,
@@ -95,7 +95,7 @@ impl StressStrainTrait for VonMisesSoft {
         Err("INTERNAL ERROR: must use general Elastoplastic implementation")
     }
 
-    /// Updates the stress tensor given the strain increment tensor
+    /// Returns an error because this model must be used through the general Elastoplastic implementation
     fn update_stress(
         &mut self,
         _state: &mut LocalState,
@@ -205,9 +205,11 @@ impl PlasticityTrait for VonMisesSoft {
     /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
     /// ```text
-    ///        ∂(gs)
-    /// Gz|k = ─────
-    ///         ∂zₖ
+    ///               ∂(gs)
+    /// ggz := Gz|k = ─────
+    ///                ∂zₖ
+    ///
+    /// ggz is (ncp x niv)
     /// ```
     fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // g = f
@@ -220,9 +222,11 @@ impl PlasticityTrait for VonMisesSoft {
     /// Calculates the second derivatives of the hardening function with respect to stress
     ///
     /// ```text
-    ///        ∂hₖ
-    /// Hσ|k = ───
-    ///        ∂σ
+    ///               ∂hₖ
+    /// hhs := Hσ|k = ───
+    ///               ∂σ
+    ///
+    /// hhs is (niv x ncp)
     /// ```
     fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // h0 = constant
@@ -233,9 +237,11 @@ impl PlasticityTrait for VonMisesSoft {
     /// Calculates the second derivatives of the hardening function with respect to internal variables
     ///
     /// ```text
-    ///         ∂hᵢ
-    /// Hz|ij = ───
-    ///         ∂zⱼ
+    ///                ∂hᵢ
+    /// hhz := Hz|ij = ───
+    ///                ∂zⱼ
+    ///
+    /// hhz is (niv x niv)
     /// ```
     fn calc_hhz(&self, hhz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // h0 = constant

@@ -22,7 +22,7 @@ impl LinearElastic {
 }
 
 impl StressStrainTrait for LinearElastic {
-    /// Indicates that the stiffness matrix is symmetric and constant
+    /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         true
     }

@@ -244,18 +244,22 @@ impl<'a> ElastoplasticExp<'a> {
 }
 
 impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
+    /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         self.args.model.symmetric_stiffness()
     }
 
+    /// Returns the number of internal variables
     fn n_int_vars(&self) -> usize {
         self.args.model.n_int_vars()
     }
 
+    /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
         self.args.model.initialize_int_vars(state)
     }
 
+    /// Returns an error because the stiffness is not available for explicit update
     fn stiffness(
         &mut self,
         _dd: &mut Tensor4,
@@ -266,6 +270,7 @@ impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
         Err("stiffness is not available for explicit update")
     }
 
+    /// Updates the stress tensor given the strain increment tensor using the explicit method
     fn update_stress(
         &mut self,
         state: &mut LocalState,

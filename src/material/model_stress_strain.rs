@@ -8,7 +8,7 @@ use russell_tensor::{Tensor2, Tensor4};
 
 /// Specifies the essential functions for stress-strain models
 pub trait StressStrainTrait: Send {
-    /// Indicates that the stiffness matrix is symmetric
+    /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool;
 
     /// Returns the number of internal variables
