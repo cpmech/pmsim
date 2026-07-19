@@ -10,7 +10,7 @@ use structopt::StructOpt;
 
 const DIR: &str = "/tmp/pmsim/spo_755";
 const MESH_NAME: &str = "spo_755_tensile";
-const NAME: &str = "spo_755_tensile_perf_plast";
+const NAME: &str = "spo_755_tensile";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 const SAVE_FIGURE: bool = true;
