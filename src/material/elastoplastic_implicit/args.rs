@@ -9,8 +9,8 @@ pub(super) struct Args {
     /// Holds the number of stress components
     pub(super) ncp: usize,
 
-    /// Holds the number of internal variables
-    pub(super) niv: usize,
+    /// Holds the number of main (z) internal variables
+    pub(super) nz: usize,
 
     /// Holds the current stress-strain state
     pub(super) state: LocalState,
@@ -82,7 +82,7 @@ pub(super) struct Args {
     /// ggz := Gz|k = ─────
     ///                ∂zₖ
     ///
-    /// ggz is (ncp x niv)
+    /// ggz is (ncp x nz)
     /// ```
     pub(super) ggz: Matrix,
 
@@ -93,7 +93,7 @@ pub(super) struct Args {
     /// hhs := Hσ|k = ───
     ///               ∂σ
     ///
-    /// hhs is (niv x ncp)
+    /// hhs is (nz x ncp)
     /// ```
     pub(super) hhs: Matrix,
 
@@ -104,7 +104,7 @@ pub(super) struct Args {
     /// hhz := Hz|ij = ───
     ///                ∂zⱼ
     ///
-    /// hhz is (niv x niv)
+    /// hhz is (nz x nz)
     /// ```
     pub(super) hhz: Matrix,
 }
@@ -126,26 +126,27 @@ impl Args {
             mandel
         };
         let ncp = mandel.dim(); // number of stress components
-        let niv = model.n_int_vars(); // total number of internal variables
+        let nz = model.nz(); // number of main (z) internal variables
+        let nx = model.nx(); // number of extra (x) internal variables
 
         Ok(Args {
             ncp,
-            niv,
-            state: LocalState::new(mandel, niv),
+            nz,
+            state: LocalState::new(mandel, nz, nx),
             model,
             fs: Tensor2::new(mandel),
             gs: Tensor2::new(mandel),
-            fz: Vector::new(niv),
-            h: Vector::new(niv),
+            fz: Vector::new(nz),
+            h: Vector::new(nz),
             cce: Tensor4::new(mandel),
             dde: Tensor4::new(mandel),
             elastic_moduli_calculated: false,
             eps_trial: Vector::new(mandel.dim()),
-            z_old: Vector::new(niv),
+            z_old: Vector::new(nz),
             ggs: Tensor4::new(mandel_ggs),
-            ggz: Matrix::new(ncp, niv),
-            hhs: Matrix::new(niv, ncp),
-            hhz: Matrix::new(niv, niv),
+            ggz: Matrix::new(ncp, nz),
+            hhs: Matrix::new(nz, ncp),
+            hhz: Matrix::new(nz, nz),
         })
     }
 }
@@ -166,7 +167,7 @@ mod tests {
         let settings = Settings::new();
         let args = Args::new(&ideal, &param, &settings).unwrap();
         assert_eq!(args.ncp, 4);
-        assert_eq!(args.niv, 1);
+        assert_eq!(args.nz, 1);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.fs.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.gs.mandel(), Mandel::Symmetric2D);
@@ -193,7 +194,7 @@ mod tests {
         let settings = Settings::new();
         let args = Args::new(&ideal, &param, &settings).unwrap();
         assert_eq!(args.ncp, 6);
-        assert_eq!(args.niv, 1);
+        assert_eq!(args.nz, 1);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric);
         assert_eq!(args.fs.mandel(), Mandel::Symmetric);
         assert_eq!(args.gs.mandel(), Mandel::Symmetric);

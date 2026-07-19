@@ -8,7 +8,7 @@ use russell_lab::{Matrix, Vector};
 pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut Args) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
-    let nz = a.niv; // number of internal variables
+    let nz = a.nz; // number of internal variables
     let nsz = ns + nz; // ns + nz
 
     // Set some aliases for convenience
@@ -21,7 +21,7 @@ pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut Args) -> Res
         a.state.stress.vector_mut()[i] = sig[i];
     }
     for i in 0..nz {
-        a.state.int_vars[i] = zet[i];
+        a.state.zz[i] = zet[i];
     }
     a.state.lambda_alg = lam;
 
@@ -55,7 +55,7 @@ pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut Args) -> Res
 pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut Args) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
-    let nz = a.niv; // number of internal variables
+    let nz = a.nz; // number of internal variables
     let nsz = ns + nz; // ns + nz
 
     // Set some aliases for convenience
@@ -68,7 +68,7 @@ pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut Args) -> R
         a.state.stress.vector_mut()[i] = sig[i];
     }
     for i in 0..nz {
-        a.state.int_vars[i] = zet[i];
+        a.state.zz[i] = zet[i];
     }
     a.state.lambda_alg = lam;
 
@@ -157,8 +157,9 @@ mod tests {
         let mandel = ideal.mandel();
 
         // Allocate the local state
-        let n_int_var = 1;
-        let mut state = LocalState::new(mandel, n_int_var);
+        let nz = 1;
+        let nx = 0;
+        let mut state = LocalState::new(mandel, nz, nx);
 
         // Set the initial stress state to be on the yield surface
         let p = 1.0;
@@ -169,7 +170,7 @@ mod tests {
         state.stress.set_tensor(1.0, &stress);
 
         // Set the initial internal variable
-        state.int_vars[0] = Z_INI;
+        state.zz[0] = Z_INI;
 
         // Allocate the arguments and model
         let param = StressStrain::VonMises {
@@ -207,11 +208,11 @@ mod tests {
         mat_vec_mul(&mut args.eps_trial, 1.0, args.cce.matrix(), state.stress.vector()).unwrap();
 
         // Set z_old in arguments struct
-        args.z_old.set_vector(state.int_vars.as_data());
+        args.z_old.set_vector(state.zz.as_data());
 
         // Build vector of unknowns x := [σ, z, λ]
         let ns = args.ncp;
-        let nz = args.niv;
+        let nz = args.nz;
         let nsz = ns + nz; // index of λ
         let ndim = ns + nz + 1; // dimension of x
         let mut x = Vector::new(ndim);
@@ -219,7 +220,7 @@ mod tests {
             x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            x[ns + i] = state.int_vars[i];
+            x[ns + i] = state.zz[i];
         }
         x[nsz] = 0.01; // initial guess for λ
 

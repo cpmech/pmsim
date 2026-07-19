@@ -11,8 +11,11 @@ pub trait StressStrainTrait: Send {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool;
 
-    /// Returns the number of internal variables
-    fn n_int_vars(&self) -> usize;
+    /// Returns the number of main (z) internal variables
+    fn nz(&self) -> usize;
+
+    /// Returns the number of extra (x) internal variables
+    fn nx(&self) -> usize;
 
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError>;

@@ -29,7 +29,7 @@ impl ElastoplasticImp {
     /// Allocates a new instance
     pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         let args = Args::new(ideal, param, settings)?;
-        let ndim_nw = args.ncp + args.niv + 1;
+        let ndim_nw = args.ncp + args.nz + 1;
         Ok(ElastoplasticImp {
             args,
             x: Vector::new(ndim_nw),
@@ -45,9 +45,14 @@ impl StressStrainTrait for ElastoplasticImp {
         self.args.model.symmetric_stiffness()
     }
 
-    /// Returns the number of internal variables
-    fn n_int_vars(&self) -> usize {
-        self.args.model.n_int_vars()
+    /// Returns the number of main (z)internal variables
+    fn nz(&self) -> usize {
+        self.args.model.nz()
+    }
+
+    /// Returns the number of extra (x) internal variables
+    fn nx(&self) -> usize {
+        self.args.model.nx()
     }
 
     /// Initializes the internal variables for the initial stress state
@@ -78,13 +83,13 @@ impl StressStrainTrait for ElastoplasticImp {
 
         // Set the extended vector of unknowns x = {σ, z, λ}
         let ns = self.args.ncp;
-        let nz = self.args.niv;
+        let nz = self.args.nz;
         let nsz = ns + nz;
         for i in 0..ns {
             self.x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x[ns + i] = state.int_vars[i];
+            self.x[ns + i] = state.zz[i];
         }
         self.x[nsz] = state.lambda_alg;
 
@@ -140,17 +145,17 @@ impl StressStrainTrait for ElastoplasticImp {
         )?;
 
         // Set the internal variables to the previous state
-        self.args.z_old.set_vector(state.int_vars.as_data());
+        self.args.z_old.set_vector(state.zz.as_data());
 
         // Set the extended vector of unknowns x = {σ, z, λ}
         let ns = self.args.ncp;
-        let nz = self.args.niv;
+        let nz = self.args.nz;
         let nsz = ns + nz;
         for i in 0..ns {
             self.x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x[ns + i] = state.int_vars[i];
+            self.x[ns + i] = state.zz[i];
         }
         self.x[nsz] = state.lambda_alg;
 
@@ -164,7 +169,7 @@ impl StressStrainTrait for ElastoplasticImp {
             state.stress.vector_mut()[i] = self.x[i];
         }
         for i in 0..nz {
-            state.int_vars[i] = self.x[ns + i];
+            state.zz[i] = self.x[ns + i];
         }
 
         // Set the update state as plastic, inluding the plastic multiplier, since we are in the plastic regime
@@ -206,13 +211,14 @@ mod tests {
 
         // Allocate the initial state
         let mandel = ideal.mandel();
-        let n_int_vars = vm.n_int_vars();
-        let mut state0 = LocalState::new(mandel, n_int_vars);
+        let nz = vm.nz();
+        let nx = vm.nx();
+        let mut state0 = LocalState::new(mandel, nz, nx);
         state0.enable_strain();
 
         // Initialize the internal variables
         vm.initialize_int_vars(&mut state0).unwrap();
-        assert_eq!(state0.int_vars[0], Z_INI);
+        assert_eq!(state0.zz[0], Z_INI);
 
         // Allocate the von Mises model via the general implicit elastoplasticity model
         let mut ep = ElastoplasticImp::new(&ideal, &param, &settings).unwrap();
@@ -253,7 +259,7 @@ mod tests {
 
         // Compare the states
         vec_approx_eq(state_vm.stress.vector(), state_ep.stress.vector(), 1e-14);
-        approx_eq(state_vm.int_vars[0], state_ep.int_vars[0], 1e-14);
+        approx_eq(state_vm.zz[0], state_ep.zz[0], 1e-14);
         approx_eq(state_vm.lambda_alg, state_ep.lambda_alg, 1e-14);
         assert!(state_vm.lambda_alg > 0.0);
 

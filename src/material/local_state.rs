@@ -13,14 +13,14 @@ pub struct LocalState {
     /// Holds the current value of the algorithmic plastic multiplier λ
     pub lambda_alg: f64,
 
-    /// Indicates that the return algorithm handled the apex discontinuity directly
-    pub apex_return: bool,
-
-    /// Holds the array of internal variables z
-    pub int_vars: Vector,
-
     /// Holds the stress tensor σ
     pub stress: Tensor2,
+
+    /// Holds the main (z) internal variables (e.g., the size of the yield surface)
+    pub zz: Vector,
+
+    /// Holds the extra (x) internal variables (e.g., the accumulated plastic strain)
+    pub xx: Vector,
 
     /// (optional) Holds the strain tensor ε
     pub strain: Option<Tensor2>,
@@ -28,13 +28,19 @@ pub struct LocalState {
 
 impl LocalState {
     /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_int_var: usize) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `mandel` - Mandel notation
+    /// * `nz` - number of main (z) internal variables
+    /// * `nx` - number of extra (x) internal variables
+    pub fn new(mandel: Mandel, nz: usize, nx: usize) -> Self {
         LocalState {
             elastic: true,
             lambda_alg: 0.0,
-            apex_return: false,
-            int_vars: Vector::new(n_int_var),
             stress: Tensor2::new(mandel),
+            zz: Vector::new(nz),
+            xx: Vector::new(nx),
             strain: None,
         }
     }
@@ -48,8 +54,13 @@ impl LocalState {
     pub fn mirror(&mut self, other: &LocalState) {
         self.elastic = other.elastic;
         self.lambda_alg = other.lambda_alg;
-        vec_copy(&mut self.int_vars, &other.int_vars).unwrap();
         self.stress.set_tensor(1.0, &other.stress);
+        if self.zz.dim() > 0 {
+            vec_copy(&mut self.zz, &other.zz).unwrap();
+        }
+        if self.xx.dim() > 0 {
+            vec_copy(&mut self.xx, &other.xx).unwrap();
+        }
     }
 
     /// Resets algorithmic variables such as λ_alg at the beginning of implicit iterations
@@ -58,6 +69,5 @@ impl LocalState {
             self.elastic = true;
         }
         self.lambda_alg = 0.0;
-        self.apex_return = false;
     }
 }

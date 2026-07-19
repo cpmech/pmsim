@@ -26,7 +26,7 @@ pub(super) struct Args {
 
     /// Holds the rate of internal variables
     ///
-    /// (n_int_val)
+    /// (nz)
     pub(super) dz_dt: Vector,
 
     /// Holds the gradient of the yield function
@@ -49,13 +49,13 @@ pub(super) struct Args {
 
     /// Holds the derivative of the yield function w.r.t internal variables
     ///
-    /// (n_int_val_yf) where yf means yield function
-    ///
     /// ```text
     ///        ∂f
     /// fzₖ := ───
     ///        ∂zₖ
     /// ```
+    ///
+    /// (nz)
     pub(super) fz: Vector,
 
     /// Holds the hardening coefficients
@@ -99,22 +99,23 @@ impl Args {
         // Set some constants
         let mandel = ideal.mandel();
         let ncp = mandel.dim(); // number of stress components
-        let niv = model.n_int_vars(); // total number of internal variables
+        let nz = model.nz(); // number of main (z) internal variables
+        let nx = model.nx(); // number of extra (x) internal variables
         let ndim_e = ncp; // dimension of the elastic ODE system
-        let ndim_ep = ndim_e + niv; // dimension of the elastoplastic ODE system
+        let ndim_ep = ndim_e + nz; // dimension of the elastoplastic ODE system
 
         Ok(Args {
             ndim_e,
             ndim_ep,
-            state: LocalState::new(mandel, niv),
+            state: LocalState::new(mandel, nz, nx),
             model,
             del_eps: Tensor2::new(mandel),
             ds_dt: Tensor2::new(mandel),
-            dz_dt: Vector::new(niv),
+            dz_dt: Vector::new(nz),
             fs: Tensor2::new(mandel),
             gs: Tensor2::new(mandel),
-            fz: Vector::new(niv),
-            h: Vector::new(niv),
+            fz: Vector::new(nz),
+            h: Vector::new(nz),
             dde: Tensor4::new(mandel),
             ddep: Tensor4::new(mandel),
             yf_count: 0,

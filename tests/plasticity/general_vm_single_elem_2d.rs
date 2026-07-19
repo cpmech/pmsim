@@ -201,7 +201,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].int_vars[0];
+            zz[i] = ss[i].zz[0];
         }
         let mut plotter = Plotter::new();
         plotter.set_dark_mode().set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});

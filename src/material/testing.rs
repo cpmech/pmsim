@@ -32,9 +32,9 @@ pub(super) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
         .map(|(sig, eps)| LocalState {
             elastic: true,
             lambda_alg: 0.0,
-            apex_return: false,
-            int_vars: Vector::from(&[z]),
             stress: sig.clone(),
+            zz: Vector::from(&[z]),
+            xx: Vector::new(0),
             strain: Some(eps.clone()),
         })
         .collect();

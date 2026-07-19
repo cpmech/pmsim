@@ -7,39 +7,61 @@ use serde::{Deserialize, Serialize};
 /// This data is associated with a Gauss (integration) point
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalStatePorousSldLiq {
-    /// Holds the internal variables z
-    pub int_vars: Vector,
+    //
+    // -- solid --
+    //
+    /// Holds the elastic (vs elastoplastic) flag
+    pub elastic: bool,
+
+    /// Holds the current value of the algorithmic plastic multiplier λ
+    pub lambda_alg: f64,
 
     /// Holds the stress tensor σ
     pub stress: Tensor2,
 
-    /// Holds the elastic (vs elastoplastic) flag
-    pub elastic: bool,
+    /// Holds the main (z) internal variables (e.g., the size of the yield surface)
+    pub zz: Vector,
+
+    /// Holds the extra (x) internal variables (e.g., the accumulated plastic strain)
+    pub xx: Vector,
+
+    /// (optional) Holds the strain tensor ε
+    pub strain: Option<Tensor2>,
+
+    //
+    // -- porous --
+    //
+    /// Holds the drying (vs wetting) flag
+    pub drying: bool,
 
     /// Holds the liquid saturation
     pub liquid_saturation: f64,
 
     /// Holds the porosity
     pub porosity: f64,
-
-    /// Holds the drying (vs wetting) flag
-    pub drying: bool,
-
-    /// (optional) Holds the strain tensor ε
-    pub strain: Option<Tensor2>,
 }
 
 impl LocalStatePorousSldLiq {
     /// Allocates a new instance
-    pub fn new(mandel: Mandel, n_int_vars: usize) -> Self {
+    ///
+    /// # Arguments
+    ///
+    /// * `mandel` - Mandel notation
+    /// * `nz` - number of main (z) internal variables
+    /// * `nx` - number of extra (x) internal variables
+    pub fn new(mandel: Mandel, nz: usize, nx: usize) -> Self {
         LocalStatePorousSldLiq {
-            int_vars: Vector::new(n_int_vars),
-            stress: Tensor2::new(mandel),
+            // -- solid --
             elastic: true,
+            lambda_alg: 0.0,
+            stress: Tensor2::new(mandel),
+            zz: Vector::new(nz),
+            xx: Vector::new(nx),
+            strain: None,
+            // -- porous --
+            drying: true,
             liquid_saturation: 1.0,
             porosity: 0.5,
-            drying: true,
-            strain: None,
         }
     }
 
@@ -50,11 +72,19 @@ impl LocalStatePorousSldLiq {
 
     /// Copy data from another state into this state
     pub fn mirror(&mut self, other: &LocalStatePorousSldLiq) {
-        vec_copy(&mut self.int_vars, &other.int_vars).unwrap();
-        self.stress.set_tensor(1.0, &other.stress);
+        // -- solid --
         self.elastic = other.elastic;
+        self.lambda_alg = other.lambda_alg;
+        self.stress.set_tensor(1.0, &other.stress);
+        if self.zz.dim() > 0 {
+            vec_copy(&mut self.zz, &other.zz).unwrap();
+        }
+        if self.xx.dim() > 0 {
+            vec_copy(&mut self.xx, &other.xx).unwrap();
+        }
+        // -- porous --
+        self.drying = other.drying;
         self.liquid_saturation = other.liquid_saturation;
         self.porosity = other.porosity;
-        self.drying = other.drying;
     }
 }

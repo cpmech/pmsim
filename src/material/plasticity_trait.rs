@@ -70,7 +70,7 @@ pub trait PlasticityTrait: StressStrainTrait {
     /// ggz := Gz|k = ─────
     ///                ∂zₖ
     ///
-    /// ggz is (ncp x niv)
+    /// ggz is (ncp x nz)
     /// ```
     fn calc_ggz(&self, ggz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
 
@@ -81,7 +81,7 @@ pub trait PlasticityTrait: StressStrainTrait {
     /// hhs := Hσ|k = ───
     ///               ∂σ
     ///
-    /// hhs is (niv x ncp)
+    /// hhs is (nz x ncp)
     /// ```
     fn calc_hhs(&self, hhs: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
 
@@ -92,7 +92,7 @@ pub trait PlasticityTrait: StressStrainTrait {
     /// hhz := Hz|ij = ───
     ///                ∂zⱼ
     ///
-    /// hhz is (niv x niv)
+    /// hhz is (nz x nz)
     /// ```
     fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
 }

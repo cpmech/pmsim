@@ -1,5 +1,5 @@
 use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
-use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
+use crate::base::{Idealization, StressStrain, NX_VON_MISES_SOFT, NZ_VON_MISES_SOFT};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
@@ -67,14 +67,19 @@ impl StressStrainTrait for VonMisesSoft {
         true
     }
 
-    /// Returns the number of internal variables
-    fn n_int_vars(&self) -> usize {
-        NZ_VON_MISES
+    /// Returns the number of main (z) internal variables
+    fn nz(&self) -> usize {
+        NZ_VON_MISES_SOFT
+    }
+
+    /// Returns the number of extra (x) internal variables
+    fn nx(&self) -> usize {
+        NX_VON_MISES_SOFT
     }
 
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
-        state.int_vars[0] = self.z_ini;
+        state.zz[0] = self.z_ini;
         if !self.settings.gp_allow_initial_drift() {
             let f = self.calc_f(state)?;
             if f > 0.0 {
@@ -121,7 +126,7 @@ impl PlasticityTrait for VonMisesSoft {
     /// Calculates the yield function f
     fn calc_f(&self, state: &LocalState) -> Result<f64, StrError> {
         let q = state.stress.invariant_q();
-        let z = state.int_vars[0];
+        let z = state.zz[0];
         Ok(q - z)
     }
 
@@ -209,7 +214,7 @@ impl PlasticityTrait for VonMisesSoft {
     /// ggz := Gz|k = ─────
     ///                ∂zₖ
     ///
-    /// ggz is (ncp x niv)
+    /// ggz is (ncp x nz)
     /// ```
     fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // g = f
@@ -226,7 +231,7 @@ impl PlasticityTrait for VonMisesSoft {
     /// hhs := Hσ|k = ───
     ///               ∂σ
     ///
-    /// hhs is (niv x ncp)
+    /// hhs is (nz x ncp)
     /// ```
     fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // h0 = constant
@@ -241,7 +246,7 @@ impl PlasticityTrait for VonMisesSoft {
     /// hhz := Hz|ij = ───
     ///                ∂zⱼ
     ///
-    /// hhz is (niv x niv)
+    /// hhz is (nz x nz)
     /// ```
     fn calc_hhz(&self, hhz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
         // h0 = constant
@@ -254,7 +259,7 @@ impl PlasticityTrait for VonMisesSoft {
 
 #[cfg(test)]
 mod tests {
-    use crate::base::{Idealization, StressStrain, NZ_VON_MISES_SOFT};
+    use crate::base::{Idealization, StressStrain, NX_VON_MISES_SOFT, NZ_VON_MISES_SOFT};
     use crate::material::{ElastoplasticImp, LocalState, Settings, StressStrainTrait};
     use russell_lab::approx_eq;
     use russell_tensor::Tensor2;
@@ -277,14 +282,15 @@ mod tests {
 
         // Allocate the initial state
         let mandel = ideal.mandel();
-        let n_int_vars = NZ_VON_MISES_SOFT;
-        let mut state0 = LocalState::new(mandel, n_int_vars);
+        let nz = NZ_VON_MISES_SOFT;
+        let nx = NX_VON_MISES_SOFT;
+        let mut state0 = LocalState::new(mandel, nz, nx);
         state0.enable_strain();
 
         // Allocate the model and initialize the internal variables
         let mut model = ElastoplasticImp::new(&ideal, &param, &settings).unwrap();
         model.initialize_int_vars(&mut state0).unwrap();
-        assert_eq!(state0.int_vars[0], Z_INI);
+        assert_eq!(state0.zz[0], Z_INI);
 
         // Calculate the strain increment that will lead to the yield surface exactly
         let ee = YOUNG;
@@ -310,11 +316,11 @@ mod tests {
     fn test_get_model_and_state_on_yield_surface() {
         let (_model, state) = get_model_and_state_on_yield_surface();
         println!("sigma =\n{}", state.stress.vector());
-        println!("z = {:?}", state.int_vars[0]);
+        println!("z = {:?}", state.zz[0]);
 
         // Check if the stress state is on the yield surface
         let q = state.stress.invariant_q();
-        let z = state.int_vars[0];
+        let z = state.zz[0];
         approx_eq(q, z, 1e-15);
 
         // Check the algorithmic flags

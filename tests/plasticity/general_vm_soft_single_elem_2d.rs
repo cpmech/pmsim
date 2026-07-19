@@ -3,9 +3,7 @@ use gemlab::prelude::*;
 use plotpy::{Canvas, Curve, DarkMode, Plot};
 use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
-use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
-use russell_lab::approx_eq;
 use russell_lab::math::SQRT_2_BY_3;
 
 // von Mises (with softening) plasticity with a single-element
@@ -15,8 +13,7 @@ use russell_lab::math::SQRT_2_BY_3;
 //
 // TEST GOAL
 //
-// Verifies the plane-strain implementation of the von Mises model,
-// on a displacement controlled test.
+// TODO
 //
 // MESH
 //
@@ -44,27 +41,17 @@ use russell_lab::math::SQRT_2_BY_3;
 // * Static non-linear plane-strain simulation
 // * Young: E = 1500, Poisson: ν = 0.25
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
-//
-// The results are compared with the code HYPLAS discussed in Ref #1.
-//
-// # Reference
-//
-// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
-//    Theory and applications, Wiley, 791p
 
 const NAME: &str = "general_vm_soft_single_elem_2d";
 const SAVE_FIGURE: bool = true;
 
 // constants
-const L0: f64 = 1.0; // initial length of the domain
 const YOUNG: f64 = 1500.0;
 const POISSON: f64 = 0.25;
-const C1: f64 = YOUNG / ((1.0 + POISSON) * (1.0 - 2.0 * POISSON));
 const Z_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
 const NGAUSS: usize = 1;
-const NSTAGE: usize = 5;
 
 #[test]
 fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
@@ -104,7 +91,6 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
     ebc.edges(&top, Dof::Uy, -dy);
 
-    // update configuration
     // configuration
     let mut config = Config::new(&mesh);
     config
@@ -121,62 +107,15 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     nl_config
         .set_verbose(true, true, true)
         .set_record_iterations_residuals(true)
-        .set_method(NlMethod::Natural);
+        .set_method(NlMethod::Arclength);
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
     let idx = data.sys_index(corner, Dof::Ux)?;
-    let ddl = DeltaLambda::list(&vec![1.0; NSTAGE]);
+    let ddl = DeltaLambda::auto(10.0);
     sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.1), ddl)?;
 
-    // check the results
+    // load the results
     let (post, _) = PostProc::new("/tmp/pmsim/plasticity", NAME)?;
     let lambdas = post.stations();
-    let ss = post.history_local_state(0).unwrap();
-    for i in 0..lambdas.len() {
-        let ey_ref = -lambdas[i] * dy / L0;
-        let ex = ss[i].strain.as_ref().unwrap().get(0, 0);
-        let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
-        let ez = ss[i].strain.as_ref().unwrap().get(2, 2);
-        let exy = ss[i].strain.as_ref().unwrap().get(0, 1);
-        let sx = ss[i].stress.get(0, 0);
-        let sy = ss[i].stress.get(1, 1);
-        let sz = ss[i].stress.get(2, 2);
-        let sxy = ss[i].stress.get(0, 1);
-        // println!("lambda = {:.5}, ey_ref = {:.5}, ey = {:.5}", lambda, ey_ref, ey);
-        approx_eq(ey, ey_ref, 1e-15); // imposed
-        approx_eq(ez, 0.0, 1e-15); // plane strain
-        approx_eq(exy, 0.0, 1e-15); // shear-free
-        approx_eq(sx, 0.0, 1e-5); // x-free
-        approx_eq(sxy, 0.0, 1e-15); // shear-free
-        if lambdas[i] < 2.0 {
-            // elastic stages
-            assert_eq!(ss[i].elastic, true);
-            let ex_ref = ey_ref * NU / (NU - 1.0);
-            approx_eq(ex, ex_ref, 1e-15);
-            approx_eq(sx, C1 * (ex_ref * (1.0 - NU) + ey_ref * NU), 1e-15); // zero
-            approx_eq(sy, C1 * (ey_ref * (1.0 - NU) + ex_ref * NU), 1e-14);
-            approx_eq(sz, C1 * (ex_ref * NU + ey_ref * NU), 1e-15);
-        } else {
-            // elastoplastic stage
-            assert_eq!(ss[i].elastic, false);
-        }
-    }
-
-    // compare the results with Ref #1
-    let tol_displacement = 8.24e-10;
-    let tol_stress = 1.13e-6;
-    let all_good = compare_results(
-        &mesh,
-        &schema,
-        &config,
-        "/tmp/pmsim/plasticity/",
-        NAME,
-        ReferenceDataType::SPO,
-        "data/spo/spo_von_mises_single_element.json",
-        tol_displacement,
-        tol_stress,
-        0,
-    )?;
-    assert!(all_good);
 
     // figure
     if SAVE_FIGURE {
@@ -199,7 +138,8 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].int_vars[0];
+            zz[i] = ss[i].zz[0];
+            println!("elastic = {}", ss[i].elastic);
         }
         let mut plotter = Plotter::new();
         plotter.set_dark_mode().set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});

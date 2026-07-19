@@ -265,7 +265,7 @@ fn run_test(
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].int_vars[0];
+            zz[i] = ss[i].zz[0];
         }
         let mut plotter = Plotter::new();
         plotter

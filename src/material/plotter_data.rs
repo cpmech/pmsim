@@ -339,8 +339,8 @@ mod tests {
         let radius = 2.0;
         let two_dim = true;
         let mandel = Mandel::Symmetric;
-        let mut state_a = LocalState::new(mandel, 0);
-        let mut state_b = LocalState::new(mandel, 0);
+        let mut state_a = LocalState::new(mandel, 0, 0);
+        let mut state_b = LocalState::new(mandel, 0, 0);
         state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
         state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, two_dim).unwrap();
 

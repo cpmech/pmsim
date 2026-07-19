@@ -48,8 +48,10 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
 
     // constants
     let mandel = ideal.mandel();
-    let n_int_val = box_direct.n_int_vars();
-    assert_eq!(box_general.n_int_vars(), n_int_val);
+    let nz = box_direct.nz();
+    let nx = box_direct.nx();
+    assert_eq!(box_general.nz(), nz);
+    assert_eq!(box_general.nx(), nx);
 
     // initial states and increments
     let sig_m_0 = 1.0;
@@ -59,7 +61,7 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     // run test
     for i in 0..stresses.len() {
         // initial state
-        let mut state_elast = LocalState::new(mandel, n_int_val);
+        let mut state_elast = LocalState::new(mandel, nz, nx);
         state_elast.stress.set_tensor(1.0, &stresses[i]);
         state_elast.enable_strain();
         let mut state_direct = state_elast.clone();
@@ -141,8 +143,8 @@ fn do_plot(
     // constants
     let n = states_elast.len();
     let l = n - 1;
-    let z_ini = states_general[0].int_vars[0];
-    let z_fin = states_general[l].int_vars[0];
+    let z_ini = states_general[0].zz[0];
+    let z_fin = states_general[l].zz[0];
 
     // plotting data
     let mut data_elast = PlotterData::from_states(&states_elast);

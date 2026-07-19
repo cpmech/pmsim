@@ -76,10 +76,11 @@ impl<'a> ElementSolid<'a> {
         let save_strain = settings.save_strain();
 
         // local state backup
-        let n_int_var = param.n_int_var();
+        let nz = param.nz();
+        let nx = param.nx();
         let backup = (0..gauss.npoint())
             .into_iter()
-            .map(|_| LocalState::new(mandel, n_int_var))
+            .map(|_| LocalState::new(mandel, nz, nx))
             .collect();
 
         // allocate new instance

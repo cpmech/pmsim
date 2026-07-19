@@ -141,8 +141,9 @@ impl FemState {
                 }
                 ElemType::Solid(param) => {
                     has_solid = true;
-                    let n_int_var = param.n_int_var();
-                    gauss[cell.id].allocate_solid(mandel, ngauss, n_int_var);
+                    let nz = param.nz();
+                    let nx = param.nx();
+                    gauss[cell.id].allocate_solid(mandel, ngauss, nz, nx);
                 }
                 ElemType::PorousLiq(..) => {
                     has_porous_fluid = true;
@@ -154,13 +155,15 @@ impl FemState {
                 }
                 ElemType::PorousSldLiq(param) => {
                     has_porous_solid = true;
-                    let n_int_var = param.n_int_var();
-                    gauss[cell.id].allocate_porous_sld_liq(mandel, ngauss, n_int_var);
+                    let nz = param.nz();
+                    let nx = param.nx();
+                    gauss[cell.id].allocate_porous_sld_liq(mandel, ngauss, nz, nx);
                 }
                 ElemType::PorousSldLiqGas(param) => {
                     has_porous_solid = true;
-                    let n_int_var = param.n_int_var();
-                    gauss[cell.id].allocate_porous_sld_liq_gas(mandel, ngauss, n_int_var);
+                    let nz = param.nz();
+                    let nx = param.nx();
+                    gauss[cell.id].allocate_porous_sld_liq_gas(mandel, ngauss, nz, nx);
                 }
             };
         }

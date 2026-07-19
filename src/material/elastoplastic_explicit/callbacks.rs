@@ -25,10 +25,7 @@ pub(super) fn callback_ode_e(dydt: &mut Vector, _t: f64, y: &Vector, a: &mut Arg
 /// ODE system: dσ/dt = Dₑₚ : Δε and dz/dt = λ h(σ,z)
 pub(super) fn callback_ode_ep(dydt: &mut Vector, _t: f64, y: &Vector, a: &mut Args) -> Result<(), StrError> {
     // split {y}(t) into σ and z
-    y.split2(
-        a.state.stress.vector_mut().as_mut_data(),
-        a.state.int_vars.as_mut_data(),
-    );
+    y.split2(a.state.stress.vector_mut().as_mut_data(), a.state.zz.as_mut_data());
 
     // gradients of the yield function
     a.model.calc_fs(&mut a.fs, &a.state)?;
@@ -128,10 +125,7 @@ pub(super) fn callback_history_e(_stats: &Stats, _h: f64, t: f64, y: &Vector, a:
 pub(super) fn callback_history_ep(_stats: &Stats, _h: f64, t: f64, y: &Vector, a: &mut Args) -> Result<bool, StrError> {
     if let Some(h) = a.history_eep.as_mut() {
         // split {y}(t) into σ and z
-        y.split2(
-            a.state.stress.vector_mut().as_mut_data(),
-            a.state.int_vars.as_mut_data(),
-        );
+        y.split2(a.state.stress.vector_mut().as_mut_data(), a.state.zz.as_mut_data());
 
         // yield function value: f(σ, z)
         let f = a.model.calc_f(&a.state)?;

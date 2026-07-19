@@ -1,5 +1,8 @@
 use super::GnlStrain;
-use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_SOFT};
+use super::{
+    NX_CAM_CLAY, NX_DRUCKER_PRAGER, NX_LINEAR_ELASTIC, NX_VON_MISES, NX_VON_MISES_SOFT, NZ_CAM_CLAY, NZ_DRUCKER_PRAGER,
+    NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_SOFT,
+};
 use serde::{Deserialize, Serialize};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
@@ -404,14 +407,25 @@ pub struct ParamPorousSldLiqGas {
 // implementations --------------------------------------------------------------------------------
 
 impl StressStrain {
-    /// Returns the number of internal variables used by the model
-    pub fn n_int_var(&self) -> usize {
+    /// Returns the number of main (z) internal variables used by the model
+    pub fn nz(&self) -> usize {
         match self {
             Self::LinearElastic { .. } => NZ_LINEAR_ELASTIC,
             Self::VonMises { .. } => NZ_VON_MISES,
             Self::VonMisesSoft { .. } => NZ_VON_MISES_SOFT,
             Self::DruckerPrager { .. } => NZ_DRUCKER_PRAGER,
             Self::CamClay { .. } => NZ_CAM_CLAY,
+        }
+    }
+
+    /// Returns the number of extra (x) internal variables used by the model
+    pub fn nx(&self) -> usize {
+        match self {
+            Self::LinearElastic { .. } => NX_LINEAR_ELASTIC,
+            Self::VonMises { .. } => NX_VON_MISES,
+            Self::VonMisesSoft { .. } => NX_VON_MISES_SOFT,
+            Self::DruckerPrager { .. } => NX_DRUCKER_PRAGER,
+            Self::CamClay { .. } => NX_CAM_CLAY,
         }
     }
 
@@ -570,9 +584,14 @@ impl ParamBeam {
 }
 
 impl ParamSolid {
-    /// Returns the number of internal variables used by the stress-strain model
-    pub fn n_int_var(&self) -> usize {
-        self.stress_strain.n_int_var()
+    /// Returns the number of main (z) internal variables used by the stress-strain model
+    pub fn nz(&self) -> usize {
+        self.stress_strain.nz()
+    }
+
+    /// Returns the number of extra (x) internal variables used by the stress-strain model
+    pub fn nx(&self) -> usize {
+        self.stress_strain.nx()
     }
 
     /// Returns a sample of parameters for the linear elastic model
@@ -620,9 +639,14 @@ impl ParamPorousLiqGas {
 }
 
 impl ParamPorousSldLiq {
-    /// Returns the number of internal variables used by the stress-strain model
-    pub fn n_int_var(&self) -> usize {
-        self.stress_strain.n_int_var()
+    /// Returns the number of main (z) internal variables used by the stress-strain model
+    pub fn nz(&self) -> usize {
+        self.stress_strain.nz()
+    }
+
+    /// Returns the number of extra (x) internal variables used by the stress-strain model
+    pub fn nx(&self) -> usize {
+        self.stress_strain.nx()
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic
@@ -642,9 +666,14 @@ impl ParamPorousSldLiq {
 }
 
 impl ParamPorousSldLiqGas {
-    /// Returns the number of internal variables used by the stress-strain model
-    pub fn n_int_var(&self) -> usize {
-        self.stress_strain.n_int_var()
+    /// Returns the number of main (z) internal variables used by the stress-strain model
+    pub fn nz(&self) -> usize {
+        self.stress_strain.nz()
+    }
+
+    /// Returns the number of extra (x) internal variables used by the stress-strain model
+    pub fn nx(&self) -> usize {
+        self.stress_strain.nx()
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic
@@ -676,12 +705,12 @@ mod tests {
         let q = p.clone();
         let correct = "LinearElastic { young: 1500.0, poisson: 0.25 }";
         assert_eq!(format!("{:?}", q), correct);
-        assert_eq!(p.n_int_var(), 0);
+        assert_eq!(p.nz(), 0);
 
         let p = StressStrain::sample_von_mises();
         let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, z_ini: 9.0 }";
         assert_eq!(format!("{:?}", p), correct);
-        assert_eq!(p.n_int_var(), 1);
+        assert_eq!(p.nz(), 1);
     }
 
     #[test]
