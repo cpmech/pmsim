@@ -177,7 +177,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         tol_displacement,
         tol_stress,
         0,
-        None,
+        Some((0, 1.0, 1e-10)),
     )?;
     assert!(all_good);
 

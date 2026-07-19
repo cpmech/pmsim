@@ -175,6 +175,9 @@ impl StressStrainTrait for ElastoplasticImp {
         // Set the update state as plastic, inluding the plastic multiplier, since we are in the plastic regime
         state.lambda_alg = self.x[nsz];
         state.elastic = false;
+
+        // Increment the extra (x) internal variables
+        self.args.model.inc_extra_int_vars(state);
         Ok(())
     }
 }

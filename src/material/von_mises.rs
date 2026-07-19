@@ -356,6 +356,11 @@ impl PlasticityTrait for VonMises {
         hhz.fill(0.0);
         Ok(())
     }
+
+    /// Increment the extra (x) internal variables after the `update_stress` call
+    fn inc_extra_int_vars(&mut self, state: &mut LocalState) {
+        state.xx[0] += state.lambda_alg;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

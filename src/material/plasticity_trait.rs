@@ -95,4 +95,10 @@ pub trait PlasticityTrait: StressStrainTrait {
     /// hhz is (nz x nz)
     /// ```
     fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
+
+    /// Increment the extra (x) internal variables after the `update_stress` call
+    ///
+    /// For example, in the von Mises model, the accumulated plastic strain (eps_bar_p)
+    /// is a summation of the plastic multiplier (lambda_alg).
+    fn inc_extra_int_vars(&mut self, state: &mut LocalState);
 }
