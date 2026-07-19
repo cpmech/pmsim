@@ -88,6 +88,19 @@ pub trait ReferenceDataTrait {
     ///
     /// The elastic flag
     fn elastic(&self, step: usize, e: usize, ip: usize) -> bool;
+
+    /// Returns the accumulated plastic strain at a specific Gauss point
+    ///
+    /// # Arguments
+    ///
+    /// * `step` - Index of the load increment or timestep
+    /// * `e` - Cell/element index
+    /// * `ip` - Gauss point index
+    ///
+    /// # Returns
+    ///
+    /// The accumulated plastic strain value
+    fn eps_bar_p(&self, step: usize, e: usize, ip: usize) -> f64;
 }
 
 /// Provides generic access to reference data from different sources

@@ -225,6 +225,7 @@ fn run_test(
             tol_displacement,
             tol_stress,
             0,
+            Some((0, 1.0, 1e-9)),
         )?;
         assert!(all_good);
     }

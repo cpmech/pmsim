@@ -123,6 +123,11 @@ impl ReferenceDataTrait for ReferenceDataSGM {
         // WARNING: this information is not available in SGM tests
         true
     }
+
+    fn eps_bar_p(&self, _step: usize, _e: usize, _ip: usize) -> f64 {
+        // WARNING: this information is not available in SGM tests
+        0.0
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

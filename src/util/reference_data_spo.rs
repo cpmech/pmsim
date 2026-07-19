@@ -157,6 +157,10 @@ impl ReferenceDataTrait for ReferenceDataSPO {
             true
         }
     }
+
+    fn eps_bar_p(&self, step: usize, e: usize, ip: usize) -> f64 {
+        self.all[step].plast_apex_epbar[e][ip][2]
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

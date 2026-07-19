@@ -200,6 +200,7 @@ fn run(
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
+            Some((0, 1.0, 1e-11)),
         )?;
         assert!(all_good);
     }

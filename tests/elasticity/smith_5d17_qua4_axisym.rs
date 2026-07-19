@@ -151,6 +151,7 @@ fn smith_5d17_qua4_axisym() -> Result<(), StrError> {
         tol_displacement,
         tol_stress,
         VERBOSE_LEVEL,
+        None,
     )?;
     assert!(all_good);
     Ok(())

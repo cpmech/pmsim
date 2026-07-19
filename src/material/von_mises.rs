@@ -205,12 +205,12 @@ impl StressStrainTrait for VonMises {
         }
 
         // update internal variable
-        let z = &mut state.zz[0];
-        *z += self.hh * lambda;
+        state.zz[0] += self.hh * lambda;
 
         // elastoplastic update
         state.elastic = false;
         state.lambda_alg = lambda;
+        state.xx[0] += lambda; // accumulated plastic strain
         Ok(())
     }
 }

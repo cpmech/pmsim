@@ -19,8 +19,8 @@ pub const NZ_VON_MISES: usize = 1;
 
 /// Holds the number of extra (x) internal variables for the VonMises model
 ///
-/// None
-pub const NX_VON_MISES: usize = 0;
+/// `eps_bar_p` is the accumulated plastic strain (for post-processing only)
+pub const NX_VON_MISES: usize = 1;
 
 // --- Von Mises with Softening Model ---
 
@@ -31,7 +31,7 @@ pub const NZ_VON_MISES_SOFT: usize = 1;
 
 /// Holds the number of extra (x) internal variables for the VonMises (with Softening) model
 ///
-/// `eps_bar_p` is the accumulated plastic strain
+/// `eps_bar_p` is the accumulated plastic strain (needed for the softening law)
 pub const NX_VON_MISES_SOFT: usize = 1;
 
 // --- Drucker-Prager Model ---

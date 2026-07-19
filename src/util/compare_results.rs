@@ -56,6 +56,8 @@ fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
 ///   - 0 => no output
 ///   - 1 => shows error
 ///   - 2 => shows values and error
+/// * `eps_bar_p` -- Tells this function to check the accumulated plastic strain (eps_bar_p).
+///   The values in the tuple are `(index_in_xx, conversion_factor, tolerance).`
 ///
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///
@@ -71,6 +73,7 @@ pub fn compare_results(
     tol_displacement: f64,
     tol_stress: f64,
     verbose: usize,
+    eps_bar_p: Option<(usize, f64, f64)>,
 ) -> Result<bool, StrError> {
     // constants
     let dofs = [Dof::Ux, Dof::Uy, Dof::Uz];
@@ -97,6 +100,7 @@ pub fn compare_results(
     // stats
     let mut diff_displacement_max = f64::MIN;
     let mut diff_stress_max = f64::MIN;
+    let mut diff_eps_bar_p_max = f64::MIN;
 
     // compare results
     let mut all_good = true;
@@ -121,7 +125,7 @@ pub fn compare_results(
 
         // check displacements
         if verbose > 0 {
-            println!("ERROR ON DISPLACEMENTS");
+            println!("DISPLACEMENTS");
         }
         for p in 0..npoint {
             for i in 0..ndim {
@@ -141,7 +145,7 @@ pub fn compare_results(
 
         // check stresses
         if verbose > 0 {
-            println!("ERROR ON STRESSES");
+            println!("STRESSES");
         }
         for e in 0..ncell {
             let ngauss = dat.actual.ngauss(step, e);
@@ -172,7 +176,7 @@ pub fn compare_results(
 
         // check elastic flags
         if verbose > 0 {
-            println!("ERROR ON ELASTIC FLAGS");
+            println!("ELASTIC FLAGS");
         }
         let mut n_elastic = 0;
         for e in 0..ncell {
@@ -200,10 +204,40 @@ pub fn compare_results(
         if verbose > 0 {
             println!("num elastic = {}", n_elastic);
         }
+
+        // check accumulated plastic strain (eps_bar_p) if requested
+        if let Some((index, conversion_factor, tolerance)) = eps_bar_p {
+            if verbose > 0 {
+                println!("ACCUMULATED PLASTIC STRAIN (eps_bar_p)");
+            }
+            for e in 0..ncell {
+                let ngauss = dat.actual.ngauss(step, e);
+                if ngauss < 1 {
+                    return Err("there must be at least on integration point in reference data (plast_apex_epbar)");
+                }
+                let secondary_values = &fem_state.gauss[e];
+                for ip in 0..ngauss {
+                    let local_state = &secondary_values.solid[ip];
+                    let a = local_state.xx[index];
+                    let b = dat.actual.eps_bar_p(step, e, ip) * conversion_factor;
+                    let (fail, diff) = query_failed(a, b, tolerance, verbose);
+                    diff_eps_bar_p_max = f64::max(diff_eps_bar_p_max, diff);
+                    if fail {
+                        all_good = false;
+                    }
+                    if verbose > 0 {
+                        println!();
+                    }
+                }
+            }
+        }
     }
     let s_ok = if elastic_flags_ok { "yes" } else { "no" };
     println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
     println!("diff_stress_max       = {:9.2e}", diff_stress_max);
+    if eps_bar_p.is_some() {
+        println!("diff_eps_bar_p_max    = {:9.2e}", diff_eps_bar_p_max);
+    }
     println!("are elastic flags ok  ? {:>9}\n", s_ok);
     Ok(all_good)
 }
