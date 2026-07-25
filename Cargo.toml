@@ -35,7 +35,6 @@ cudss = [
 ]
 
 [dependencies]
-ctm_demo = "1.0"
 plotpy = "1.23"
 gemlab = "2.4"
 russell_lab = "2.8"

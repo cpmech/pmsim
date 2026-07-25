@@ -1,4 +1,4 @@
-use super::{LocalState, Settings, TraitPlasticity, TraitStressStrain};
+use super::{HardeningSoftening, LocalState, Settings, TraitPlasticity, TraitStressStrain};
 use crate::base::{Idealization, StressStrain, NZ_VON_MISES_SOFT};
 use crate::StrError;
 use gemlab::mesh::CellId;
@@ -16,8 +16,8 @@ pub struct VonMisesSoft {
     /// Linear elasticity
     lin_elasticity: LinElasticity,
 
-    /// Hardening coefficient
-    hh: f64,
+    /// Hardening-Softening model
+    hs_model: HardeningSoftening,
 
     /// Initial size of the yield surface
     ///
@@ -42,16 +42,21 @@ impl VonMisesSoft {
             StressStrain::VonMisesSoft {
                 young,
                 poisson,
-                hh,
+                y0r,
+                li,
+                lr,
+                a,
+                b,
                 kappa_ini,
             } => {
                 if kappa_ini <= F_TOL {
                     return Err("von Mises initial size of the yield surface must > 1e-6");
                 }
                 let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
+                let hs_model = HardeningSoftening::new(li, lr, y0r, a, b)?;
                 Ok(VonMisesSoft {
                     lin_elasticity,
-                    hh,
+                    hs_model,
                     kappa_ini,
                     settings: settings.clone(),
                 })
@@ -127,8 +132,21 @@ impl TraitPlasticity for VonMisesSoft {
     }
 
     /// Calculates the hardening coefficients h
-    fn calc_h(&self, h: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        h[0] = self.hh;
+    fn calc_h(&self, h: &mut Vector, state: &LocalState) -> Result<(), StrError> {
+        // In the Hardening-Softening model: x = α and y = κ
+        // Here: z = {z₀, z₁} = {κ, α}
+        //
+        // hA = ‖dev(∂f/∂σ)‖ = 1
+        //
+        //      ∂κ      ∂κ
+        // hK = ── hA = ── = Ĥ(α, κ)
+        //      ∂α      ∂α
+        let (kappa, alpha) = (state.z_set[0], state.z_set[1]);
+
+        // h₀ = Ĥ = dy/dx
+        h[0] = self.hs_model.calc_hh(alpha, kappa);
+
+        // h₁ = ‖dev(∂f/∂σ)‖ = 1
         h[1] = 1.0;
         Ok(())
     }
@@ -232,7 +250,6 @@ impl TraitPlasticity for VonMisesSoft {
     /// hhs is (nz x ncp)
     /// ```
     fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
-        // h0 = constant
         hhs.fill(0.0);
         Ok(())
     }
@@ -246,9 +263,36 @@ impl TraitPlasticity for VonMisesSoft {
     ///
     /// hhz is (nz x nz)
     /// ```
-    fn calc_hhz(&self, hhz: &mut Matrix, _state: &LocalState) -> Result<(), StrError> {
-        // h0 = constant
-        hhz.fill(0.0);
+    fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState) -> Result<(), StrError> {
+        // In the Hardening-Softening model: x = α and y = κ
+        // Here: z = {z₀, z₁} = {κ, α}
+        //
+        // hA = ‖dev(∂f/∂σ)‖ = 1
+        //
+        //      ∂κ      ∂κ
+        // hK = ── hA = ── = Ĥ(α, κ)
+        //      ∂α      ∂α
+        let (kappa, alpha) = (state.z_set[0], state.z_set[1]);
+
+        // ∂h₀   ∂Ĥ   ∂Ĥ
+        // ─── = ── = ── = J
+        // ∂z₀   ∂κ   ∂y
+        hhz.set(0, 0, self.hs_model.calc_dhh_dy(alpha, kappa));
+
+        // ∂h₀   ∂Ĥ   ∂Ĥ
+        // ─── = ── = ── = L
+        // ∂z₁   ∂α   ∂x
+        hhz.set(0, 1, self.hs_model.calc_dhh_dx(alpha, kappa));
+
+        // ∂h₁
+        // ─── = 0
+        // ∂z₀
+        hhz.set(1, 0, 0.0);
+
+        // ∂h₁
+        // ─── = 0
+        // ∂z₁
+        hhz.set(1, 1, 0.0);
         Ok(())
     }
 }

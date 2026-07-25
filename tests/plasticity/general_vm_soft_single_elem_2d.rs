@@ -69,11 +69,15 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
+        stress_strain: StressStrain::VonMisesSoft {
             young: YOUNG,
             poisson: POISSON,
+            y0r: 1.5 * KAPPA_INI,
+            li: 20.0,
+            lr: 10.0,
+            a: 5.0,
+            b: 5.0,
             kappa_ini: KAPPA_INI,
-            hh: 800.0,
         },
         ngauss: Some(NGAUSS),
     };
@@ -111,7 +115,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
     let idx = data.sys_index(corner, Dof::Ux)?;
     let ddl = DeltaLambda::auto(10.0);
-    sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.1), ddl)?;
+    sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.8), ddl)?;
 
     // load the results
     let (post, _) = PostProc::new("/tmp/pmsim/plasticity", NAME)?;
@@ -120,17 +124,26 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     // figure
     if SAVE_FIGURE {
         // displacement-force data
-        let uy = post.history_uu_comp(corner, Dof::Uy).unwrap();
-        let fy = post.history_yy_comp(corner, Dof::Uy).unwrap();
+        let uy: Vec<_> = post
+            .history_uu_comp(corner, Dof::Uy)
+            .unwrap()
+            .iter()
+            .map(|x| -x)
+            .collect();
+        let fy: Vec<_> = post
+            .history_yy_comp(corner, Dof::Uy)
+            .unwrap()
+            .iter()
+            .map(|x| -x)
+            .collect();
         let mut curve = Curve::new();
         let mut plot = Plot::new();
         let mut dm = DarkMode::new();
         dm.set_mocha();
-        curve.set_marker_style(".").draw(uy, fy);
+        curve.set_marker_style(".").draw(&uy, &fy);
         plot.add(&dm)
             .add(&curve)
-            .grid_and_labels("uy", "fy")
-            .set_range(-0.035, 0.0, -13.5, 0.0)
+            .grid_and_labels("-uy", "-fy")
             .save(&format!("/tmp/pmsim/plasticity/{}_disp.svg", NAME))?;
 
         // stress-strain data
@@ -139,7 +152,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
             zz[i] = ss[i].z_set[0];
-            println!("elastic = {}", ss[i].elastic);
+            // println!("elastic = {}", ss[i].elastic);
         }
         let mut plotter = Plotter::new();
         plotter.set_dark_mode().set_oct_circle(KAPPA_INI * SQRT_2_BY_3, |_| {});

@@ -3,6 +3,7 @@
 mod axis;
 mod elastoplastic_explicit;
 mod elastoplastic_implicit;
+mod hardening_softening;
 mod linear_elastic;
 mod loading_path;
 mod local_state;
@@ -22,6 +23,7 @@ mod von_mises_soft;
 pub use axis::*;
 pub use elastoplastic_explicit::ElastoplasticExp;
 pub use elastoplastic_implicit::ElastoplasticImp;
+pub use hardening_softening::*;
 pub use linear_elastic::*;
 pub use loading_path::*;
 pub use local_state::*;

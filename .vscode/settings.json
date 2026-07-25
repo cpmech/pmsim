@@ -27,6 +27,7 @@
     "dsigma",
     "dydt",
     "edgecolor",
+    "Ehlers",
     "elast",
     "elastoplastic",
     "elastoplasticity",
@@ -87,6 +88,7 @@
     "nsys",
     "numpy",
     "Paraview",
+    "Pedroso",
     "Perić",
     "Piola",
     "plast",
@@ -120,7 +122,8 @@
     "xaxis",
     "xrange",
     "yaxis",
-    "yrange"
+    "yrange",
+    "Zhang"
   ],
   "rust-analyzer.cargo.features": "all"
 }

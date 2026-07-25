@@ -46,8 +46,20 @@ pub enum StressStrain {
         /// Poisson's coefficient
         poisson: f64,
 
-        /// Hardening coefficient
-        hh: f64,
+        /// Reference ordinate (yr(0)); stress at zero strain (x=0)
+        y0r: f64,
+
+        /// Initial slope (λi)
+        li: f64,
+
+        /// Reference slope (λr); second slope, after peak, going down
+        lr: f64,
+
+        /// Smoothing parameter (α); when going from λi to λr
+        a: f64,
+
+        /// Smoothing parameter (β); when going from λr to 0
+        b: f64,
 
         /// Initial size of the yield surface
         ///
