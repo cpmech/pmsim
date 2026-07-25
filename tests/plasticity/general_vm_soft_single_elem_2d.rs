@@ -48,7 +48,7 @@ const SAVE_FIGURE: bool = true;
 // constants
 const YOUNG: f64 = 1500.0;
 const POISSON: f64 = 0.25;
-const KAPPA_INI: f64 = 9.0;
+const KAPPA_INI: f64 = 4.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
 const NGAUSS: usize = 1;
@@ -72,11 +72,11 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMisesSoft {
             young: YOUNG,
             poisson: POISSON,
-            y0r: 1.5 * KAPPA_INI,
+            y0r: 2.0 * KAPPA_INI,
             li: 20.0,
-            lr: 10.0,
-            a: 5.0,
-            b: 5.0,
+            lr: 20.0,
+            a: 2.0,
+            b: 1.0,
             kappa_ini: KAPPA_INI,
         },
         ngauss: Some(NGAUSS),
@@ -111,11 +111,12 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     nl_config
         .set_verbose(true, true, true)
         .set_record_iterations_residuals(true)
+        .set_tg_control_tol(0.001)
         .set_method(NlMethod::Arclength);
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
     let idx = data.sys_index(corner, Dof::Ux)?;
-    let ddl = DeltaLambda::auto(10.0);
-    sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.8), ddl)?;
+    let ddl = DeltaLambda::auto(0.1);
+    sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.2), ddl)?;
 
     // load the results
     let (post, _) = PostProc::new("/tmp/pmsim/plasticity", NAME)?;
