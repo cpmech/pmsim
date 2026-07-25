@@ -93,7 +93,7 @@ fn main() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
             hh: H,
         },
         ngauss: Some(NGAUSS),

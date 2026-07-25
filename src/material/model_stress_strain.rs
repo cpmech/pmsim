@@ -1,48 +1,13 @@
-use super::{LinearElastic, LocalState, Settings, VonMises};
+use super::{LinearElastic, Settings, TraitStressStrain, VonMises};
 use crate::base::{Idealization, StressStrain};
 use crate::material::ElastoplasticExp;
 use crate::material::ElastoplasticImp;
 use crate::StrError;
-use gemlab::mesh::CellId;
-use russell_tensor::{Tensor2, Tensor4};
-
-/// Specifies the essential functions for stress-strain models
-pub trait StressStrainTrait: Send {
-    /// Returns whether this model has symmetric stiffness matrix or not
-    fn symmetric_stiffness(&self) -> bool;
-
-    /// Returns the number of main (z) internal variables
-    fn nz(&self) -> usize;
-
-    /// Returns the number of extra (x) internal variables
-    fn nx(&self) -> usize;
-
-    /// Initializes the internal variables for the initial stress state
-    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError>;
-
-    /// Computes the consistent tangent stiffness
-    fn stiffness(
-        &mut self,
-        dd: &mut Tensor4,
-        state: &LocalState,
-        cell_id: CellId,
-        gauss_id: usize,
-    ) -> Result<(), StrError>;
-
-    /// Updates the stress tensor given the strain increment tensor
-    fn update_stress(
-        &mut self,
-        state: &mut LocalState,
-        delta_strain: &Tensor2,
-        cell_id: CellId,
-        gauss_id: usize,
-    ) -> Result<(), StrError>;
-}
 
 /// Holds the actual stress-strain model implementation
 pub struct ModelStressStrain {
     /// Holds the actual model implementation
-    pub actual: Box<dyn StressStrainTrait>,
+    pub actual: Box<dyn TraitStressStrain>,
 }
 
 impl ModelStressStrain {
@@ -55,7 +20,7 @@ impl ModelStressStrain {
         }
 
         // allocate model
-        let actual: Box<dyn StressStrainTrait> = match param {
+        let actual: Box<dyn TraitStressStrain> = match param {
             StressStrain::LinearElastic { .. } => Box::new(LinearElastic::new(ideal, param, settings)?),
             StressStrain::CamClay { .. } => panic!("TODO: CamClay"),
             StressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),

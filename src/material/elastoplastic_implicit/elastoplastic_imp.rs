@@ -2,7 +2,7 @@ use super::Args;
 use super::{callback_jacobian, callback_residual};
 use crate::base::{Idealization, StressStrain};
 use crate::material::von_mises::F_TOL;
-use crate::material::{LocalState, Settings, StressStrainTrait};
+use crate::material::{LocalState, Settings, TraitStressStrain};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{mat_inverse, mat_vec_mul, Matrix, NewtonSolver, Vector};
@@ -39,20 +39,15 @@ impl ElastoplasticImp {
     }
 }
 
-impl StressStrainTrait for ElastoplasticImp {
+impl TraitStressStrain for ElastoplasticImp {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         self.args.model.symmetric_stiffness()
     }
 
-    /// Returns the number of main (z)internal variables
+    /// Returns the number of internal variables
     fn nz(&self) -> usize {
         self.args.model.nz()
-    }
-
-    /// Returns the number of extra (x) internal variables
-    fn nx(&self) -> usize {
-        self.args.model.nx()
     }
 
     /// Initializes the internal variables for the initial stress state
@@ -68,7 +63,7 @@ impl StressStrainTrait for ElastoplasticImp {
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
-        // Calcualte the elastic moduli just once since we only consider linear elasticity here
+        // Calculate the elastic moduli just once since we only consider linear elasticity here
         if !self.args.elastic_moduli_calculated {
             self.args.model.calc_dde(&mut self.args.dde, state)?;
             mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
@@ -89,7 +84,7 @@ impl StressStrainTrait for ElastoplasticImp {
             self.x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x[ns + i] = state.zz[i];
+            self.x[ns + i] = state.z_set[i];
         }
         self.x[nsz] = state.lambda_alg;
 
@@ -116,7 +111,7 @@ impl StressStrainTrait for ElastoplasticImp {
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
-        // Calcualte the elastic moduli just once since we only consider linear elasticity here
+        // Calculate the elastic moduli just once since we only consider linear elasticity here
         if !self.args.elastic_moduli_calculated {
             self.args.model.calc_dde(&mut self.args.dde, state)?;
             mat_inverse(self.args.cce.matrix_mut(), self.args.dde.matrix())?;
@@ -145,7 +140,7 @@ impl StressStrainTrait for ElastoplasticImp {
         )?;
 
         // Set the internal variables to the previous state
-        self.args.z_old.set_vector(state.zz.as_data());
+        self.args.z_old.set_vector(state.z_set.as_data());
 
         // Set the extended vector of unknowns x = {σ, z, λ}
         let ns = self.args.ncp;
@@ -155,7 +150,7 @@ impl StressStrainTrait for ElastoplasticImp {
             self.x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            self.x[ns + i] = state.zz[i];
+            self.x[ns + i] = state.z_set[i];
         }
         self.x[nsz] = state.lambda_alg;
 
@@ -169,15 +164,12 @@ impl StressStrainTrait for ElastoplasticImp {
             state.stress.vector_mut()[i] = self.x[i];
         }
         for i in 0..nz {
-            state.zz[i] = self.x[ns + i];
+            state.z_set[i] = self.x[ns + i];
         }
 
-        // Set the update state as plastic, inluding the plastic multiplier, since we are in the plastic regime
+        // Set the update state as plastic, including the plastic multiplier, since we are in the plastic regime
         state.lambda_alg = self.x[nsz];
         state.elastic = false;
-
-        // Increment the extra (x) internal variables
-        self.args.model.inc_extra_int_vars(state);
         Ok(())
     }
 }
@@ -188,7 +180,7 @@ impl StressStrainTrait for ElastoplasticImp {
 mod tests {
     use super::ElastoplasticImp;
     use crate::base::{Idealization, StressStrain};
-    use crate::material::{LocalState, Settings, StressStrainTrait, VonMises};
+    use crate::material::{LocalState, Settings, TraitStressStrain, VonMises};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq};
     use russell_tensor::{Tensor2, Tensor4};
 
@@ -205,7 +197,7 @@ mod tests {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
         };
         let settings = Settings::new();
 
@@ -215,13 +207,12 @@ mod tests {
         // Allocate the initial state
         let mandel = ideal.mandel();
         let nz = vm.nz();
-        let nx = vm.nx();
-        let mut state0 = LocalState::new(mandel, nz, nx);
+        let mut state0 = LocalState::new(mandel, nz);
         state0.enable_strain();
 
         // Initialize the internal variables
         vm.initialize_int_vars(&mut state0).unwrap();
-        assert_eq!(state0.zz[0], Z_INI);
+        assert_eq!(state0.z_set[0], Z_INI);
 
         // Allocate the von Mises model via the general implicit elastoplasticity model
         let mut ep = ElastoplasticImp::new(&ideal, &param, &settings).unwrap();
@@ -262,7 +253,7 @@ mod tests {
 
         // Compare the states
         vec_approx_eq(state_vm.stress.vector(), state_ep.stress.vector(), 1e-14);
-        approx_eq(state_vm.zz[0], state_ep.zz[0], 1e-14);
+        approx_eq(state_vm.z_set[0], state_ep.z_set[0], 1e-14);
         approx_eq(state_vm.lambda_alg, state_ep.lambda_alg, 1e-14);
         assert!(state_vm.lambda_alg > 0.0);
 

@@ -68,7 +68,7 @@ fn spo_754_footing() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
             hh: H,
         },
         ngauss: Some(NGAUSS),
@@ -260,7 +260,7 @@ fn run(
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((0, 1.0, 1e-9)),
+            Some((1, 1.0, 1e-9)),
         )?;
         assert!(all_good);
     }

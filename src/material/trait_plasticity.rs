@@ -1,9 +1,9 @@
-use super::{LocalState, StressStrainTrait};
+use super::{LocalState, TraitStressStrain};
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{Tensor2, Tensor4};
 
-pub trait PlasticityTrait: StressStrainTrait {
+pub trait TraitPlasticity: TraitStressStrain {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool;
 
@@ -95,10 +95,4 @@ pub trait PlasticityTrait: StressStrainTrait {
     /// hhz is (nz x nz)
     /// ```
     fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
-
-    /// Increment the extra (x) internal variables after the `update_stress` call
-    ///
-    /// For example, in the von Mises model, the accumulated plastic strain (eps_bar_p)
-    /// is a summation of the plastic multiplier (lambda_alg).
-    fn inc_extra_int_vars(&mut self, state: &mut LocalState);
 }

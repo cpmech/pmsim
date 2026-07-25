@@ -104,7 +104,7 @@ fn main() -> Result<(), StrError> {
             young: YOUNG,
             poisson: POISSON,
             hh: 0.0,
-            z_ini: 0.24,
+            kappa_ini: 0.24,
         },
         ngauss: Some(NGAUSS),
     };

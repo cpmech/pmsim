@@ -1,5 +1,5 @@
-use super::{LocalState, Settings, StressStrainTrait};
-use crate::base::{Idealization, StressStrain, NX_LINEAR_ELASTIC, NZ_LINEAR_ELASTIC};
+use super::{LocalState, Settings, TraitStressStrain};
+use crate::base::{Idealization, StressStrain, NZ_LINEAR_ELASTIC};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_tensor::{t4_ddot_t2_update, LinElasticity, Tensor2, Tensor4};
@@ -21,20 +21,15 @@ impl LinearElastic {
     }
 }
 
-impl StressStrainTrait for LinearElastic {
+impl TraitStressStrain for LinearElastic {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         true
     }
 
-    /// Returns the number of main (z) internal variables
+    /// Returns the number of internal variables
     fn nz(&self) -> usize {
         NZ_LINEAR_ELASTIC
-    }
-
-    /// Returns the number of extra (x) internal variables
-    fn nx(&self) -> usize {
-        NX_LINEAR_ELASTIC
     }
 
     /// Initializes the internal variables for the initial stress state

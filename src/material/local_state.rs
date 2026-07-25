@@ -16,11 +16,8 @@ pub struct LocalState {
     /// Holds the stress tensor σ
     pub stress: Tensor2,
 
-    /// Holds the main (z) internal variables (e.g., the size of the yield surface)
-    pub zz: Vector,
-
-    /// Holds the extra (x) internal variables (e.g., the accumulated plastic strain)
-    pub xx: Vector,
+    /// Holds the set of internal variables
+    pub z_set: Vector,
 
     /// (optional) Holds the strain tensor ε
     pub strain: Option<Tensor2>,
@@ -32,15 +29,13 @@ impl LocalState {
     /// # Arguments
     ///
     /// * `mandel` - Mandel notation
-    /// * `nz` - number of main (z) internal variables
-    /// * `nx` - number of extra (x) internal variables
-    pub fn new(mandel: Mandel, nz: usize, nx: usize) -> Self {
+    /// * `nz` - number of internal variables
+    pub fn new(mandel: Mandel, nz: usize) -> Self {
         LocalState {
             elastic: true,
             lambda_alg: 0.0,
             stress: Tensor2::new(mandel),
-            zz: Vector::new(nz),
-            xx: Vector::new(nx),
+            z_set: Vector::new(nz),
             strain: None,
         }
     }
@@ -55,12 +50,7 @@ impl LocalState {
         self.elastic = other.elastic;
         self.lambda_alg = other.lambda_alg;
         self.stress.set_tensor(1.0, &other.stress);
-        if self.zz.dim() > 0 {
-            vec_copy(&mut self.zz, &other.zz).unwrap();
-        }
-        if self.xx.dim() > 0 {
-            vec_copy(&mut self.xx, &other.xx).unwrap();
-        }
+        vec_copy(&mut self.z_set, &other.z_set).unwrap();
     }
 
     /// Resets algorithmic variables such as λ_alg at the beginning of implicit iterations

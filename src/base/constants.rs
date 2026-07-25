@@ -1,59 +1,31 @@
-// --- Linear Elastic Model ---
-
-/// Holds the number of main (z) internal variables for the LinearElastic model
+/// Holds the number of internal variables for the LinearElastic model
 ///
 /// None
 pub const NZ_LINEAR_ELASTIC: usize = 0;
 
-/// Holds the number of extra (x) internal variables for the LinearElastic model
+/// Holds the number of internal variables for the VonMises model
 ///
-/// None
-pub const NX_LINEAR_ELASTIC: usize = 0;
+/// The set of internal variables is z = {κ, α} where:
+/// * κ is the size of the yield surface
+/// * α is the accumulated norm of the deviatoric plastic strain
+pub const NZ_VON_MISES: usize = 2;
 
-// --- Von Mises Model ---
-
-/// Holds the number of main (z) internal variables for the VonMises model
+/// Holds the number of internal variables for the VonMises (with Softening) model
 ///
-/// `z` is the "size" of tye yield surfrace
-pub const NZ_VON_MISES: usize = 1;
+/// The set of internal variables is z = {κ, α} where:
+/// * κ is the size of the yield surface
+/// * α is the accumulated norm of the deviatoric plastic strain
+pub const NZ_VON_MISES_SOFT: usize = 2;
 
-/// Holds the number of extra (x) internal variables for the VonMises model
+/// Holds the number of internal variables for the DruckerPrager model
 ///
-/// `eps_bar_p` is the accumulated plastic strain (for post-processing only)
-pub const NX_VON_MISES: usize = 1;
+/// The set of internal variables is z = {κ, α} where:
+/// * κ is the size of the yield surface
+/// * α is the accumulated mean plastic strain
+pub const NZ_DRUCKER_PRAGER: usize = 2;
 
-// --- Von Mises with Softening Model ---
-
-/// Holds the number of main (z) internal variables for the VonMises (with Softening) model
+/// Holds the number of internal variables for the CamClay model
 ///
-/// `z` is the "size" of tye yield surfrace
-pub const NZ_VON_MISES_SOFT: usize = 1;
-
-/// Holds the number of extra (x) internal variables for the VonMises (with Softening) model
-///
-/// `eps_bar_p` is the accumulated plastic strain (needed for the softening law)
-pub const NX_VON_MISES_SOFT: usize = 1;
-
-// --- Drucker-Prager Model ---
-
-/// Holds the number of main (z) internal variables for the DruckerPrager model
-///
-/// `z` is the "size" of tye yield surfrace
-pub const NZ_DRUCKER_PRAGER: usize = 1;
-
-/// Holds the number of extra (x) internal variables for the DruckerPrager model
-///
-/// None
-pub const NX_DRUCKER_PRAGER: usize = 0;
-
-// --- Cam-Clay Model ---
-
-/// Holds the number of main (z) internal variables for the CamClay model
-///
-/// `z` is the "size" of tye yield surfrace
+/// The set of internal variables is z = {κ} where:
+/// * κ is the size of the yield surface
 pub const NZ_CAM_CLAY: usize = 1;
-
-/// Holds the number of extra (x) internal variables for the CamClay model
-///
-/// None
-pub const NX_CAM_CLAY: usize = 0;

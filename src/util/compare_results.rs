@@ -1,5 +1,5 @@
 use super::{ReferenceData, ReferenceDataType};
-use crate::base::{Config, Dof, Schema};
+use crate::base::{Config, Dof, Schema, NZ_VON_MISES};
 use crate::fem::{FemState, PostProc};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -57,7 +57,7 @@ fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
 ///   - 1 => shows error
 ///   - 2 => shows values and error
 /// * `eps_bar_p` -- Tells this function to check the accumulated plastic strain (eps_bar_p).
-///   The values in the tuple are `(index_in_xx, conversion_factor, tolerance).`
+///   The values in the tuple are `(index_in_z_set, conversion_factor, tolerance).`
 ///
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///
@@ -205,7 +205,7 @@ pub fn compare_results(
             println!("num elastic = {}", n_elastic);
         }
 
-        // check accumulated plastic strain (eps_bar_p) if requested
+        // check accumulated plastic strain (eps_bar_p) if requested (von Mise model only)
         if let Some((index, conversion_factor, tolerance)) = eps_bar_p {
             if verbose > 0 {
                 println!("ACCUMULATED PLASTIC STRAIN (eps_bar_p)");
@@ -218,7 +218,10 @@ pub fn compare_results(
                 let secondary_values = &fem_state.gauss[e];
                 for ip in 0..ngauss {
                     let local_state = &secondary_values.solid[ip];
-                    let a = local_state.xx[index];
+                    if local_state.z_set.dim() != NZ_VON_MISES {
+                        return Err("the number of internal variables in the local state must equal NZ_VON_MISES");
+                    }
+                    let a = local_state.z_set[index];
                     let b = dat.actual.eps_bar_p(step, e, ip) * conversion_factor;
                     let (fail, diff) = query_failed(a, b, tolerance, verbose);
                     diff_eps_bar_p_max = f64::max(diff_eps_bar_p_max, diff);

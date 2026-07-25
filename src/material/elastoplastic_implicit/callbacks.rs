@@ -21,7 +21,7 @@ pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut Args) -> Res
         a.state.stress.vector_mut()[i] = sig[i];
     }
     for i in 0..nz {
-        a.state.zz[i] = zet[i];
+        a.state.z_set[i] = zet[i];
     }
     a.state.lambda_alg = lam;
 
@@ -68,7 +68,7 @@ pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut Args) -> R
         a.state.stress.vector_mut()[i] = sig[i];
     }
     for i in 0..nz {
-        a.state.zz[i] = zet[i];
+        a.state.z_set[i] = zet[i];
     }
     a.state.lambda_alg = lam;
 
@@ -138,7 +138,7 @@ pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut Args) -> R
 #[cfg(test)]
 mod tests {
     use super::{callback_jacobian, callback_residual, Args};
-    use crate::base::{Idealization, StressStrain};
+    use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
     use crate::material::{LocalState, Settings};
     use russell_lab::math::{SQRT_2_BY_3, SQRT_3};
     use russell_lab::{approx_eq, mat_approx_eq, mat_inverse, mat_vec_mul, num_jacobian};
@@ -157,9 +157,7 @@ mod tests {
         let mandel = ideal.mandel();
 
         // Allocate the local state
-        let nz = 1;
-        let nx = 0;
-        let mut state = LocalState::new(mandel, nz, nx);
+        let mut state = LocalState::new(mandel, NZ_VON_MISES);
 
         // Set the initial stress state to be on the yield surface
         let p = 1.0;
@@ -170,14 +168,14 @@ mod tests {
         state.stress.set_tensor(1.0, &stress);
 
         // Set the initial internal variable
-        state.zz[0] = Z_INI;
+        state.z_set[0] = Z_INI;
 
         // Allocate the arguments and model
         let param = StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
         };
         let settings = Settings::new();
         let mut args = Args::new(&ideal, &param, &settings).unwrap();
@@ -208,7 +206,7 @@ mod tests {
         mat_vec_mul(&mut args.eps_trial, 1.0, args.cce.matrix(), state.stress.vector()).unwrap();
 
         // Set z_old in arguments struct
-        args.z_old.set_vector(state.zz.as_data());
+        args.z_old.set_vector(state.z_set.as_data());
 
         // Build vector of unknowns x := [σ, z, λ]
         let ns = args.ncp;
@@ -220,7 +218,7 @@ mod tests {
             x[i] = state.stress.vector()[i];
         }
         for i in 0..nz {
-            x[ns + i] = state.zz[i];
+            x[ns + i] = state.z_set[i];
         }
         x[nsz] = 0.01; // initial guess for λ
 

@@ -98,7 +98,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
             hh: 800.0,
         },
         ngauss: Some(NGAUSS),
@@ -227,6 +227,7 @@ fn run_test(
         }
 
         // compare the results with Ref #1
+        let idx_alpha = 1; // index of the accumulated plastic strain in the z set
         let tol_displacement = 8.24e-10;
         let tol_stress = 1.13e-6;
         let all_good = compare_results(
@@ -240,7 +241,7 @@ fn run_test(
             tol_displacement,
             tol_stress,
             0,
-            Some((0, 1.0, 1e-9)),
+            Some((idx_alpha, 1.0, 1e-9)),
         )?;
         assert!(all_good);
     }
@@ -266,7 +267,7 @@ fn run_test(
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].zz[0];
+            zz[i] = ss[i].z_set[0];
         }
         let mut plotter = Plotter::new();
         plotter

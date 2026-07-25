@@ -1,5 +1,5 @@
 use pmsim::base::{Idealization, StressStrain};
-use pmsim::material::{Axis, Plotter, PlotterData, Settings, StressStrainTrait, VonMises};
+use pmsim::material::{Axis, Plotter, PlotterData, Settings, TraitStressStrain, VonMises};
 use pmsim::material::{ElastoplasticExp, LinearElastic, LocalState};
 use pmsim::util::elastic_increments_oct;
 use pmsim::StrError;
@@ -30,7 +30,7 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
         young,
         poisson,
         hh,
-        z_ini,
+        kappa_ini: z_ini,
     };
 
     // models
@@ -42,16 +42,14 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     let direct = VonMises::new(&ideal, &param_vm, &settings)?;
     let general = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
     let mut general_full = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
-    let mut box_elast: Box<dyn StressStrainTrait> = Box::new(elast);
-    let mut box_direct: Box<dyn StressStrainTrait> = Box::new(direct);
-    let mut box_general: Box<dyn StressStrainTrait> = Box::new(general);
+    let mut box_elast: Box<dyn TraitStressStrain> = Box::new(elast);
+    let mut box_direct: Box<dyn TraitStressStrain> = Box::new(direct);
+    let mut box_general: Box<dyn TraitStressStrain> = Box::new(general);
 
     // constants
     let mandel = ideal.mandel();
     let nz = box_direct.nz();
-    let nx = box_direct.nx();
     assert_eq!(box_general.nz(), nz);
-    assert_eq!(box_general.nx(), nx);
 
     // initial states and increments
     let sig_m_0 = 1.0;
@@ -61,7 +59,7 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     // run test
     for i in 0..stresses.len() {
         // initial state
-        let mut state_elast = LocalState::new(mandel, nz, nx);
+        let mut state_elast = LocalState::new(mandel, nz);
         state_elast.stress.set_tensor(1.0, &stresses[i]);
         state_elast.enable_strain();
         let mut state_direct = state_elast.clone();
@@ -109,7 +107,7 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
 // Updates stresses and strains using (sub)steps
 fn update_with_steps(
     state: &mut LocalState,
-    model: &mut Box<dyn StressStrainTrait>,
+    model: &mut Box<dyn TraitStressStrain>,
     depsilon_total: &Tensor2,
     n_step: usize,
 ) -> Result<Vec<LocalState>, StrError> {
@@ -143,8 +141,8 @@ fn do_plot(
     // constants
     let n = states_elast.len();
     let l = n - 1;
-    let z_ini = states_general[0].zz[0];
-    let z_fin = states_general[l].zz[0];
+    let z_ini = states_general[0].z_set[0];
+    let z_fin = states_general[l].z_set[0];
 
     // plotting data
     let mut data_elast = PlotterData::from_states(&states_elast);

@@ -2,7 +2,7 @@ use super::{callback_history_e, callback_history_ep, callback_intersect, callbac
 use super::{Args, Case};
 use super::{CHEBYSHEV_TOL, HISTORY_N_OUT, PSEUDO_TIME_TOL};
 use crate::base::{Idealization, StressStrain};
-use crate::material::{LocalState, PlotterData, Settings, StressStrainTrait};
+use crate::material::{LocalState, PlotterData, Settings, TraitStressStrain};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{InterpChebyshev, RootFinder, Vector};
@@ -166,7 +166,7 @@ impl<'a> ElastoplasticExp<'a> {
 
     /// Performs the intersection finding algorithm
     fn intersection_finding(&mut self, state: &LocalState, inside: bool) -> Result<(Option<f64>, f64), StrError> {
-        self.args.state.zz.set_vector(state.zz.as_data());
+        self.args.state.z_set.set_vector(state.z_set.as_data());
         self.ode_y_e.set_vector(state.stress.vector().as_data());
         self.ode_intersection.solve(
             &mut self.ode_y_e,
@@ -243,20 +243,15 @@ impl<'a> ElastoplasticExp<'a> {
     }
 }
 
-impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
+impl<'a> TraitStressStrain for ElastoplasticExp<'a> {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         self.args.model.symmetric_stiffness()
     }
 
-    /// Returns the number of main (z) internal variables
+    /// Returns the number of internal variables
     fn nz(&self) -> usize {
         self.args.model.nz()
-    }
-
-    /// Returns the number of extra (x) internal variables
-    fn nx(&self) -> usize {
-        self.args.model.nx()
     }
 
     /// Initializes the internal variables for the initial stress state
@@ -315,7 +310,8 @@ impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
                     Some(&mut self.out_history_el),
                 )?;
                 state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
-                self.ode_y_ep.join2(state.stress.vector().as_data(), state.zz.as_data());
+                self.ode_y_ep
+                    .join2(state.stress.vector().as_data(), state.z_set.as_data());
                 self.ode_elastoplastic.solve(
                     &mut self.ode_y_ep,
                     t_int,
@@ -325,11 +321,12 @@ impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
                     Some(&mut self.out_history_ep),
                 )?;
                 self.ode_y_ep
-                    .split2(state.stress.vector_mut().as_mut_data(), state.zz.as_mut_data());
+                    .split2(state.stress.vector_mut().as_mut_data(), state.z_set.as_mut_data());
                 state.elastic = false;
             }
             Case::BP => {
-                self.ode_y_ep.join2(state.stress.vector().as_data(), state.zz.as_data());
+                self.ode_y_ep
+                    .join2(state.stress.vector().as_data(), state.z_set.as_data());
                 self.ode_elastoplastic.solve(
                     &mut self.ode_y_ep,
                     0.0,
@@ -339,7 +336,7 @@ impl<'a> StressStrainTrait for ElastoplasticExp<'a> {
                     Some(&mut self.out_history_ep),
                 )?;
                 self.ode_y_ep
-                    .split2(state.stress.vector_mut().as_mut_data(), state.zz.as_mut_data());
+                    .split2(state.stress.vector_mut().as_mut_data(), state.z_set.as_mut_data());
                 state.elastic = false;
             }
         }
@@ -360,7 +357,7 @@ mod tests {
     use super::{Case, ElastoplasticExp};
     use crate::base::{Idealization, StressStrain};
     use crate::material::testing::{extract_von_mises_params, extract_von_mises_params_kg};
-    use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, StressStrainTrait};
+    use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, TraitStressStrain};
     use plotpy::Text;
     use russell_lab::{approx_eq, math::PI};
     use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
@@ -389,8 +386,7 @@ mod tests {
         let distance = p * SQRT_3;
         let radius = q * SQRT_2_BY_3;
         let nz = model.nz();
-        let nx = model.nx();
-        let mut state = LocalState::new(ideal.mandel(), nz, nx);
+        let mut state = LocalState::new(ideal.mandel(), nz);
         state.stress = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, ideal.two_dim).unwrap();
         model.initialize_int_vars(&mut state).unwrap();
         state.enable_strain();
@@ -453,7 +449,7 @@ mod tests {
             let mut data = PlotterData::new();
             for i in 0..states.len() {
                 let s = &states[i];
-                let f = s.stress.invariant_q() - s.zz[0];
+                let f = s.stress.invariant_q() - s.z_set[0];
                 let t = (i as f64) / 2.0;
                 data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
             }
@@ -468,8 +464,8 @@ mod tests {
                 .unwrap();
             if lode == 0 {
                 let p = states.len() - 1;
-                let radius_0 = states[0].zz[0] * SQRT_2_BY_3;
-                let radius_1 = states[p].zz[0] * SQRT_2_BY_3;
+                let radius_0 = states[0].z_set[0] * SQRT_2_BY_3;
+                let radius_1 = states[p].z_set[0] * SQRT_2_BY_3;
                 plotter.set_oct_circle(radius_0, |_| {});
                 plotter.set_oct_circle(radius_1, |canvas| {
                     canvas.set_line_style("-");
@@ -548,8 +544,8 @@ mod tests {
             })
             .unwrap();
         let p = states.len() - 1;
-        let radius_0 = states[0].zz[0] * SQRT_2_BY_3;
-        let radius_1 = states[p].zz[0] * SQRT_2_BY_3;
+        let radius_0 = states[0].z_set[0] * SQRT_2_BY_3;
+        let radius_1 = states[p].z_set[0] * SQRT_2_BY_3;
         plotter.set_oct_circle(radius_0, |_| {});
         plotter.set_oct_circle(radius_1, |canvas| {
             canvas.set_line_style("-");
@@ -609,7 +605,7 @@ mod tests {
                 let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
                 approx_eq(sig_m_1, correct_sig_m, 1e-14);
                 approx_eq(sig_d_1, correct_sig_d, 1e-13);
-                approx_eq(state.zz[0], z_ini, 1e-15);
+                approx_eq(state.z_set[0], z_ini, 1e-15);
                 assert_eq!(state.elastic, true);
                 let case = model.last_case().unwrap();
                 let keys = case_to_keys(case);
@@ -624,7 +620,7 @@ mod tests {
                 let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
                 approx_eq(sig_m_2, correct_sig_m, 1e-14);
                 approx_eq(sig_d_2, correct_sig_d, 1e-13);
-                approx_eq(state.zz[0], correct_sig_d, 1e-13);
+                approx_eq(state.z_set[0], correct_sig_d, 1e-13);
                 assert_eq!(state.elastic, false);
                 let case = model.last_case().unwrap();
                 let keys = case_to_keys(case);
@@ -677,7 +673,7 @@ mod tests {
         let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_ep / (3.0 * gg + hh);
         approx_eq(sig_m, correct_sig_m, 1e-14);
         approx_eq(sig_d, correct_sig_d, 1e-13);
-        approx_eq(state.zz[0], correct_sig_d, 1e-13);
+        approx_eq(state.z_set[0], correct_sig_d, 1e-13);
         assert_eq!(state.elastic, false);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["A", "X", "B"]);
@@ -720,7 +716,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.zz[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);
@@ -763,7 +759,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.zz[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);
@@ -811,7 +807,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.zz[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);
@@ -859,7 +855,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.zz[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], z_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);

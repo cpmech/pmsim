@@ -638,8 +638,8 @@ mod tests {
         let radius = 2.0;
         let two_dim = true;
         let mandel = Mandel::Symmetric2D;
-        let mut state_a = LocalState::new(mandel, 0, 0);
-        let mut state_b = LocalState::new(mandel, 0, 0);
+        let mut state_a = LocalState::new(mandel, 0);
+        let mut state_b = LocalState::new(mandel, 0);
 
         // plotter
         let mut plotter = Plotter::new();
@@ -684,7 +684,7 @@ mod tests {
         let two_dim = true;
         let mandel = Mandel::Symmetric2D;
         let lode = 0.0;
-        let mut state_a = LocalState::new(mandel, 0, 0);
+        let mut state_a = LocalState::new(mandel, 0);
 
         // plotter
         let mut plotter = Plotter::new();

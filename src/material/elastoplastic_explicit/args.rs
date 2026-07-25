@@ -1,5 +1,5 @@
 use crate::base::{Idealization, StressStrain};
-use crate::material::{LocalState, PlasticityTrait, PlotterData, Settings, VonMises};
+use crate::material::{LocalState, PlotterData, Settings, TraitPlasticity, VonMises};
 use crate::StrError;
 use russell_lab::Vector;
 use russell_tensor::{Tensor2, Tensor4};
@@ -16,7 +16,7 @@ pub(super) struct Args {
     pub(super) state: LocalState,
 
     /// Holds the plasticity model
-    pub(super) model: Box<dyn PlasticityTrait>,
+    pub(super) model: Box<dyn TraitPlasticity>,
 
     /// Holds the increment of strain given to the stress-update algorithm
     pub(super) del_eps: Tensor2,
@@ -91,7 +91,7 @@ impl Args {
         interp_npoint: usize,
     ) -> Result<Self, StrError> {
         // Allocate the plasticity model
-        let model: Box<dyn PlasticityTrait> = match param {
+        let model: Box<dyn TraitPlasticity> = match param {
             StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
             _ => return Err("selected model cannot be used with general Elastoplastic"),
         };
@@ -99,15 +99,14 @@ impl Args {
         // Set some constants
         let mandel = ideal.mandel();
         let ncp = mandel.dim(); // number of stress components
-        let nz = model.nz(); // number of main (z) internal variables
-        let nx = model.nx(); // number of extra (x) internal variables
+        let nz = model.nz(); // number of internal variables
         let ndim_e = ncp; // dimension of the elastic ODE system
         let ndim_ep = ndim_e + nz; // dimension of the elastoplastic ODE system
 
         Ok(Args {
             ndim_e,
             ndim_ep,
-            state: LocalState::new(mandel, nz, nx),
+            state: LocalState::new(mandel, nz),
             model,
             del_eps: Tensor2::new(mandel),
             ds_dt: Tensor2::new(mandel),
@@ -143,7 +142,7 @@ mod tests {
         let interp_npoint = 3;
         let args = Args::new(&ideal, &param, &settings, interp_npoint).unwrap();
         assert_eq!(args.ndim_e, 4);
-        assert_eq!(args.ndim_ep, 5);
+        assert_eq!(args.ndim_ep, 4 + 2); // 4 stress components + 2 internal variables
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.del_eps.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.ds_dt.mandel(), Mandel::Symmetric2D);
@@ -151,9 +150,9 @@ mod tests {
         assert_eq!(args.gs.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.dde.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.ddep.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.dz_dt.dim(), 1);
-        assert_eq!(args.fz.dim(), 1);
-        assert_eq!(args.h.dim(), 1);
+        assert_eq!(args.dz_dt.dim(), 2);
+        assert_eq!(args.fz.dim(), 2);
+        assert_eq!(args.h.dim(), 2);
         assert_eq!(args.yf_count, 0);
         assert_eq!(args.yf_values.dim(), interp_npoint);
         assert!(args.history_int.is_none());
@@ -168,7 +167,7 @@ mod tests {
         let interp_npoint = 5;
         let args = Args::new(&ideal, &param, &settings, interp_npoint).unwrap();
         assert_eq!(args.ndim_e, 6);
-        assert_eq!(args.ndim_ep, 7);
+        assert_eq!(args.ndim_ep, 6 + 2); // 6 stress components + 2 internal variables
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric);
         assert_eq!(args.del_eps.mandel(), Mandel::Symmetric);
         assert_eq!(args.ds_dt.mandel(), Mandel::Symmetric);
@@ -176,9 +175,9 @@ mod tests {
         assert_eq!(args.gs.mandel(), Mandel::Symmetric);
         assert_eq!(args.dde.mandel(), Mandel::Symmetric);
         assert_eq!(args.ddep.mandel(), Mandel::Symmetric);
-        assert_eq!(args.dz_dt.dim(), 1);
-        assert_eq!(args.fz.dim(), 1);
-        assert_eq!(args.h.dim(), 1);
+        assert_eq!(args.dz_dt.dim(), 2);
+        assert_eq!(args.fz.dim(), 2);
+        assert_eq!(args.h.dim(), 2);
         assert_eq!(args.yf_count, 0);
         assert_eq!(args.yf_values.dim(), interp_npoint);
         assert!(args.history_int.is_none());
@@ -220,7 +219,7 @@ mod tests {
             young: 1500.0,
             poisson: 0.25,
             hh: 800.0,
-            z_ini: F_TOL,
+            kappa_ini: F_TOL,
         };
         let settings = Settings::new();
         assert!(Args::new(&ideal, &param, &settings, 3).is_err());

@@ -72,7 +72,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
             hh: 800.0,
         },
         ngauss: Some(NGAUSS),
@@ -138,7 +138,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].zz[0];
+            zz[i] = ss[i].z_set[0];
             println!("elastic = {}", ss[i].elastic);
         }
         let mut plotter = Plotter::new();

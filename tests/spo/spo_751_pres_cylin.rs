@@ -73,7 +73,7 @@ fn spo_751_pres_cylin() -> Result<(), StrError> {
             young: YOUNG,
             poisson: POISSON,
             hh: 0.0,
-            z_ini: 0.24,
+            kappa_ini: 0.24,
         },
         ngauss: Some(NGAUSS),
     };
@@ -200,7 +200,7 @@ fn run(
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((0, 1.0, 1e-11)),
+            Some((1, 1.0, 1e-11)),
         )?;
         assert!(all_good);
     }

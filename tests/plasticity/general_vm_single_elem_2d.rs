@@ -85,7 +85,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
             hh: 800.0,
         },
         ngauss: Some(NGAUSS),
@@ -177,7 +177,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         tol_displacement,
         tol_stress,
         0,
-        Some((0, 1.0, 1e-10)),
+        Some((1, 1.0, 1e-10)),
     )?;
     assert!(all_good);
 
@@ -202,7 +202,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         let data = PlotterData::from_states(ss);
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].zz[0];
+            zz[i] = ss[i].z_set[0];
         }
         let mut plotter = Plotter::new();
         plotter.set_dark_mode().set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});

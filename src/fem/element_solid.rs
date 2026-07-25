@@ -77,10 +77,9 @@ impl<'a> ElementSolid<'a> {
 
         // local state backup
         let nz = param.nz();
-        let nx = param.nx();
         let backup = (0..gauss.npoint())
             .into_iter()
-            .map(|_| LocalState::new(mandel, nz, nx))
+            .map(|_| LocalState::new(mandel, nz))
             .collect();
 
         // allocate new instance

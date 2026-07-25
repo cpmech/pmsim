@@ -7,12 +7,12 @@ use russell_lab::Vector;
 pub(super) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lode: f64) -> Vec<LocalState> {
     let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
     let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
-    let z = 9.0; // size of the von Mises yield surface
+    let kappa = 9.0; // size of the von Mises yield surface
     let n_increments = 2;
     let sigma_m_0 = 0.0;
     let sigma_d_0 = 0.0;
     let dsigma_m = 1.0;
-    let dsigma_d = z;
+    let dsigma_d = kappa;
     let path = LoadingPath::new_linear_oct(
         two_dim,
         young,
@@ -33,8 +33,7 @@ pub(super) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
             elastic: true,
             lambda_alg: 0.0,
             stress: sig.clone(),
-            zz: Vector::from(&[z]),
-            xx: Vector::new(0),
+            z_set: Vector::from(&[kappa, 0.0]), // kappa and alpha
             strain: Some(eps.clone()),
         })
         .collect();
@@ -49,7 +48,7 @@ pub(super) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, 
             young,
             poisson,
             hh,
-            z_ini,
+            kappa_ini: z_ini,
         } => (
             young,   // E
             poisson, // ν
@@ -68,7 +67,7 @@ pub(super) fn extract_von_mises_params_kg(param: &StressStrain) -> (f64, f64, f6
             young,
             poisson,
             hh,
-            z_ini,
+            kappa_ini: z_ini,
         } => (
             young / (3.0 * (1.0 - 2.0 * poisson)), // K
             young / (2.0 * (1.0 + poisson)),       // G

@@ -1,5 +1,5 @@
-use super::{LocalState, PlasticityTrait, Settings, StressStrainTrait};
-use crate::base::{Idealization, StressStrain, NX_VON_MISES, NZ_VON_MISES};
+use super::{LocalState, Settings, TraitPlasticity, TraitStressStrain};
+use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
@@ -37,9 +37,9 @@ pub struct VonMises {
     /// This value corresponds to the von Mises stress:
     ///
     /// ```text
-    /// f = σd - z
+    /// f = σd - κ
     /// ```
-    z_ini: f64,
+    kappa_ini: f64,
 
     /// Deviatoric stress: s = dev(σ)
     s: Tensor2,
@@ -59,9 +59,9 @@ impl VonMises {
                 young,
                 poisson,
                 hh,
-                z_ini,
+                kappa_ini,
             } => {
-                if z_ini <= F_TOL {
+                if kappa_ini <= F_TOL {
                     return Err("von Mises initial size of the yield surface must > 1e-6");
                 }
                 let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
@@ -71,7 +71,7 @@ impl VonMises {
                     kk,
                     gg,
                     hh,
-                    z_ini,
+                    kappa_ini,
                     s: Tensor2::new(ideal.mandel()),
                     settings: settings.clone(),
                 })
@@ -81,25 +81,21 @@ impl VonMises {
     }
 }
 
-impl StressStrainTrait for VonMises {
+impl TraitStressStrain for VonMises {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         true
     }
 
-    /// Returns the number of main (z) internal variables
+    /// Returns the number of internal variables
     fn nz(&self) -> usize {
         NZ_VON_MISES
     }
 
-    /// Returns the number of extra (x) internal variables
-    fn nx(&self) -> usize {
-        NX_VON_MISES
-    }
-
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
-        state.zz[0] = self.z_ini;
+        state.z_set[0] = self.kappa_ini; // size of the yield surface
+        state.z_set[1] = 0.0; // accumulated plastic strain
         if !self.settings.gp_allow_initial_drift() {
             let f = self.calc_f(state)?;
             if f > 0.0 {
@@ -173,7 +169,7 @@ impl StressStrainTrait for VonMises {
 
         // handle elastic update
         let f_trial = self.calc_f(state)?;
-        if f_trial < F_TOL * self.z_ini {
+        if f_trial < F_TOL * self.kappa_ini {
             return Ok(());
         }
 
@@ -204,18 +200,20 @@ impl StressStrainTrait for VonMises {
             return Err("von Mises plastic update must not lead to zero sigma_d (sigma_d < 1e-10)");
         }
 
-        // update internal variable
-        state.zz[0] += self.hh * lambda;
+        // update the size of the yield surface: κ
+        state.z_set[0] += self.hh * lambda;
 
-        // elastoplastic update
+        // update the accumulated plastic strain: α
+        state.z_set[1] += lambda;
+
+        // update flags
         state.elastic = false;
         state.lambda_alg = lambda;
-        state.xx[0] += lambda; // accumulated plastic strain
         Ok(())
     }
 }
 
-impl PlasticityTrait for VonMises {
+impl TraitPlasticity for VonMises {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool {
         true
@@ -223,19 +221,20 @@ impl PlasticityTrait for VonMises {
 
     /// Calculates the reference yield function value to use as normalization factor
     fn calc_f_ref(&self) -> f64 {
-        self.z_ini
+        self.kappa_ini
     }
 
     /// Calculates the yield function f
     fn calc_f(&self, state: &LocalState) -> Result<f64, StrError> {
         let q = state.stress.invariant_q();
-        let z = state.zz[0];
-        Ok(q - z)
+        let kappa = state.z_set[0];
+        Ok(q - kappa)
     }
 
     /// Calculates the hardening coefficients h
     fn calc_h(&self, h: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
         h[0] = self.hh;
+        h[1] = 1.0;
         Ok(())
     }
 
@@ -273,7 +272,8 @@ impl PlasticityTrait for VonMises {
     ///        ∂zₖ
     /// ```
     fn calc_fz(&self, df_dz: &mut Vector, _state: &LocalState) -> Result<(), StrError> {
-        df_dz[0] = -1.0;
+        df_dz[0] = -1.0; // df/dκ = -1
+        df_dz[1] = 0.0; // df/dα = 0
         Ok(())
     }
 
@@ -356,11 +356,6 @@ impl PlasticityTrait for VonMises {
         hhz.fill(0.0);
         Ok(())
     }
-
-    /// Increment the extra (x) internal variables after the `update_stress` call
-    fn inc_extra_int_vars(&mut self, state: &mut LocalState) {
-        state.xx[0] += state.lambda_alg;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -369,7 +364,7 @@ impl PlasticityTrait for VonMises {
 mod tests {
     use super::VonMises;
     use crate::base::{Idealization, StressStrain};
-    use crate::material::{LocalState, Settings, StressStrainTrait};
+    use crate::material::{LocalState, Settings, TraitStressStrain};
     use russell_lab::approx_eq;
     use russell_tensor::{Tensor2, Tensor4, SQRT_3, SQRT_3_BY_2};
 
@@ -385,13 +380,12 @@ mod tests {
 
         // initial state
         let nz = model.nz();
-        let nx = model.nx();
-        let mut state = LocalState::new(ideal.mandel(), nz, nx);
+        let mut state = LocalState::new(ideal.mandel(), nz);
         model.initialize_int_vars(&mut state).unwrap();
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
-        let dsigma_d = model.z_ini; // <<< will reach the yield surface (exactly)
+        let dsigma_d = model.kappa_ini; // <<< will reach the yield surface (exactly)
         let depsilon_v = dsigma_m / kk;
         let depsilon_d = dsigma_d / (3.0 * gg);
         let d_distance = depsilon_v / SQRT_3;
@@ -410,15 +404,14 @@ mod tests {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
         };
         let settings = Settings::new();
         let model = VonMises::new(&ideal, &param, &settings).unwrap();
         let nz = model.nz();
-        let nx = model.nx();
-        let mut state = LocalState::new(ideal.mandel(), nz, nx);
+        let mut state = LocalState::new(ideal.mandel(), nz);
         model.initialize_int_vars(&mut state).unwrap();
-        assert_eq!(state.zz.as_data(), &[Z_INI]);
+        assert_eq!(state.z_set.as_data(), &[Z_INI, 0.0]);
     }
 
     #[test]
@@ -429,7 +422,7 @@ mod tests {
                 young: YOUNG,
                 poisson: POISSON,
                 hh: HH,
-                z_ini: Z_INI,
+                kappa_ini: Z_INI,
             };
             let settings = Settings::new();
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
@@ -440,7 +433,7 @@ mod tests {
                 approx_eq(sigma_m, 1.0, 1e-14);
                 approx_eq(sigma_d, Z_INI, 1e-14);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.zz.as_data(), &[Z_INI]);
+                assert_eq!(state.z_set.as_data(), &[Z_INI, 0.0]);
             }
         }
     }
@@ -462,7 +455,7 @@ mod tests {
                 young: YOUNG,
                 poisson: POISSON,
                 hh: HH,
-                z_ini: Z_INI,
+                kappa_ini: Z_INI,
             };
             let settings = Settings::new();
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
@@ -484,7 +477,7 @@ mod tests {
             approx_eq(sigma_m_2, correct_sigma_m, 1e-15);
             approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
             assert_eq!(state.elastic, false);
-            approx_eq(state.zz[0], correct_sigma_d, 1e-14);
+            approx_eq(state.z_set[0], correct_sigma_d, 1e-14);
         }
     }
 
@@ -506,7 +499,7 @@ mod tests {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            z_ini: Z_INI,
+            kappa_ini: Z_INI,
         };
         let settings = Settings::new();
         let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
@@ -514,8 +507,7 @@ mod tests {
         // initial state
         let mandel = ideal.mandel();
         let nz = model.nz();
-        let nx = model.nx();
-        let mut state = LocalState::new(mandel, nz, nx);
+        let mut state = LocalState::new(mandel, nz);
         model.initialize_int_vars(&mut state).unwrap();
 
         // plane-strain strain increments reaching yield surface
@@ -543,7 +535,7 @@ mod tests {
         ];
         compare_spo_results(&dd, &dd_spo, 1e-16);
         assert_eq!(state.elastic, true);
-        assert_eq!(state.zz.as_data(), &[z]);
+        assert_eq!(state.z_set.as_data(), &[z, 0.0]);
 
         // second update: elastoplastic behavior
         delta_strain.vector_mut()[0] = (2.0 - 0.9999) * eps_x;
@@ -560,7 +552,7 @@ mod tests {
         compare_spo_results(&dd, &dd_spo, 1e-12);
         let sigma_d = state.stress.invariant_q();
         assert_eq!(state.elastic, false);
-        assert_eq!(state.zz[0], sigma_d);
+        assert_eq!(state.z_set[0], sigma_d);
         approx_eq(state.lambda_alg, 3.461538461538463E-03, 1e-15);
     }
 }

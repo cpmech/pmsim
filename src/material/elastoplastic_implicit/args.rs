@@ -1,5 +1,5 @@
 use crate::base::{Idealization, StressStrain};
-use crate::material::{LocalState, PlasticityTrait, Settings, VonMises};
+use crate::material::{LocalState, Settings, TraitPlasticity, VonMises};
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{Mandel, Tensor2, Tensor4};
@@ -9,14 +9,14 @@ pub(super) struct Args {
     /// Holds the number of stress components
     pub(super) ncp: usize,
 
-    /// Holds the number of main (z) internal variables
+    /// Holds the number of internal variables
     pub(super) nz: usize,
 
     /// Holds the current stress-strain state
     pub(super) state: LocalState,
 
     /// Holds the plasticity model
-    pub(super) model: Box<dyn PlasticityTrait>,
+    pub(super) model: Box<dyn TraitPlasticity>,
 
     /// Holds the gradient of the yield function
     ///
@@ -113,7 +113,7 @@ impl Args {
     /// Allocates a new instance
     pub(super) fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the plasticity model
-        let model: Box<dyn PlasticityTrait> = match param {
+        let model: Box<dyn TraitPlasticity> = match param {
             StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
             _ => return Err("selected model cannot be used with general Elastoplastic"),
         };
@@ -126,13 +126,12 @@ impl Args {
             mandel
         };
         let ncp = mandel.dim(); // number of stress components
-        let nz = model.nz(); // number of main (z) internal variables
-        let nx = model.nx(); // number of extra (x) internal variables
+        let nz = model.nz(); // number of internal variables
 
         Ok(Args {
             ncp,
             nz,
-            state: LocalState::new(mandel, nz, nx),
+            state: LocalState::new(mandel, nz),
             model,
             fs: Tensor2::new(mandel),
             gs: Tensor2::new(mandel),
@@ -167,23 +166,23 @@ mod tests {
         let settings = Settings::new();
         let args = Args::new(&ideal, &param, &settings).unwrap();
         assert_eq!(args.ncp, 4);
-        assert_eq!(args.nz, 1);
+        assert_eq!(args.nz, 2);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.fs.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.gs.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.cce.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.dde.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.fz.dim(), 1);
-        assert_eq!(args.h.dim(), 1);
-        assert_eq!(args.z_old.dim(), 1);
+        assert_eq!(args.fz.dim(), 2);
+        assert_eq!(args.h.dim(), 2);
+        assert_eq!(args.z_old.dim(), 2);
         assert_eq!(args.eps_trial.dim(), 4);
         assert_eq!(args.ggs.mandel(), Mandel::Symmetric);
         assert_eq!(args.ggz.nrow(), 4);
-        assert_eq!(args.ggz.ncol(), 1);
-        assert_eq!(args.hhs.nrow(), 1);
+        assert_eq!(args.ggz.ncol(), 2);
+        assert_eq!(args.hhs.nrow(), 2);
         assert_eq!(args.hhs.ncol(), 4);
-        assert_eq!(args.hhz.nrow(), 1);
-        assert_eq!(args.hhz.ncol(), 1);
+        assert_eq!(args.hhz.nrow(), 2);
+        assert_eq!(args.hhz.ncol(), 2);
         assert!(!args.elastic_moduli_calculated);
     }
 
@@ -194,23 +193,23 @@ mod tests {
         let settings = Settings::new();
         let args = Args::new(&ideal, &param, &settings).unwrap();
         assert_eq!(args.ncp, 6);
-        assert_eq!(args.nz, 1);
+        assert_eq!(args.nz, 2);
         assert_eq!(args.state.stress.mandel(), Mandel::Symmetric);
         assert_eq!(args.fs.mandel(), Mandel::Symmetric);
         assert_eq!(args.gs.mandel(), Mandel::Symmetric);
         assert_eq!(args.cce.mandel(), Mandel::Symmetric);
         assert_eq!(args.dde.mandel(), Mandel::Symmetric);
-        assert_eq!(args.fz.dim(), 1);
-        assert_eq!(args.h.dim(), 1);
-        assert_eq!(args.z_old.dim(), 1);
+        assert_eq!(args.fz.dim(), 2);
+        assert_eq!(args.h.dim(), 2);
+        assert_eq!(args.z_old.dim(), 2);
         assert_eq!(args.eps_trial.dim(), 6);
         assert_eq!(args.ggs.mandel(), Mandel::Symmetric);
         assert_eq!(args.ggz.nrow(), 6);
-        assert_eq!(args.ggz.ncol(), 1);
-        assert_eq!(args.hhs.nrow(), 1);
+        assert_eq!(args.ggz.ncol(), 2);
+        assert_eq!(args.hhs.nrow(), 2);
         assert_eq!(args.hhs.ncol(), 6);
-        assert_eq!(args.hhz.nrow(), 1);
-        assert_eq!(args.hhz.ncol(), 1);
+        assert_eq!(args.hhz.nrow(), 2);
+        assert_eq!(args.hhz.ncol(), 2);
         assert!(!args.elastic_moduli_calculated);
     }
 
@@ -249,7 +248,7 @@ mod tests {
             young: 1500.0,
             poisson: 0.25,
             hh: 800.0,
-            z_ini: F_TOL,
+            kappa_ini: F_TOL,
         };
         let settings = Settings::new();
         assert!(Args::new(&ideal, &param, &settings).is_err());
