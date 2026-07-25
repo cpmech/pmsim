@@ -73,7 +73,7 @@ const L0: f64 = 1.0; // initial length of the domain
 const YOUNG: f64 = 1500.0;
 const POISSON: f64 = 0.25;
 const C1: f64 = YOUNG / ((1.0 + POISSON) * (1.0 - 2.0 * POISSON));
-const Z_INI: f64 = 9.0;
+const KAPPA_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
 const NGAUSS: usize = 4;
@@ -98,7 +98,7 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
             hh: 800.0,
         },
         ngauss: Some(NGAUSS),
@@ -150,7 +150,7 @@ fn run_test(
     name += &options.key();
 
     // essential boundary conditions
-    let dy = Z_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    let dy = KAPPA_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
     ebc.edges(&top, Dof::Uy, -dy);
 
     // configuration
@@ -273,7 +273,7 @@ fn run_test(
         plotter
             .set_title(&options.title())
             .set_dark_mode()
-            .set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});
+            .set_oct_circle(KAPPA_INI * SQRT_2_BY_3, |_| {});
         plotter.set_extra(Axis::OctX, Axis::OctY, |plot| {
             let mut circle = Canvas::new();
             circle.set_face_color("None").set_edge_color("#8c77f4");

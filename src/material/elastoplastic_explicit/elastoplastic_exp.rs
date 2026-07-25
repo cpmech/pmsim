@@ -575,10 +575,10 @@ mod tests {
         let param = StressStrain::sample_von_mises();
         let mut settings = Settings::new();
         settings.set_gp_explicit_update(true);
-        let (kk, gg, hh, z_ini) = extract_von_mises_params_kg(&param);
+        let (kk, gg, hh, kappa_ini) = extract_von_mises_params_kg(&param);
         let (sig_m_0, sig_d_0, alpha_0) = (0.0, 0.0, PI / 2.0);
-        let (sig_m_1, sig_d_1) = (1.0, z_ini);
-        let (sig_m_2, sig_d_2) = (2.0, 2.0 * z_ini);
+        let (sig_m_1, sig_d_1) = (1.0, kappa_ini);
+        let (sig_m_2, sig_d_2) = (2.0, 2.0 * kappa_ini);
         let mut data_2d = HashMap::new();
         for ndim in [2, 3] {
             for lode_int in [-1, 0, 1] {
@@ -605,7 +605,7 @@ mod tests {
                 let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
                 approx_eq(sig_m_1, correct_sig_m, 1e-14);
                 approx_eq(sig_d_1, correct_sig_d, 1e-13);
-                approx_eq(state.z_set[0], z_ini, 1e-15);
+                approx_eq(state.z_set[0], kappa_ini, 1e-15);
                 assert_eq!(state.elastic, true);
                 let case = model.last_case().unwrap();
                 let keys = case_to_keys(case);
@@ -652,9 +652,9 @@ mod tests {
     #[test]
     fn update_stress_von_mises_2() {
         let param = StressStrain::sample_von_mises();
-        let (kk, gg, hh, z_ini) = extract_von_mises_params_kg(&param);
+        let (kk, gg, hh, kappa_ini) = extract_von_mises_params_kg(&param);
         let (sig_m_0, sig_d_0, alpha_0) = (0.0, 0.0, PI / 3.0);
-        let (sig_m_1, sig_d_1, alpha_1) = (2.0, z_ini + 9.0, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, kappa_ini + 9.0, PI / 3.0);
         let mut settings = Settings::new();
         settings.set_gp_explicit_update(true).set_gp_save_history(true);
         let ndim = 2;
@@ -667,10 +667,10 @@ mod tests {
         let sig_m = state.stress.invariant_p();
         let sig_d = state.stress.invariant_q();
         states.push(state.clone());
-        let deps_d_e = z_ini / (3.0 * gg);
+        let deps_d_e = kappa_ini / (3.0 * gg);
         let deps_d_ep = deps_d - deps_d_e;
         let correct_sig_m = kk * deps_v;
-        let correct_sig_d = z_ini + 3.0 * gg * hh * deps_d_ep / (3.0 * gg + hh);
+        let correct_sig_d = kappa_ini + 3.0 * gg * hh * deps_d_ep / (3.0 * gg + hh);
         approx_eq(sig_m, correct_sig_m, 1e-14);
         approx_eq(sig_d, correct_sig_d, 1e-13);
         approx_eq(state.z_set[0], correct_sig_d, 1e-13);
@@ -695,10 +695,10 @@ mod tests {
     #[test]
     fn update_stress_von_mises_3a() {
         let param = StressStrain::sample_von_mises();
-        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+        let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (0.0, 0.99999999999999999);
-        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
-        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, -2.0 * PI / 3.0);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, kappa_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * kappa_ini, -2.0 * PI / 3.0);
         let mut settings = Settings::new();
         settings
             .set_gp_explicit_update(true)
@@ -716,7 +716,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.z_set[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], kappa_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);
@@ -738,10 +738,10 @@ mod tests {
     #[test]
     fn update_stress_von_mises_3b() {
         let param = StressStrain::sample_von_mises();
-        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+        let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (1.0, 0.8);
-        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
-        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, -2.0 * PI / 3.0);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, kappa_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * kappa_ini, -2.0 * PI / 3.0);
         let mut settings = Settings::new();
         settings
             .set_gp_explicit_update(true)
@@ -759,7 +759,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.z_set[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], kappa_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);
@@ -781,9 +781,9 @@ mod tests {
     #[test]
     fn update_stress_von_mises_3c() {
         let param = StressStrain::sample_von_mises();
-        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+        let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let drift = 0.0;
-        let (sig_m_0, sig_d_0, alpha_0) = (1.0, z_ini + drift, PI / 3.0);
+        let (sig_m_0, sig_d_0, alpha_0) = (1.0, kappa_ini + drift, PI / 3.0);
         let sig_m_1 = sig_m_0;
         let radius_0 = sig_d_0 * SQRT_2_BY_3;
         let (oct_x_1, oct_y_1) = (radius_0 * f64::cos(alpha_0), -radius_0 * f64::sin(alpha_0));
@@ -807,7 +807,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.z_set[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], kappa_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);
@@ -829,9 +829,9 @@ mod tests {
     #[test]
     fn update_stress_von_mises_3d() {
         let param = StressStrain::sample_von_mises();
-        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+        let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let drift = 0.0;
-        let (sig_m_0, sig_d_0, alpha_0) = (1.0, z_ini + drift, PI / 3.0);
+        let (sig_m_0, sig_d_0, alpha_0) = (1.0, kappa_ini + drift, PI / 3.0);
         let sig_m_1 = sig_m_0;
         let radius_0 = sig_d_0 * SQRT_2_BY_3;
         let (oct_x_1, oct_y_1) = (-radius_0 * f64::cos(alpha_0), radius_0 * f64::sin(alpha_0));
@@ -855,7 +855,7 @@ mod tests {
         states.push(state.clone());
         approx_eq(sig_m, sig_m_1, 1e-14);
         approx_eq(sig_d, sig_d_1, 1e-13);
-        approx_eq(state.z_set[0], z_ini, 1e-15);
+        approx_eq(state.z_set[0], kappa_ini, 1e-15);
         assert_eq!(state.elastic, true);
         let keys = case_to_keys(model.last_case().unwrap());
         assert_eq!(keys, &["B", "E"]);
@@ -877,10 +877,10 @@ mod tests {
     #[test]
     fn update_stress_von_mises_4() {
         let param = StressStrain::sample_von_mises();
-        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+        let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (1.0, 2.5);
-        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
-        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, -PI / 3.0);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, kappa_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * kappa_ini, -PI / 3.0);
         let mut settings = Settings::new();
         settings
             .set_gp_explicit_update(true)
@@ -915,10 +915,10 @@ mod tests {
     #[test]
     fn update_stress_von_mises_5() {
         let param = StressStrain::sample_von_mises();
-        let (_, _, _, z_ini) = extract_von_mises_params_kg(&param);
+        let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (1e-14, 2.0);
-        let (sig_m_0, sig_d_0, alpha_0) = (0.0, z_ini + drift, PI / 3.0);
-        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * z_ini, 0.0);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, kappa_ini + drift, PI / 3.0);
+        let (sig_m_1, sig_d_1, alpha_1) = (2.0, mz * kappa_ini, 0.0);
         let mut settings = Settings::new();
         settings
             .set_gp_explicit_update(true)

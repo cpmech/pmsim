@@ -265,7 +265,7 @@ mod tests {
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const HH: f64 = 800.0;
-    const Z_INI: f64 = 9.0;
+    const KAPPA_INI: f64 = 9.0;
 
     fn get_model_and_state_on_yield_surface() -> (ElastoplasticImp, LocalState) {
         // Idealization, parameters, and settings
@@ -274,7 +274,7 @@ mod tests {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
         };
         let settings = Settings::new();
 
@@ -287,13 +287,13 @@ mod tests {
         // Allocate the model and initialize the internal variables
         let mut model = ElastoplasticImp::new(&ideal, &param, &settings).unwrap();
         model.initialize_int_vars(&mut state0).unwrap();
-        assert_eq!(state0.z_set[0], Z_INI);
+        assert_eq!(state0.z_set[0], KAPPA_INI);
 
         // Calculate the strain increment that will lead to the yield surface exactly
         let ee = YOUNG;
         let nu = POISSON;
         let nu2 = POISSON * POISSON;
-        let z = Z_INI;
+        let z = KAPPA_INI;
         let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let deps_x = dy * nu / (1.0 - nu);
         let deps_y = -dy;

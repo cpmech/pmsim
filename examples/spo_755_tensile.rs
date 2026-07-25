@@ -17,7 +17,7 @@ const SAVE_FIGURE: bool = true;
 
 const YOUNG: f64 = 206.9; // Young's modulus
 const POISSON: f64 = 0.29; // Poisson's coefficient
-const Z_INI: f64 = 0.45; // Initial size of yield surface
+const KAPPA_INI: f64 = 0.45; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 const WIDTH: f64 = 10.0; // width of the specimen
@@ -95,7 +95,7 @@ fn main() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
             hh: H,
         },
         ngauss: Some(NGAUSS),
@@ -208,10 +208,10 @@ fn main() -> Result<(), StrError> {
     let mut normalized_stress = Vec::with_capacity(nstation);
     for index in 0..nstation {
         let uy = history_uy[index];
-        normalized_deflection.push(2.0 * uy * YOUNG / (Z_INI * WIDTH));
+        normalized_deflection.push(2.0 * uy * YOUNG / (KAPPA_INI * WIDTH));
         let reaction = 2.0 * sum_yy[index]; // multiply by 2 because only half specimen is modeled
         let tensile_stress = -reaction / B; // negative because the reaction points downwards
-        let norm_net_stress = tensile_stress / Z_INI;
+        let norm_net_stress = tensile_stress / KAPPA_INI;
         normalized_stress.push(norm_net_stress);
         if index == nstation - 1 {
             let diff = f64::abs(norm_net_stress - analytical_limit);

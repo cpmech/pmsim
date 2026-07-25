@@ -24,7 +24,7 @@ const RADIUS: f64 = 10.0;
 const THICKNESS: f64 = 1.0;
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.24; // Poisson's coefficient
-const Z_INI: f64 = 16000.0; // Initial size of yield surface
+const KAPPA_INI: f64 = 16000.0; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 9; // number of gauss points
 
@@ -86,7 +86,7 @@ fn main() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
             hh: H,
         },
         ngauss: Some(NGAUSS),
@@ -266,7 +266,7 @@ fn main() -> Result<(), StrError> {
     }
 
     // compare ultimate load with analytical value
-    let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);
+    let ana = PlastCircularPlateAxisym::new(10.0, 1.0, KAPPA_INI);
     let pp_max = load.last().unwrap();
     let pp_max_ref = ana.get_pp_lim();
     let diff = f64::abs(pp_max - pp_max_ref);
@@ -548,7 +548,7 @@ fn main() -> Result<(), StrError> {
         let mut plotter = Plotter::new();
         plotter
             .set_title(&options.title())
-            .set_oct_circle(Z_INI * SQRT_2_BY_3, |_| {});
+            .set_oct_circle(KAPPA_INI * SQRT_2_BY_3, |_| {});
         plotter.set_extra(Axis::OctX, Axis::OctY, |plot| {
             let mut circle = Canvas::new();
             circle.set_face_color("None").set_edge_color("#8c77f4");

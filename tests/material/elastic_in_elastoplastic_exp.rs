@@ -24,13 +24,13 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     let young = 1500.0;
     let poisson = 0.25;
     let hh = 800.0;
-    let z_ini = 9.0;
+    let kappa_ini = 9.0;
     let param_el = StressStrain::LinearElastic { young, poisson };
     let param_vm = StressStrain::VonMises {
         young,
         poisson,
         hh,
-        kappa_ini: z_ini,
+        kappa_ini,
     };
 
     // models
@@ -54,7 +54,7 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     // initial states and increments
     let sig_m_0 = 1.0;
     let alpha_0 = PI / 3.0;
-    let (stresses, strain_increments) = walk_on_oct_plane(young, poisson, z_ini, sig_m_0, alpha_0);
+    let (stresses, strain_increments) = walk_on_oct_plane(young, poisson, kappa_ini, sig_m_0, alpha_0);
 
     // run test
     for i in 0..stresses.len() {
@@ -141,7 +141,7 @@ fn do_plot(
     // constants
     let n = states_elast.len();
     let l = n - 1;
-    let z_ini = states_general[0].z_set[0];
+    let kappa_ini = states_general[0].z_set[0];
     let z_fin = states_general[l].z_set[0];
 
     // plotting data
@@ -198,7 +198,7 @@ fn do_plot(
             curve.set_label("general").set_marker_style("s").set_marker_void(true);
         })
         .unwrap();
-    let radius_0 = z_ini * SQRT_2_BY_3;
+    let radius_0 = kappa_ini * SQRT_2_BY_3;
     let radius_1 = z_fin * SQRT_2_BY_3;
     plotter.set_oct_circle(radius_0, |_| {});
     plotter.set_oct_circle(radius_1, |canvas| {
@@ -219,8 +219,14 @@ fn do_plot(
 }
 
 // Generates stresses and strain increments to "walk" on the octahedral plane along three directions
-fn walk_on_oct_plane(young: f64, poisson: f64, z_ini: f64, sig_m_0: f64, alpha_0: f64) -> (Vec<Tensor2>, Vec<Tensor2>) {
-    let r = z_ini * SQRT_2_BY_3;
+fn walk_on_oct_plane(
+    young: f64,
+    poisson: f64,
+    kappa_ini: f64,
+    sig_m_0: f64,
+    alpha_0: f64,
+) -> (Vec<Tensor2>, Vec<Tensor2>) {
+    let r = kappa_ini * SQRT_2_BY_3;
     let rc = r * f64::cos(alpha_0);
     let rs = r * f64::sin(alpha_0);
     let mandel = Mandel::Symmetric2D;
@@ -235,7 +241,7 @@ fn walk_on_oct_plane(young: f64, poisson: f64, z_ini: f64, sig_m_0: f64, alpha_0
         let radius_1 = f64::sqrt(oct_x_1 * oct_x_1 + oct_y_1 * oct_y_1);
         let sig_d_1 = radius_1 * SQRT_3_BY_2;
         let (stress_0, _, _, d_strain) = elastic_increments_oct(
-            young, poisson, sig_m_0, z_ini, alpha_0, sig_m_0, sig_d_1, alpha_1, mandel,
+            young, poisson, sig_m_0, kappa_ini, alpha_0, sig_m_0, sig_d_1, alpha_1, mandel,
         );
         initial_stresses.push(stress_0);
         strain_increments.push(d_strain);

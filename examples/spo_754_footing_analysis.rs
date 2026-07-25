@@ -20,8 +20,8 @@ pub fn main() -> Result<(), StrError> {
     let footing_cells = features.get_cells_via_2d_edges(&footing);
 
     let width = 100.0; // 2*B
-    let z_ini = 848.7 * 100.0; // multiply by 100 because we used cm in the mesh
-    let cohesion = z_ini / SQRT_3;
+    let kappa_ini = 848.7 * 100.0; // multiply by 100 because we used cm in the mesh
+    let cohesion = kappa_ini / SQRT_3;
 
     let mut normalized_settlement = Vec::new();
     let mut normalized_pressure = Vec::new();

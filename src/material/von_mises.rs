@@ -371,7 +371,7 @@ mod tests {
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
     const HH: f64 = 800.0;
-    const Z_INI: f64 = 9.0;
+    const KAPPA_INI: f64 = 9.0;
 
     // Generates a state reaching the yield surface
     fn update_to_yield_surface(ideal: &Idealization, model: &mut VonMises, lode: f64) -> LocalState {
@@ -404,14 +404,14 @@ mod tests {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
         };
         let settings = Settings::new();
         let model = VonMises::new(&ideal, &param, &settings).unwrap();
         let nz = model.nz();
         let mut state = LocalState::new(ideal.mandel(), nz);
         model.initialize_int_vars(&mut state).unwrap();
-        assert_eq!(state.z_set.as_data(), &[Z_INI, 0.0]);
+        assert_eq!(state.z_set.as_data(), &[KAPPA_INI, 0.0]);
     }
 
     #[test]
@@ -422,7 +422,7 @@ mod tests {
                 young: YOUNG,
                 poisson: POISSON,
                 hh: HH,
-                kappa_ini: Z_INI,
+                kappa_ini: KAPPA_INI,
             };
             let settings = Settings::new();
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
@@ -431,9 +431,9 @@ mod tests {
                 let sigma_m = state.stress.invariant_p();
                 let sigma_d = state.stress.invariant_q();
                 approx_eq(sigma_m, 1.0, 1e-14);
-                approx_eq(sigma_d, Z_INI, 1e-14);
+                approx_eq(sigma_d, KAPPA_INI, 1e-14);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.z_set.as_data(), &[Z_INI, 0.0]);
+                assert_eq!(state.z_set.as_data(), &[KAPPA_INI, 0.0]);
             }
         }
     }
@@ -455,7 +455,7 @@ mod tests {
                 young: YOUNG,
                 poisson: POISSON,
                 hh: HH,
-                kappa_ini: Z_INI,
+                kappa_ini: KAPPA_INI,
             };
             let settings = Settings::new();
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
@@ -499,7 +499,7 @@ mod tests {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
         };
         let settings = Settings::new();
         let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
@@ -514,7 +514,7 @@ mod tests {
         let ee = YOUNG;
         let nu = POISSON;
         let nu2 = POISSON * POISSON;
-        let z = Z_INI;
+        let z = KAPPA_INI;
         let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let eps_x = dy * nu / (1.0 - nu);
         let eps_y = -dy;

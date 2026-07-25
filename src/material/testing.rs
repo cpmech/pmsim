@@ -40,7 +40,7 @@ pub(super) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
     array
 }
 
-/// Returns (E, ν, H, z_ini) for the von Mises model
+/// Returns (E, ν, H, kappa_ini) for the von Mises model
 #[allow(dead_code)]
 pub(super) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, f64) {
     match *param {
@@ -48,18 +48,18 @@ pub(super) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, 
             young,
             poisson,
             hh,
-            kappa_ini: z_ini,
+            kappa_ini,
         } => (
-            young,   // E
-            poisson, // ν
-            hh,      // H
-            z_ini,   // z_ini
+            young,     // E
+            poisson,   // ν
+            hh,        // H
+            kappa_ini, // kappa_ini
         ),
         _ => panic!("VonMises parameters required"),
     }
 }
 
-/// Returns (K, G, H, z_ini) for the von Mises model
+/// Returns (K, G, H, kappa_ini) for the von Mises model
 #[allow(dead_code)]
 pub(super) fn extract_von_mises_params_kg(param: &StressStrain) -> (f64, f64, f64, f64) {
     match *param {
@@ -67,12 +67,12 @@ pub(super) fn extract_von_mises_params_kg(param: &StressStrain) -> (f64, f64, f6
             young,
             poisson,
             hh,
-            kappa_ini: z_ini,
+            kappa_ini,
         } => (
             young / (3.0 * (1.0 - 2.0 * poisson)), // K
             young / (2.0 * (1.0 + poisson)),       // G
             hh,                                    // H
-            z_ini,                                 // z_ini
+            kappa_ini,                             // kappa_ini
         ),
         _ => panic!("VonMises parameters required"),
     }
@@ -93,19 +93,19 @@ mod tests {
 
     #[test]
     fn extract_von_mises_params_works() {
-        let (ee, nu, hh, z_ini) = extract_von_mises_params(&StressStrain::sample_von_mises());
+        let (ee, nu, hh, kappa_ini) = extract_von_mises_params(&StressStrain::sample_von_mises());
         assert!(ee > 0.0);
         assert!(nu > 0.0);
         assert!(hh > 0.0);
-        assert!(z_ini > 0.0);
+        assert!(kappa_ini > 0.0);
     }
 
     #[test]
     fn extract_von_mises_params_kg_works() {
-        let (kk, gg, hh, z_ini) = extract_von_mises_params_kg(&StressStrain::sample_von_mises());
+        let (kk, gg, hh, kappa_ini) = extract_von_mises_params_kg(&StressStrain::sample_von_mises());
         assert!(kk > 0.0);
         assert!(gg > 0.0);
         assert!(hh > 0.0);
-        assert!(z_ini > 0.0);
+        assert!(kappa_ini > 0.0);
     }
 }

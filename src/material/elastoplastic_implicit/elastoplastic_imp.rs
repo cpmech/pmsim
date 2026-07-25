@@ -187,7 +187,7 @@ mod tests {
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.45;
     const HH: f64 = 800.0;
-    const Z_INI: f64 = 9.0;
+    const KAPPA_INI: f64 = 9.0;
 
     #[test]
     fn implicit_consistent_modulus_matches_von_mises() {
@@ -197,7 +197,7 @@ mod tests {
             young: YOUNG,
             poisson: POISSON,
             hh: HH,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
         };
         let settings = Settings::new();
 
@@ -212,7 +212,7 @@ mod tests {
 
         // Initialize the internal variables
         vm.initialize_int_vars(&mut state0).unwrap();
-        assert_eq!(state0.z_set[0], Z_INI);
+        assert_eq!(state0.z_set[0], KAPPA_INI);
 
         // Allocate the von Mises model via the general implicit elastoplasticity model
         let mut ep = ElastoplasticImp::new(&ideal, &param, &settings).unwrap();
@@ -229,7 +229,7 @@ mod tests {
         let ee = YOUNG;
         let nu = POISSON;
         let nu2 = POISSON * POISSON;
-        let z = 2.0 * Z_INI;
+        let z = 2.0 * KAPPA_INI;
         let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let deps_x = dy * nu / (1.0 - nu);
         let deps_y = -dy;

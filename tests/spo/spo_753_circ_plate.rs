@@ -20,7 +20,7 @@ const RADIUS: f64 = 10.0;
 const THICKNESS: f64 = 1.0;
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.24; // Poisson's coefficient
-const Z_INI: f64 = 16000.0; // Initial size of yield surface
+const KAPPA_INI: f64 = 16000.0; // Initial size of yield surface
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 9; // number of gauss points
 
@@ -50,7 +50,7 @@ fn spo_753_circ_plate() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            kappa_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
             hh: H,
         },
         ngauss: Some(NGAUSS),
@@ -146,7 +146,7 @@ fn run(
     let iy = schema.dof_number(center, Dof::Uy)?;
 
     // analytical solution
-    let ana = PlastCircularPlateAxisym::new(10.0, 1.0, Z_INI);
+    let ana = PlastCircularPlateAxisym::new(10.0, 1.0, KAPPA_INI);
 
     // load results
     let nlambda_max = 11; // 11 instead of 13 because SPO skips the results for the last two load steps
