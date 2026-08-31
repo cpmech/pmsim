@@ -42,7 +42,7 @@ use russell_lab::math::SQRT_2_BY_3;
 // * Young: E = 1500, Poisson: ν = 0.25
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
-const NAME: &str = "general_vm_soft_single_elem_2d";
+const NAME: &str = "general_vm_soft_single_elem_3d";
 const SAVE_FIGURE: bool = true;
 
 // constants
@@ -51,20 +51,21 @@ const POISSON: f64 = 0.25;
 const KAPPA_INI: f64 = 9.0;
 const NU: f64 = POISSON;
 const NU2: f64 = POISSON * POISSON;
-const NGAUSS: usize = 9;
 
 #[test]
-fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
+fn general_vm_soft_single_elem_3d() -> Result<(), StrError> {
     // mesh
-    let mesh = Samples::one_qua8();
+    let mesh = Samples::one_hex8();
     let (_, max) = mesh.get_limits();
 
     // features
     let features = Features::new(&mesh, false);
-    let left = features.search_edges(At::X(0.0), any_x)?;
-    let bottom = features.search_edges(At::Y(0.0), any_x)?;
-    let top = features.search_edges(At::Y(1.0), any_x)?;
-    let corner = features.search_point_ids(At::XY(max[0], max[1]), any_x)?[0];
+    let min_x = features.search_faces(At::X(0.0), any_x)?;
+    let max_x = features.search_faces(At::X(max[0]), any_x)?;
+    let min_y = features.search_faces(At::Y(0.0), any_x)?;
+    let min_z = features.search_faces(At::Z(0.0), any_x)?;
+    let max_z = features.search_faces(At::Z(max[2]), any_x)?;
+    let corner = features.search_point_ids(At::XYZ(max[0], max[1], max[2]), any_x)?[0];
 
     // parameters
     let p1 = ParamSolid {
@@ -79,27 +80,30 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
             b: 2.0,
             kappa_ini: KAPPA_INI,
         },
-        ngauss: Some(NGAUSS),
+        ngauss: None,
     };
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 
     // essential boundary conditions
     let mut ebc = BcEssential::new();
-    ebc.edges(&left, Dof::Ux, 0.0).edges(&bottom, Dof::Uy, 0.0);
+    ebc.faces(&min_x, Dof::Ux, 0.0)
+        .faces(&max_x, Dof::Ux, 0.0)
+        .faces(&min_y, Dof::Uy, 0.0)
+        .faces(&min_z, Dof::Uz, 0.0);
 
     // natural boundary conditions
     let nbc = BcNatural::new();
 
-    // essential boundary conditions
-    let dy = KAPPA_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
-    ebc.edges(&top, Dof::Uy, -dy);
+    // essential boundary conditions (prescribed displacement)
+    let dz = KAPPA_INI * (1.0 - NU2) / (YOUNG * f64::sqrt(1.0 - NU + NU2));
+    ebc.faces(&max_z, Dof::Uz, -dz);
 
     // configuration
     let mut config = Config::new(&mesh);
     config
-        .out_history_uu_comp(corner, Dof::Uy)
-        .out_history_yy_comp(corner, Dof::Uy)
+        .out_history_uu_comp(corner, Dof::Uz)
+        .out_history_yy_comp(corner, Dof::Uz)
         .out_files("/tmp/pmsim/plasticity", NAME)
         .enable_symmetry_check(1e-13)
         .out_history_local_state(0)
@@ -114,7 +118,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
         .set_tg_control_tol(0.1)
         .set_method(NlMethod::Arclength);
     let (mut sim, mut data) = Simulator::new(&mesh, &schema, &config, &ebc, &nbc, &mut nl_config)?;
-    let idx = data.sys_index(corner, Dof::Ux)?;
+    let idx = data.sys_index(corner, Dof::Uy)?;
     let ddl = DeltaLambda::auto(0.01);
     sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.06), ddl)?;
 
@@ -125,23 +129,23 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     // figure
     if SAVE_FIGURE {
         // displacement-force data
-        let uy: Vec<_> = post
-            .history_uu_comp(corner, Dof::Uy)
+        let uz: Vec<_> = post
+            .history_uu_comp(corner, Dof::Uz)
             .unwrap()
             .iter()
-            .map(|x| -x)
+            .map(|u| -u)
             .collect();
-        let fy: Vec<_> = post
-            .history_yy_comp(corner, Dof::Uy)
+        let fz: Vec<_> = post
+            .history_yy_comp(corner, Dof::Uz)
             .unwrap()
             .iter()
-            .map(|x| -x)
+            .map(|f| -f)
             .collect();
         let mut curve = Curve::new();
         let mut plot = Plot::new();
         let mut dm = DarkMode::new();
         dm.set_mocha();
-        curve.set_marker_style(".").draw(&uy, &fy);
+        curve.set_marker_style(".").draw(&uz, &fz);
         plot.add(&dm)
             .add(&curve)
             .grid_and_labels("-uy", "-fy")

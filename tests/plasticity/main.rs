@@ -1,4 +1,5 @@
 mod general_vm_single_elem_2d;
 mod general_vm_soft_single_elem_2d;
+mod general_vm_soft_single_elem_3d;
 mod von_mises_2x2_elements_2d;
 mod von_mises_single_element_2d;

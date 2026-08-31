@@ -5,6 +5,32 @@ use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::{HashMap, HashSet};
 
+/*
+use russell_tensor::Tensor4;
+
+struct Config<const DIM: usize> {
+    modulus: Tensor4<{ DIM * 2 }>,
+}
+
+impl<const DIM: usize> Config<DIM> {
+    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+
+    fn new() -> Self {
+        let _ = Self::CHECK;
+        Config {
+            modulus: Tensor4::<{ DIM * 2 }>::new(),
+        }
+    }
+}
+
+fn main() {
+    let c2 = Config::<2>::new();   // Tensor4<4>
+    let c3 = Config::<3>::new();   // Tensor4<6>
+    assert_eq!(c2.modulus.dim(), 4);
+    assert_eq!(c3.modulus.dim(), 6);
+}
+*/
+
 /// Defines the smallest allowed Δt
 pub const CONFIG_DT_MIN: f64 = 1e-7;
 

@@ -75,6 +75,7 @@
     "nlag",
     "nlambda",
     "nmarked",
+    "nnode",
     "nocapture",
     "Nonlin",
     "nonlinearities",
