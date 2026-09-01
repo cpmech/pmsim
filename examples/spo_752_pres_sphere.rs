@@ -133,7 +133,7 @@ fn main() -> Result<(), StrError> {
     name += &options.key();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .axisymmetric()
         .out_files(DIR, &name)
@@ -220,7 +220,7 @@ fn main() -> Result<(), StrError> {
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((0, 1.0, 1e-3)),
+            Some((1, 1.0, 1e-3)),
         )?;
         assert!(all_good);
     }
@@ -230,7 +230,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<2>::new(DIR, &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
 

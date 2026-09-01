@@ -3,7 +3,7 @@ use crate::StrError;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{Tensor2, Tensor4};
 
-pub trait TraitPlasticity: TraitStressStrain {
+pub trait TraitPlasticity<const DIM: usize>: TraitStressStrain<DIM> {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool;
 
@@ -11,10 +11,10 @@ pub trait TraitPlasticity: TraitStressStrain {
     fn calc_f_ref(&self) -> f64;
 
     /// Calculates the yield function f
-    fn calc_f(&self, state: &LocalState) -> Result<f64, StrError>;
+    fn calc_f(&self, state: &LocalState<DIM>) -> Result<f64, StrError>;
 
     /// Calculates the hardening coefficients h
-    fn calc_h(&self, h: &mut Vector, state: &LocalState) -> Result<(), StrError>;
+    fn calc_h(&self, h: &mut Vector, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function with respect to stress
     ///
@@ -23,7 +23,7 @@ pub trait TraitPlasticity: TraitStressStrain {
     /// fs := ──
     ///       ∂σ
     /// ```
-    fn calc_fs(&self, fs: &mut Tensor2, state: &LocalState) -> Result<(), StrError>;
+    fn calc_fs(&self, fs: &mut Tensor2, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     /// Calculates the derivative of the plastic potential function with respect to stress
     ///
@@ -32,7 +32,7 @@ pub trait TraitPlasticity: TraitStressStrain {
     /// gs := ──
     ///       ∂σ
     /// ```
-    fn calc_gs(&self, gs: &mut Tensor2, state: &LocalState) -> Result<(), StrError>;
+    fn calc_gs(&self, gs: &mut Tensor2, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     /// Calculates the derivative of the yield function with respect to internal variables
     ///
@@ -41,7 +41,7 @@ pub trait TraitPlasticity: TraitStressStrain {
     /// fzₖ := ───
     ///        ∂zₖ
     /// ```
-    fn calc_fz(&self, fz: &mut Vector, state: &LocalState) -> Result<(), StrError>;
+    fn calc_fz(&self, fz: &mut Vector, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     /// Calculates the elastic stiffness modulus
     ///
@@ -50,7 +50,7 @@ pub trait TraitPlasticity: TraitStressStrain {
     /// dde := De = ──
     ///             ∂ε
     /// ```
-    fn calc_dde(&self, dde: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
+    fn calc_dde(&self, dde: &mut Tensor4, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     // --- For implicit stress update ---
 
@@ -61,7 +61,7 @@ pub trait TraitPlasticity: TraitStressStrain {
     /// ggs := Gσ = ───── = ───────
     ///              ∂σ     ∂σ ⊗ ∂σ
     /// ```
-    fn calc_ggs(&self, ggs: &mut Tensor4, state: &LocalState) -> Result<(), StrError>;
+    fn calc_ggs(&self, ggs: &mut Tensor4, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
@@ -72,7 +72,7 @@ pub trait TraitPlasticity: TraitStressStrain {
     ///
     /// ggz is (ncp x nz)
     /// ```
-    fn calc_ggz(&self, ggz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
+    fn calc_ggz(&self, ggz: &mut Matrix, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     /// Calculates the second derivatives of the hardening function with respect to stress
     ///
@@ -83,7 +83,7 @@ pub trait TraitPlasticity: TraitStressStrain {
     ///
     /// hhs is (nz x ncp)
     /// ```
-    fn calc_hhs(&self, hhs: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
+    fn calc_hhs(&self, hhs: &mut Matrix, state: &LocalState<DIM>) -> Result<(), StrError>;
 
     /// Calculates the second derivatives of the hardening function with respect to internal variables
     ///
@@ -94,5 +94,5 @@ pub trait TraitPlasticity: TraitStressStrain {
     ///
     /// hhz is (nz x nz)
     /// ```
-    fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState) -> Result<(), StrError>;
+    fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState<DIM>) -> Result<(), StrError>;
 }

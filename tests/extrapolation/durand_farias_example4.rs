@@ -60,8 +60,10 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     // configuration
     let key = if lmm { "_lmm" } else { "_sps" };
     let name = &format!("{}{}", NAME, key);
-    let mut config = Config::new(&mesh);
-    config.lagrange_mult_method(lmm).out_files("/tmp/pmsim/extrapolation", name);
+    let mut config = Config::<2>::new(&mesh);
+    config
+        .lagrange_mult_method(lmm)
+        .out_files("/tmp/pmsim/extrapolation", name);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;
@@ -72,7 +74,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     //
 
     // results
-    let (post, mut memo) = PostProc::new("/tmp/pmsim/extrapolation", name)?;
+    let (post, mut memo) = PostProc::<2>::new("/tmp/pmsim/extrapolation", name)?;
 
     // features
     let left = features.search_edges(At::X(0.0), any_x)?;
@@ -204,7 +206,8 @@ fn generate_or_read_mesh(att: i32, generate: bool) -> Mesh {
             .unwrap();
 
         // write mesh
-        mesh.write(&format!("/tmp/pmsim/extrapolation/{}_{}.msh", NAME, k_str)).unwrap();
+        mesh.write(&format!("/tmp/pmsim/extrapolation/{}_{}.msh", NAME, k_str))
+            .unwrap();
 
         // return mesh
         mesh

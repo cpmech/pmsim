@@ -15,10 +15,10 @@ use russell_tensor::Tensor2;
 /// * `ksi` -- The coordinate of the integration point (ξᵖ)
 /// * `pad` -- Scratchpad to calculate interpolation functions
 #[rustfmt::skip]
-pub(crate) fn calculate_strain(
+pub(crate) fn calculate_strain<const DIM:usize>(
     eps: &mut Tensor2,
     uu: &Vector,
-    ideal: &Idealization,
+    ideal: &Idealization<DIM>,
     l2g: &[usize],
     ksi: &[f64],
     pad: &mut Scratchpad,
@@ -84,12 +84,11 @@ mod tests {
         // strain magnitude (either ε_xx, ε_yy, or ε_xy)
         const STRAIN: f64 = 4.56;
 
-        // loop over meshes
+        // loop over 2D meshes
         for mesh in &[
             Samples::one_qua4(),
             Samples::three_tri3(),
             Samples::ring_eight_qua8_rad1_thick1(),
-            Samples::one_hex8(),
         ] {
             // incremental displacement field
             // (equal total displacements because initial displacements are zero)
@@ -113,7 +112,57 @@ mod tests {
             let l2g = schema.local_to_global(cell.id).unwrap();
 
             // configuration
-            let config = Config::new(&mesh);
+            let config = Config::<2>::new(&mesh);
+
+            // pad for numerical integration
+            let mut pad = mesh.get_pad(cell.id);
+
+            // integration points
+            let gauss = Gauss::new(cell.kind);
+
+            // strain increment
+            let mut de = Tensor2::new(config.ideal.mandel());
+
+            // check increment of strains for all integration points
+            for p in 0..gauss.npoint() {
+                let iota = gauss.coords(p);
+                // horizontal strain
+                calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, iota, &mut pad).unwrap();
+                vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);
+                // vertical strain
+                calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, iota, &mut pad).unwrap();
+                vec_approx_eq(de.vector(), strain_v.vector(), 1e-14);
+                // shear strain
+                calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, iota, &mut pad).unwrap();
+                vec_approx_eq(de.vector(), strain_s.vector(), 1e-14);
+            }
+        }
+
+        // loop over 3D meshes
+        for mesh in &[Samples::one_hex8()] {
+            // incremental displacement field
+            // (equal total displacements because initial displacements are zero)
+            let duu_h = generate_horizontal_displacement_field(&mesh, STRAIN);
+            let duu_v = generate_vertical_displacement_field(&mesh, STRAIN);
+            let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
+
+            // solution
+            let ndim = mesh.ndim;
+            let (strain_h, _) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_v, _) = elastic_solution_vertical_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_s, _) = elastic_solution_shear_displacement_field(young, poisson, ndim, STRAIN);
+
+            // check the first cell/element only
+            let cell = &mesh.cells[0];
+
+            // local-to-global map
+            let p1 = ParamSolid::sample_linear_elastic();
+            let mut schema = Schema::new();
+            schema.add_solid(1, p1).build(&mesh).unwrap();
+            let l2g = schema.local_to_global(cell.id).unwrap();
+
+            // configuration
+            let config = Config::<3>::new(&mesh);
 
             // pad for numerical integration
             let mut pad = mesh.get_pad(cell.id);

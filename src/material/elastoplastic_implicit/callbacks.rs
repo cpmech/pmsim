@@ -5,7 +5,11 @@ use russell_lab::{Matrix, Vector};
 /// Calculates the residual of the local nonlinear problem for the implicit elastoplastic model.
 ///
 /// Nonlinear problem: y(x) = {re, rz, rf} = 0 with x = {σ, z, λ}
-pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut Args) -> Result<(), StrError> {
+pub(super) fn callback_residual<const DIM: usize>(
+    r: &mut Vector,
+    x: &Vector,
+    a: &mut Args<DIM>,
+) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
     let nz = a.nz; // number of internal variables
@@ -52,7 +56,11 @@ pub(super) fn callback_residual(r: &mut Vector, x: &Vector, a: &mut Args) -> Res
 }
 
 /// Calculates the Jacobian of the local nonlinear problem for the implicit elastoplastic model.
-pub(super) fn callback_jacobian(jac: &mut Matrix, x: &Vector, a: &mut Args) -> Result<(), StrError> {
+pub(super) fn callback_jacobian<const DIM: usize>(
+    jac: &mut Matrix,
+    x: &Vector,
+    a: &mut Args<DIM>,
+) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
     let nz = a.nz; // number of internal variables
@@ -153,7 +161,7 @@ mod tests {
     #[test]
     fn test_residual_and_jacobian_callbacks() {
         // Select 2D idealization
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let mandel = ideal.mandel();
 
         // Allocate the local state

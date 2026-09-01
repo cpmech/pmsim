@@ -104,7 +104,7 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
     let nbc = BcNatural::new();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.lagrange_mult_method(false).out_files("/tmp/pmsim/heat", NAME);
 
     // nonlinear solver configuration
@@ -144,7 +144,7 @@ fn run_test(arclength: bool, bordering: bool) -> Result<(), StrError> {
 
 fn do_plot() -> Result<(), StrError> {
     // get temperature values along x
-    let (post, _) = PostProc::new("/tmp/pmsim/heat", NAME)?;
+    let (post, _) = PostProc::<2>::new("/tmp/pmsim/heat", NAME)?;
     let features = Features::new(post.mesh(), false);
     let state = post.read_file(post.nfile() - 1)?;
     let (_, x_values, tt_values) = post.values_along_x(&features, &state, Dof::Phi, 0.0, any_x)?;

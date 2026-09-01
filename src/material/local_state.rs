@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This data structure is associated with a Gauss (integration) point
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LocalState {
+pub struct LocalState<const DIM: usize> {
     /// Holds the elastic (vs elastoplastic) flag
     pub elastic: bool,
 
@@ -23,7 +23,7 @@ pub struct LocalState {
     pub strain: Option<Tensor2>,
 }
 
-impl LocalState {
+impl<const DIM: usize> LocalState<DIM> {
     /// Allocates a new instance
     ///
     /// # Arguments
@@ -46,7 +46,7 @@ impl LocalState {
     }
 
     /// Copy data from another state into this state (except strain)
-    pub fn mirror(&mut self, other: &LocalState) {
+    pub fn mirror(&mut self, other: &LocalState<DIM>) {
         self.elastic = other.elastic;
         self.lambda_alg = other.lambda_alg;
         self.stress.set_tensor(1.0, &other.stress);

@@ -9,12 +9,12 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::{t2_dot_vec, Tensor2};
 
 /// Implements the local Diffusion Element equations
-pub(crate) struct ElementDiffusion<'a> {
+pub(crate) struct ElementDiffusion<'a, const DIM: usize> {
     /// Holds the ID of the associated cell in the Mesh
     cell_id: CellId,
 
     /// Global configuration
-    config: &'a Config<'a>,
+    config: &'a Config<'a, DIM>,
 
     /// Material parameters
     param: &'a ParamDiffusion,
@@ -29,7 +29,7 @@ pub(crate) struct ElementDiffusion<'a> {
     gauss: Gauss,
 
     /// Conductivity model
-    model: ModelConductivity,
+    model: ModelConductivity<DIM>,
 
     /// (temporary) Conductivity tensor at a single integration point
     conductivity: Tensor2,
@@ -43,12 +43,12 @@ pub(crate) struct ElementDiffusion<'a> {
     save_flux: bool,
 }
 
-impl<'a> ElementDiffusion<'a> {
+impl<'a, const DIM: usize> ElementDiffusion<'a, DIM> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
-        config: &'a Config,
+        config: &'a Config<DIM>,
         param: &'a ParamDiffusion,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
@@ -63,7 +63,7 @@ impl<'a> ElementDiffusion<'a> {
         let gauss = Gauss::new_or_sized(pad.kind, param.ngauss)?;
 
         // material model
-        let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;
+        let model = ModelConductivity::new(&param.conductivity)?;
 
         // auxiliary conductivity tensor
         let conductivity = Tensor2::new_sym_ndim(ndim);
@@ -91,7 +91,7 @@ impl<'a> ElementDiffusion<'a> {
     }
 }
 
-impl<'a> ElementTrait for ElementDiffusion<'a> {
+impl<'a, const DIM: usize> ElementTrait<DIM> for ElementDiffusion<'a, DIM> {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool {
         self.model.has_symmetric_k() && !self.model.has_variable_k()
@@ -103,12 +103,12 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Initializes the internal variables
-    fn initialize_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
+    fn initialize_internal_values(&mut self, _state: &mut FemState<DIM>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
-    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState<DIM>) -> Result<(), StrError> {
         // constants
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
@@ -184,7 +184,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Calculates the elemental Jacobian matrix Ke
-    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState<DIM>) -> Result<(), StrError> {
         // arguments for the integrator
         let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
@@ -265,7 +265,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.u, state.v, and state.a have been updated already
-    fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, state: &mut FemState<DIM>) -> Result<(), StrError> {
         // save the flow vector for post-processing, if requested
         if self.save_flux {
             for p in 0..self.gauss.npoint() {
@@ -287,16 +287,16 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, _state: &FemState, _alternative: bool) {}
+    fn backup_secondary_values(&mut self, _state: &FemState<DIM>, _alternative: bool) {}
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, _state: &mut FemState, _alternative: bool) {}
+    fn restore_secondary_values(&self, _state: &mut FemState<DIM>, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
+    fn reset_algorithmic_variables(&self, _state: &mut FemState<DIM>) {}
 
     /// Returns the number of Gauss points at elastoplastic state
-    fn count_elastoplastic_gauss_points(&self, _state: &FemState) -> usize {
+    fn count_elastoplastic_gauss_points(&self, _state: &FemState<DIM>) -> usize {
         0
     }
 }
@@ -336,7 +336,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
@@ -391,7 +391,7 @@ mod tests {
         p1.ngauss = Some(123); // wrong
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         assert_eq!(
             ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).err(),
             Some("requested number of integration points is not available for Tri class")
@@ -413,7 +413,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
         config.update_model_settings(1).set_save_flux(true);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
@@ -460,7 +460,7 @@ mod tests {
         p1_new.source = Some(source);
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
         // check Fe vector
@@ -485,7 +485,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<3>::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the top to bottom and right to left
@@ -526,7 +526,7 @@ mod tests {
         p1_new.source = Some(source);
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<3>::new(&mesh);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
         // check Fe vector

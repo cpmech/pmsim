@@ -205,7 +205,7 @@ fn main() -> Result<(), StrError> {
         nbc.faces(&faces_inner, Nbc::Qn, -P1).faces(&faces_outer, Nbc::Qn, -P2);
 
         // configuration
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<3>::new(&mesh);
         config
             .verbose(false)
             .save_vismatrix_file(false)

@@ -5,7 +5,7 @@ use russell_lab::{Matrix, Vector};
 use russell_tensor::{Mandel, Tensor2, Tensor4};
 
 /// Collects arguments for functions dealing with the implicit elastoplastic stress update
-pub(super) struct Args {
+pub(super) struct Args<const DIM: usize> {
     /// Holds the number of stress components
     pub(super) ncp: usize,
 
@@ -13,10 +13,10 @@ pub(super) struct Args {
     pub(super) nz: usize,
 
     /// Holds the current stress-strain state
-    pub(super) state: LocalState,
+    pub(super) state: LocalState<DIM>,
 
     /// Holds the plasticity model
-    pub(super) model: Box<dyn TraitPlasticity>,
+    pub(super) model: Box<dyn TraitPlasticity<DIM>>,
 
     /// Holds the gradient of the yield function
     ///
@@ -109,11 +109,11 @@ pub(super) struct Args {
     pub(super) hhz: Matrix,
 }
 
-impl Args {
+impl<const DIM: usize> Args<DIM> {
     /// Allocates a new instance
-    pub(super) fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+    pub(super) fn new(ideal: &Idealization<DIM>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the plasticity model
-        let model: Box<dyn TraitPlasticity> = match param {
+        let model: Box<dyn TraitPlasticity<DIM>> = match param {
             StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
             StressStrain::VonMisesSoft { .. } => Box::new(VonMisesSoft::new(ideal, param, settings)?),
             _ => return Err("selected model cannot be used with general Elastoplastic"),
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn new_works_2d() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let args = Args::new(&ideal, &param, &settings).unwrap();
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn new_works_3d() {
-        let ideal = Idealization::new(3);
+        let ideal = Idealization::<3>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let args = Args::new(&ideal, &param, &settings).unwrap();
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn new_errors_on_unsupported_model() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let settings = Settings::new();
 
         let param = StressStrain::LinearElastic {
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn new_errors_on_zero_z_ini() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::VonMises {
             young: 1500.0,
             poisson: 0.25,
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn new_allocates_independent_vectors() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let mut args = Args::new(&ideal, &param, &settings).unwrap();

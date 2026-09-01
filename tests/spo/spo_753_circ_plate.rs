@@ -92,7 +92,7 @@ fn run(
     name += &options.key();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.axisymmetric().out_files(DIR, &name);
 
     // nonlinear solver configuration
@@ -138,7 +138,7 @@ fn run(
     //
 
     // load summary and associated files
-    let (post, _) = PostProc::new(DIR, &name)?;
+    let (post, _) = PostProc::<2>::new(DIR, &name)?;
 
     // boundaries
     let bottom = features.search_edges(At::Y(0.0), any_x)?;

@@ -5,14 +5,14 @@ use crate::material::ElastoplasticImp;
 use crate::StrError;
 
 /// Holds the actual stress-strain model implementation
-pub struct ModelStressStrain {
+pub struct ModelStressStrain<const DIM: usize> {
     /// Holds the actual model implementation
-    pub actual: Box<dyn TraitStressStrain>,
+    pub actual: Box<dyn TraitStressStrain<DIM>>,
 }
 
-impl ModelStressStrain {
+impl<const DIM: usize> ModelStressStrain<DIM> {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+    pub fn new(ideal: &Idealization<DIM>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // check settings
         if let Some(msg) = settings.validate() {
             println!("ERROR: {}", msg);
@@ -20,7 +20,7 @@ impl ModelStressStrain {
         }
 
         // allocate model
-        let actual: Box<dyn TraitStressStrain> = match param {
+        let actual: Box<dyn TraitStressStrain<DIM>> = match param {
             StressStrain::LinearElastic { .. } => Box::new(LinearElastic::new(ideal, param, settings)?),
             StressStrain::CamClay { .. } => panic!("TODO: CamClay"),
             StressStrain::DruckerPrager { .. } => panic!("TODO: DruckerPrager"),
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn allocate_stress_strain_model_works() {
-        let mut ideal = Idealization::new(2);
+        let mut ideal = Idealization::<2>::new();
         let param = StressStrain::sample_linear_elastic();
         let settings = Settings::new();
         ModelStressStrain::new(&ideal, &param, &settings).unwrap();
@@ -77,7 +77,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "TODO: DruckerPrager")]
     fn allocate_stress_strain_fails() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::DruckerPrager {
             young: 1500.0,
             poisson: 0.25,

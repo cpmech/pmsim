@@ -154,7 +154,7 @@ fn run_test(
     ebc.edges(&top, Dof::Uy, -dy);
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
@@ -189,7 +189,7 @@ fn run_test(
     }
 
     // check the results
-    let (post, _) = PostProc::new("/tmp/pmsim/plasticity", &name)?;
+    let (post, _) = PostProc::<2>::new("/tmp/pmsim/plasticity", &name)?;
     // post.write_paraview(&mut memo, "/tmp/pmsim/plasticity", &name)?;
     let lambdas = post.stations();
     if !options.arclength {

@@ -127,7 +127,7 @@ fn main() -> Result<(), StrError> {
     let corner_id = features.search_point_ids(At::XY(min[0], max[1]), any_x)?[0];
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .out_history_uu_comp(corner_id, Dof::Uy)
         .lagrange_mult_method(options.lmm)
@@ -295,7 +295,7 @@ fn main() -> Result<(), StrError> {
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((0, 1.0, 1e-6)),
+            Some((1, 1.0, 1e-6)),
         )?;
         assert!(all_good);
     }

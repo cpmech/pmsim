@@ -7,22 +7,28 @@ use russell_sparse::{CooMatrix, Sym};
 // Common functions ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /// Copies secondary state variables at the beginning of a step
-pub(crate) fn backup_secondary_state(data: &mut FemData) {
+pub(crate) fn backup_secondary_state<const DIM: usize>(data: &mut FemData<DIM>) {
     data.elements.backup_secondary_values(&mut data.state, true);
 }
 
 /// Restores secondary state variables at the end of a step, if the step failed
-pub(crate) fn restore_secondary_state(data: &mut FemData) {
+pub(crate) fn restore_secondary_state<const DIM: usize>(data: &mut FemData<DIM>) {
     data.elements.restore_secondary_values(&mut data.state, true);
 }
 
 /// Prepares to iterate (e.g., reset algorithmic variables in the FEM)
-pub(crate) fn prepare_to_iterate(data: &mut FemData) {
+pub(crate) fn prepare_to_iterate<const DIM: usize>(data: &mut FemData<DIM>) {
     data.elements.reset_algorithmic_variables(&mut data.state);
 }
 
 /// Outputs the current step, given (λ, u)
-pub(crate) fn output_step(stats: &NlStats, u: &Vector, l: f64, h: f64, data: &mut FemData) -> Result<bool, StrError> {
+pub(crate) fn output_step<const DIM: usize>(
+    stats: &NlStats,
+    u: &Vector,
+    l: f64,
+    h: f64,
+    data: &mut FemData<DIM>,
+) -> Result<bool, StrError> {
     if stats.n_accepted > 0 {
         data.set_state(l, u);
         data.state.ddl = h;
@@ -43,7 +49,12 @@ pub(crate) fn output_step(stats: &NlStats, u: &Vector, l: f64, h: f64, data: &mu
 /// Calculates G(u, λ) for the Lagrange Multipliers Method (LMM)
 ///
 /// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
-pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_gg_lmm<const DIM: usize>(
+    gg: &mut Vector,
+    l: f64,
+    u: &Vector,
+    data: &mut FemData<DIM>,
+) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
 
@@ -74,12 +85,12 @@ pub(crate) fn calc_gg_lmm(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
 /// Calculates Gu = ∂G/∂u and Gλ = ∂G/∂λ for the Lagrange Multipliers Method (LMM)
 ///
 /// This function requires that Ǔ (prescribed values) has already been calculated.
-pub(crate) fn calc_jac_lmm(
+pub(crate) fn calc_jac_lmm<const DIM: usize>(
     ggu: &mut CooMatrix,
     ggl: &mut Vector,
     l: f64,
     u: &Vector,
-    data: &mut FemData,
+    data: &mut FemData<DIM>,
 ) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
@@ -139,13 +150,13 @@ pub(crate) fn calc_jac_lmm(
 }
 
 /// Updates the secondary state for the Lagrange Multipliers Method (LMM)
-pub(crate) fn update_secondary_state_lmm(
+pub(crate) fn update_secondary_state_lmm<const DIM: usize>(
     do_backup: bool,
     u0: &Vector,
     u1: &Vector,
     _l0: f64,
     _l1: f64,
-    data: &mut FemData,
+    data: &mut FemData<DIM>,
 ) -> Result<bool, StrError> {
     // Backup or restore secondary values
     if do_backup {
@@ -170,7 +181,12 @@ pub(crate) fn update_secondary_state_lmm(
 /// Calculates G(u, λ) for the System Partitioning Strategy (SPS)
 ///
 /// This function requires that Ǔ (prescribed values) and F (external forces) have already been calculated.
-pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemData) -> Result<(), StrError> {
+pub(crate) fn calc_gg_sps<const DIM: usize>(
+    gg: &mut Vector,
+    l: f64,
+    u: &Vector,
+    data: &mut FemData<DIM>,
+) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
 
@@ -188,12 +204,12 @@ pub(crate) fn calc_gg_sps(gg: &mut Vector, l: f64, u: &Vector, data: &mut FemDat
 /// Calculates Gu = ∂G/∂u and Gλ = ∂G/∂λ for the System Partitioning Strategy (SPS)
 ///
 /// This function requires that Ǔ (prescribed values) has already been calculated.
-pub(crate) fn calc_jac_sps(
+pub(crate) fn calc_jac_sps<const DIM: usize>(
     ggu: &mut CooMatrix,
     ggl: &mut Vector,
     l: f64,
     u: &Vector,
-    data: &mut FemData,
+    data: &mut FemData<DIM>,
 ) -> Result<(), StrError> {
     // Set the state
     data.set_state(l, u);
@@ -220,13 +236,13 @@ pub(crate) fn calc_jac_sps(
 }
 
 /// Updates the secondary state for the System Partitioning Strategy (SPS)
-pub(crate) fn update_secondary_state_sps(
+pub(crate) fn update_secondary_state_sps<const DIM: usize>(
     do_backup: bool,
     u0: &Vector,
     u1: &Vector,
     l0: f64,
     l1: f64,
-    data: &mut FemData,
+    data: &mut FemData<DIM>,
 ) -> Result<bool, StrError> {
     // Backup or restore secondary values
     if do_backup {

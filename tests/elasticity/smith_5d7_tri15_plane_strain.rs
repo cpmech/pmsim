@@ -85,7 +85,7 @@ fn smith_5d7_tri15_plane_strain() -> Result<(), StrError> {
         .points(&[10], Pbc::Fy, -0.1333);
 
     // configuration
-    let config = Config::new(&mesh);
+    let config = Config::<2>::new(&mesh);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

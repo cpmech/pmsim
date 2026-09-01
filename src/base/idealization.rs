@@ -7,7 +7,7 @@ use russell_tensor::Mandel;
 /// * The default thickness value is **1.0** for all cases
 /// * In 2D, the default choice is **plane-strain**
 #[derive(Clone, Copy, Debug)]
-pub struct Idealization {
+pub struct Idealization<const DIM: usize> {
     /// Indicates 2D instead of 3D
     pub two_dim: bool,
 
@@ -21,16 +21,19 @@ pub struct Idealization {
     pub thickness: f64,
 }
 
-impl Idealization {
+impl<const DIM: usize> Idealization<DIM> {
+    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+
     /// Allocates a new instance
     ///
     /// # Default values
     ///
     /// * `2D`: plane-strain with thickness = 1.0
     /// * `3D`: no idealization with thickness = 1.0
-    pub fn new(ndim: usize) -> Self {
+    pub fn new() -> Self {
+        let _ = Self::CHECK;
         Idealization {
-            two_dim: ndim == 2,
+            two_dim: DIM == 2,
             axisymmetric: false,
             plane_stress: false,
             thickness: 1.0,
@@ -61,7 +64,7 @@ mod tests {
 
     #[test]
     fn derive_works() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let mut clone = ideal.clone();
         assert_eq!(
             format!("{:?}", ideal),
@@ -77,10 +80,10 @@ mod tests {
 
     #[test]
     fn mandel_works() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         assert_eq!(ideal.mandel(), Mandel::Symmetric2D);
 
-        let ideal = Idealization::new(3);
+        let ideal = Idealization::<3>::new();
         assert_eq!(ideal.mandel(), Mandel::Symmetric);
     }
 }

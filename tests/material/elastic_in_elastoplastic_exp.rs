@@ -34,17 +34,16 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     };
 
     // models
-    let ndim = 2;
-    let ideal = Idealization::new(ndim);
+    let ideal = Idealization::<2>::new();
     let mut settings = Settings::new();
     settings.set_gp_explicit_update(true).set_gp_save_history(true);
     let elast = LinearElastic::new(&ideal, &param_el, &settings)?;
     let direct = VonMises::new(&ideal, &param_vm, &settings)?;
     let general = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
     let mut general_full = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
-    let mut box_elast: Box<dyn TraitStressStrain> = Box::new(elast);
-    let mut box_direct: Box<dyn TraitStressStrain> = Box::new(direct);
-    let mut box_general: Box<dyn TraitStressStrain> = Box::new(general);
+    let mut box_elast: Box<dyn TraitStressStrain<2>> = Box::new(elast);
+    let mut box_direct: Box<dyn TraitStressStrain<2>> = Box::new(direct);
+    let mut box_general: Box<dyn TraitStressStrain<2>> = Box::new(general);
 
     // constants
     let mandel = ideal.mandel();
@@ -106,11 +105,11 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
 
 // Updates stresses and strains using (sub)steps
 fn update_with_steps(
-    state: &mut LocalState,
-    model: &mut Box<dyn TraitStressStrain>,
+    state: &mut LocalState<2>,
+    model: &mut Box<dyn TraitStressStrain<2>>,
     depsilon_total: &Tensor2,
     n_step: usize,
-) -> Result<Vec<LocalState>, StrError> {
+) -> Result<Vec<LocalState<2>>, StrError> {
     // check
     if n_step < 1 {
         return Err("n_step must be ≥ 1");
@@ -133,10 +132,10 @@ fn update_with_steps(
 
 fn do_plot(
     index: usize,
-    states_elast: &Vec<LocalState>,
-    states_direct: &Vec<LocalState>,
-    states_general: &Vec<LocalState>,
-    general_full: &ElastoplasticExp,
+    states_elast: &Vec<LocalState<2>>,
+    states_direct: &Vec<LocalState<2>>,
+    states_general: &Vec<LocalState<2>>,
+    general_full: &ElastoplasticExp<2>,
 ) -> Result<(), StrError> {
     // constants
     let n = states_elast.len();

@@ -62,10 +62,10 @@ fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
-pub fn compare_results(
+pub fn compare_results<const DIM: usize>(
     mesh: &Mesh,
     schema: &Schema,
-    config: &Config,
+    config: &Config<DIM>,
     dir: &str,
     fn_stem: &str,
     ref_type: ReferenceDataType,
@@ -105,7 +105,7 @@ pub fn compare_results(
     // compare results
     let mut all_good = true;
     let mut elastic_flags_ok = true;
-    let (pp, _) = PostProc::new(dir, fn_stem)?;
+    let (pp, _) = PostProc::<DIM>::new(dir, fn_stem)?;
     if pp.nfile() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
@@ -114,7 +114,8 @@ pub fn compare_results(
         let step = index - 1;
 
         // load state
-        let fem_state = FemState::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
+        let fem_state =
+            FemState::<DIM>::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
 
         if verbose > 0 {
             println!(

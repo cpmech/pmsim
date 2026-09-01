@@ -76,7 +76,7 @@ fn smith_5d2_tri3_plane_strain() -> Result<(), StrError> {
     nbc.edges(&top, Nbc::Qn, -1.0);
 
     // configuration
-    let config = Config::new(&mesh);
+    let config = Config::<2>::new(&mesh);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

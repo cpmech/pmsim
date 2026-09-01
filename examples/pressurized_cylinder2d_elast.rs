@@ -194,7 +194,7 @@ fn main() -> Result<(), StrError> {
             .edges(&outer_circle, Nbc::Qn, -P2);
 
         // configuration
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
         config
             .verbose(false)
             .save_vismatrix_file(false)

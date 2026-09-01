@@ -1,12 +1,9 @@
-use crate::base::{Conductivity, Idealization};
+use crate::base::Conductivity;
 use crate::StrError;
 use russell_tensor::Tensor2;
 
 /// Implements conductivity models
-pub struct ModelConductivity {
-    /// Indicates a 2D conductivity tensor
-    two_dim: bool,
-
+pub struct ModelConductivity<const DIM: usize> {
     /// Use Constant model
     cte_enabled: bool,
 
@@ -41,12 +38,11 @@ pub struct ModelConductivity {
     pze_beta: f64,
 }
 
-impl ModelConductivity {
+impl<const DIM: usize> ModelConductivity<DIM> {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &Conductivity) -> Result<Self, StrError> {
+    pub fn new(param: &Conductivity) -> Result<Self, StrError> {
         match *param {
             Conductivity::Constant { kx, ky, kz } => Ok(ModelConductivity {
-                two_dim: ideal.two_dim,
                 cte_enabled: true,
                 iso_enabled: false,
                 iso_kr: 0.0,
@@ -60,7 +56,6 @@ impl ModelConductivity {
                 pze_beta: 0.0,
             }),
             Conductivity::IsotropicLinear { kr, beta } => Ok(ModelConductivity {
-                two_dim: ideal.two_dim,
                 cte_enabled: false,
                 iso_enabled: true,
                 iso_kr: kr,
@@ -82,7 +77,6 @@ impl ModelConductivity {
                 alpha,
                 beta,
             } => Ok(ModelConductivity {
-                two_dim: ideal.two_dim,
                 cte_enabled: false,
                 iso_enabled: false,
                 iso_kr: 0.0,
@@ -114,7 +108,7 @@ impl ModelConductivity {
         if self.cte_enabled {
             k.sym_set(0, 0, self.kx);
             k.sym_set(1, 1, self.ky);
-            if !self.two_dim {
+            if DIM == 3 {
                 k.sym_set(2, 2, self.kz);
             }
         } else if self.iso_enabled {
@@ -122,7 +116,7 @@ impl ModelConductivity {
             let val = (1.0 + self.iso_beta * phi) * self.iso_kr;
             k.sym_set(0, 0, val);
             k.sym_set(1, 1, val);
-            if !self.two_dim {
+            if DIM == 3 {
                 k.sym_set(2, 2, val);
             }
         } else {
@@ -145,7 +139,7 @@ impl ModelConductivity {
             let val = self.iso_beta * self.iso_kr;
             dk_dphi.sym_set(0, 0, val);
             dk_dphi.sym_set(1, 1, val);
-            if !self.two_dim {
+            if DIM == 3 {
                 dk_dphi.sym_set(2, 2, val);
             }
         } else {
@@ -160,15 +154,14 @@ impl ModelConductivity {
 #[cfg(test)]
 mod tests {
     use super::ModelConductivity;
-    use crate::base::{Conductivity, Idealization};
+    use crate::base::Conductivity;
     use russell_lab::{approx_eq, deriv1_central5};
     use russell_tensor::{Mandel, Tensor2};
 
     #[test]
     fn derivative_works() {
         let param = Conductivity::IsotropicLinear { kr: 20.0, beta: 0.5 };
-        let ideal = Idealization::new(2);
-        let model = ModelConductivity::new(&ideal, &param).unwrap();
+        let model = ModelConductivity::<2>::new(&param).unwrap();
 
         let phi_ini = 100.0;
         let mut dk_dphi_ana = Tensor2::new(Mandel::Symmetric2D);

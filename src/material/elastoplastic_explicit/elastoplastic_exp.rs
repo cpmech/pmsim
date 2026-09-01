@@ -10,18 +10,18 @@ use russell_ode::{OdeSolver, Output, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, Tensor2, Tensor4};
 
 /// Implements general elastoplasticity models using explicit stress update
-pub struct ElastoplasticExp<'a> {
+pub struct ElastoplasticExp<'a, const DIM: usize> {
     /// Holds the arguments for the explicit stress update algorithm
-    args: Args,
+    args: Args<DIM>,
 
     /// Holds the solver for finding the yield surface intersection
-    ode_intersection: OdeSolver<'a, Args>,
+    ode_intersection: OdeSolver<'a, Args<DIM>>,
 
     /// Holds the solver for the elastic update
-    ode_elastic: OdeSolver<'a, Args>,
+    ode_elastic: OdeSolver<'a, Args<DIM>>,
 
     /// Holds the solver for the elastoplastic update
-    ode_elastoplastic: OdeSolver<'a, Args>,
+    ode_elastoplastic: OdeSolver<'a, Args<DIM>>,
 
     /// Holds the ODE vector of unknowns for elastic case
     ode_y_e: Vector,
@@ -30,13 +30,13 @@ pub struct ElastoplasticExp<'a> {
     ode_y_ep: Vector,
 
     /// Holds the output during the intersection finding
-    out_intersection: Output<'a, Args>,
+    out_intersection: Output<'a, Args<DIM>>,
 
     /// Holds the output during the elastic path
-    out_history_el: Output<'a, Args>,
+    out_history_el: Output<'a, Args<DIM>>,
 
     /// Holds the output during the elastoplastic path
-    out_history_ep: Output<'a, Args>,
+    out_history_ep: Output<'a, Args<DIM>>,
 
     /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
@@ -54,9 +54,9 @@ pub struct ElastoplasticExp<'a> {
     verbose: bool,
 }
 
-impl<'a> ElastoplasticExp<'a> {
+impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+    pub fn new(ideal: &Idealization<DIM>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the interpolant
         let interp_nn_max = settings.gp_interp_nn_max();
         let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
@@ -131,7 +131,7 @@ impl<'a> ElastoplasticExp<'a> {
     }
 
     /// Calculates the yield function f
-    pub fn yield_function(&self, state: &LocalState) -> Result<f64, StrError> {
+    pub fn yield_function(&self, state: &LocalState<DIM>) -> Result<f64, StrError> {
         self.args.model.calc_f(state)
     }
 
@@ -157,7 +157,7 @@ impl<'a> ElastoplasticExp<'a> {
     }
 
     /// Returns true if the trial stress path leads to the inside of the yield surface
-    fn going_inside(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<bool, StrError> {
+    fn going_inside(&mut self, state: &LocalState<DIM>, delta_strain: &Tensor2) -> Result<bool, StrError> {
         self.args.model.calc_fs(&mut self.args.fs, state)?;
         self.args.model.calc_dde(&mut self.args.dde, state)?;
         let indicator = t2_ddot_t4_ddot_t2(&self.args.fs, &self.args.dde, delta_strain);
@@ -165,7 +165,7 @@ impl<'a> ElastoplasticExp<'a> {
     }
 
     /// Performs the intersection finding algorithm
-    fn intersection_finding(&mut self, state: &LocalState, inside: bool) -> Result<(Option<f64>, f64), StrError> {
+    fn intersection_finding(&mut self, state: &LocalState<DIM>, inside: bool) -> Result<(Option<f64>, f64), StrError> {
         self.args.state.z_set.set_vector(state.z_set.as_data());
         self.ode_y_e.set_vector(state.stress.vector().as_data());
         self.ode_intersection.solve(
@@ -199,7 +199,7 @@ impl<'a> ElastoplasticExp<'a> {
     }
 
     /// Selects the yield surface crossing case
-    fn select_case(&mut self, state: &LocalState, delta_strain: &Tensor2) -> Result<Case, StrError> {
+    fn select_case(&mut self, state: &LocalState<DIM>, delta_strain: &Tensor2) -> Result<Case, StrError> {
         let yf_initial = self.args.model.calc_f(state)?;
         if yf_initial < 0.0 {
             let (t_intersection, yf_trial) = self.intersection_finding(state, true)?;
@@ -243,7 +243,7 @@ impl<'a> ElastoplasticExp<'a> {
     }
 }
 
-impl<'a> TraitStressStrain for ElastoplasticExp<'a> {
+impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         self.args.model.symmetric_stiffness()
@@ -255,7 +255,7 @@ impl<'a> TraitStressStrain for ElastoplasticExp<'a> {
     }
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
+    fn initialize_int_vars(&self, state: &mut LocalState<DIM>) -> Result<(), StrError> {
         self.args.model.initialize_int_vars(state)
     }
 
@@ -263,7 +263,7 @@ impl<'a> TraitStressStrain for ElastoplasticExp<'a> {
     fn stiffness(
         &mut self,
         _dd: &mut Tensor4,
-        _state: &LocalState,
+        _state: &LocalState<DIM>,
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
@@ -273,7 +273,7 @@ impl<'a> TraitStressStrain for ElastoplasticExp<'a> {
     /// Updates the stress tensor given the strain increment tensor using the explicit method
     fn update_stress(
         &mut self,
-        state: &mut LocalState,
+        state: &mut LocalState<DIM>,
         delta_strain: &Tensor2,
         _cell_id: CellId,
         _gauss_id: usize,
@@ -376,13 +376,13 @@ mod tests {
         }
     }
 
-    fn gen_ini_state_von_mises(
-        ideal: &Idealization,
-        model: &ElastoplasticExp,
+    fn gen_ini_state_von_mises<const DIM: usize>(
+        ideal: &Idealization<DIM>,
+        model: &ElastoplasticExp<DIM>,
         p: f64,
         q: f64,
         alpha: f64,
-    ) -> LocalState {
+    ) -> LocalState<DIM> {
         let distance = p * SQRT_3;
         let radius = q * SQRT_2_BY_3;
         let nz = model.nz();
@@ -393,10 +393,10 @@ mod tests {
         state
     }
 
-    fn update_with_von_mises(
+    fn update_with_von_mises<const DIM: usize>(
         param: &StressStrain,
-        model: &mut ElastoplasticExp,
-        state: &mut LocalState,
+        model: &mut ElastoplasticExp<DIM>,
+        state: &mut LocalState<DIM>,
         p_el: f64,
         q_el: f64,
         alpha_el: f64,
@@ -431,9 +431,9 @@ mod tests {
         text
     }
 
-    fn do_plot_a(
+    fn do_plot_a<const DIM: usize>(
         file_stem: &str,
-        data: &HashMap<i32, Vec<LocalState>>,
+        data: &HashMap<i32, Vec<LocalState<DIM>>>,
         labels_oct: &[(&str, f64, f64)],
         labels_tyf: &[(&str, f64, f64)],
         oct_radius_max: Option<f64>,
@@ -492,10 +492,10 @@ mod tests {
         plotter.save(&format!("/tmp/pmsim/material/{}.svg", file_stem)).unwrap();
     }
 
-    fn do_plot_b(
+    fn do_plot_b<const DIM: usize>(
         file_stem: &str,
-        model: &ElastoplasticExp,
-        states: &[LocalState],
+        model: &ElastoplasticExp<DIM>,
+        states: &[LocalState<DIM>],
         labels_oct: &[(&str, f64, f64)],
         labels_tyf: &[(&str, f64, f64)],
         oct_radius_max: Option<f64>,
@@ -571,7 +571,7 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_1() {
+    fn update_stress_von_mises_2d() {
         let param = StressStrain::sample_von_mises();
         let mut settings = Settings::new();
         settings.set_gp_explicit_update(true);
@@ -580,52 +580,44 @@ mod tests {
         let (sig_m_1, sig_d_1) = (1.0, kappa_ini);
         let (sig_m_2, sig_d_2) = (2.0, 2.0 * kappa_ini);
         let mut data_2d = HashMap::new();
-        for ndim in [2, 3] {
-            for lode_int in [-1, 0, 1] {
-                let lode = lode_int as f64;
-                let alpha = PI / 2.0 - f64::acos(lode) / 3.0;
-                let alpha_deg = alpha * 180.0 / PI;
-                if VERBOSE {
-                    println!("\nndim = {}, lode = {}, alpha = {}°", ndim, lode, alpha_deg);
-                }
-                let ideal = Idealization::new(ndim);
-                let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
-                model.verbose = VERBOSE;
-                let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
-                if ndim == 2 {
-                    data_2d.insert(lode_int, vec![state.clone()]);
-                }
-                let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
-                let sig_m_1 = state.stress.invariant_p();
-                let sig_d_1 = state.stress.invariant_q();
-                if ndim == 2 {
-                    data_2d.get_mut(&lode_int).unwrap().push(state.clone());
-                }
-                let correct_sig_m = sig_m_0 + kk * deps_v;
-                let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
-                approx_eq(sig_m_1, correct_sig_m, 1e-14);
-                approx_eq(sig_d_1, correct_sig_d, 1e-13);
-                approx_eq(state.z_set[0], kappa_ini, 1e-15);
-                assert_eq!(state.elastic, true);
-                let case = model.last_case().unwrap();
-                let keys = case_to_keys(case);
-                assert_eq!(keys, ["A", "E"]);
-                let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
-                let sig_m_2 = state.stress.invariant_p();
-                let sig_d_2 = state.stress.invariant_q();
-                if ndim == 2 {
-                    data_2d.get_mut(&lode_int).unwrap().push(state.clone());
-                }
-                let correct_sig_m = sig_m_1 + kk * deps_v;
-                let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
-                approx_eq(sig_m_2, correct_sig_m, 1e-14);
-                approx_eq(sig_d_2, correct_sig_d, 1e-13);
-                approx_eq(state.z_set[0], correct_sig_d, 1e-13);
-                assert_eq!(state.elastic, false);
-                let case = model.last_case().unwrap();
-                let keys = case_to_keys(case);
-                assert_eq!(keys, &["B", "P"]);
+        for lode_int in [-1, 0, 1] {
+            let lode = lode_int as f64;
+            let alpha = PI / 2.0 - f64::acos(lode) / 3.0;
+            let alpha_deg = alpha * 180.0 / PI;
+            if VERBOSE {
+                println!("\nlode = {}, alpha = {}°", lode, alpha_deg);
             }
+            let ideal = Idealization::<2>::new();
+            let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
+            model.verbose = VERBOSE;
+            let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+            data_2d.insert(lode_int, vec![state.clone()]);
+            let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
+            let sig_m_1 = state.stress.invariant_p();
+            let sig_d_1 = state.stress.invariant_q();
+            data_2d.get_mut(&lode_int).unwrap().push(state.clone());
+            let correct_sig_m = sig_m_0 + kk * deps_v;
+            let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
+            approx_eq(sig_m_1, correct_sig_m, 1e-14);
+            approx_eq(sig_d_1, correct_sig_d, 1e-13);
+            approx_eq(state.z_set[0], kappa_ini, 1e-15);
+            assert_eq!(state.elastic, true);
+            let case = model.last_case().unwrap();
+            let keys = case_to_keys(case);
+            assert_eq!(keys, ["A", "E"]);
+            let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
+            let sig_m_2 = state.stress.invariant_p();
+            let sig_d_2 = state.stress.invariant_q();
+            data_2d.get_mut(&lode_int).unwrap().push(state.clone());
+            let correct_sig_m = sig_m_1 + kk * deps_v;
+            let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+            approx_eq(sig_m_2, correct_sig_m, 1e-14);
+            approx_eq(sig_d_2, correct_sig_d, 1e-13);
+            approx_eq(state.z_set[0], correct_sig_d, 1e-13);
+            assert_eq!(state.elastic, false);
+            let case = model.last_case().unwrap();
+            let keys = case_to_keys(case);
+            assert_eq!(keys, &["B", "P"]);
         }
         if SAVE_FIGURE {
             let labels_oct = [
@@ -650,15 +642,82 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_2() {
+    fn update_stress_von_mises_3d() {
+        let param = StressStrain::sample_von_mises();
+        let mut settings = Settings::new();
+        settings.set_gp_explicit_update(true);
+        let (kk, gg, hh, kappa_ini) = extract_von_mises_params_kg(&param);
+        let (sig_m_0, sig_d_0, alpha_0) = (0.0, 0.0, PI / 2.0);
+        let (sig_m_1, sig_d_1) = (1.0, kappa_ini);
+        let (sig_m_2, sig_d_2) = (2.0, 2.0 * kappa_ini);
+        let data_2d = HashMap::new();
+        for lode_int in [-1, 0, 1] {
+            let lode = lode_int as f64;
+            let alpha = PI / 2.0 - f64::acos(lode) / 3.0;
+            let alpha_deg = alpha * 180.0 / PI;
+            if VERBOSE {
+                println!("\nlode = {}, alpha = {}°", lode, alpha_deg);
+            }
+            let ideal = Idealization::<3>::new();
+            let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
+            model.verbose = VERBOSE;
+            let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+            let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
+            let sig_m_1 = state.stress.invariant_p();
+            let sig_d_1 = state.stress.invariant_q();
+            let correct_sig_m = sig_m_0 + kk * deps_v;
+            let correct_sig_d = sig_d_0 + 3.0 * gg * deps_d;
+            approx_eq(sig_m_1, correct_sig_m, 1e-14);
+            approx_eq(sig_d_1, correct_sig_d, 1e-13);
+            approx_eq(state.z_set[0], kappa_ini, 1e-15);
+            assert_eq!(state.elastic, true);
+            let case = model.last_case().unwrap();
+            let keys = case_to_keys(case);
+            assert_eq!(keys, ["A", "E"]);
+            let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_2, sig_d_2, alpha);
+            let sig_m_2 = state.stress.invariant_p();
+            let sig_d_2 = state.stress.invariant_q();
+            let correct_sig_m = sig_m_1 + kk * deps_v;
+            let correct_sig_d = sig_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+            approx_eq(sig_m_2, correct_sig_m, 1e-14);
+            approx_eq(sig_d_2, correct_sig_d, 1e-13);
+            approx_eq(state.z_set[0], correct_sig_d, 1e-13);
+            assert_eq!(state.elastic, false);
+            let case = model.last_case().unwrap();
+            let keys = case_to_keys(case);
+            assert_eq!(keys, &["B", "P"]);
+        }
+        if SAVE_FIGURE {
+            let labels_oct = [
+                ("A", 0.0, -2.3),
+                ("E,B", 6.5, 1.5),
+                ("E", -1.5, 7.1),
+                ("E", 2.0, 6.5),
+                ("P", 10.5, 4.0),
+                ("P", 3.2, 9.5),
+                ("P", -1.5, 10.0),
+            ];
+            let labels_tyf = [("A", 0.0, -7.9), ("E", 0.5, 1.1), ("B", 0.5, -1.1), ("P", 1.0, -1.1)];
+            do_plot_a::<3>(
+                "test_update_stress_von_mises_1",
+                &data_2d,
+                &labels_oct,
+                &labels_tyf,
+                None,
+                Some((-10.0, 2.0)),
+            );
+        }
+    }
+
+    #[test]
+    fn update_stress_von_mises_test_a() {
         let param = StressStrain::sample_von_mises();
         let (kk, gg, hh, kappa_ini) = extract_von_mises_params_kg(&param);
         let (sig_m_0, sig_d_0, alpha_0) = (0.0, 0.0, PI / 3.0);
         let (sig_m_1, sig_d_1, alpha_1) = (2.0, kappa_ini + 9.0, PI / 3.0);
         let mut settings = Settings::new();
         settings.set_gp_explicit_update(true).set_gp_save_history(true);
-        let ndim = 2;
-        let ideal = Idealization::new(ndim);
+        let ideal = Idealization::<2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
         let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
@@ -693,7 +752,7 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_3a() {
+    fn update_stress_von_mises_case_a() {
         let param = StressStrain::sample_von_mises();
         let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (0.0, 0.99999999999999999);
@@ -704,8 +763,7 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ndim = 2;
-        let ideal = Idealization::new(ndim);
+        let ideal = Idealization::<2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
         let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
@@ -736,7 +794,7 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_3b() {
+    fn update_stress_von_mises_case_b() {
         let param = StressStrain::sample_von_mises();
         let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (1.0, 0.8);
@@ -747,8 +805,7 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ndim = 2;
-        let ideal = Idealization::new(ndim);
+        let ideal = Idealization::<2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
         let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
@@ -779,7 +836,7 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_3c() {
+    fn update_stress_von_mises_case_c() {
         let param = StressStrain::sample_von_mises();
         let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let drift = 0.0;
@@ -795,8 +852,7 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ndim = 2;
-        let ideal = Idealization::new(ndim);
+        let ideal = Idealization::<2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
         let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
@@ -827,7 +883,7 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_3d() {
+    fn update_stress_von_mises_case_d() {
         let param = StressStrain::sample_von_mises();
         let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let drift = 0.0;
@@ -843,8 +899,7 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ndim = 2;
-        let ideal = Idealization::new(ndim);
+        let ideal = Idealization::<2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
         let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
@@ -875,7 +930,7 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_4() {
+    fn update_stress_von_mises_test_b() {
         let param = StressStrain::sample_von_mises();
         let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (1.0, 2.5);
@@ -886,8 +941,7 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ndim = 2;
-        let ideal = Idealization::new(ndim);
+        let ideal = Idealization::<2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
         let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
@@ -913,7 +967,7 @@ mod tests {
     }
 
     #[test]
-    fn update_stress_von_mises_5() {
+    fn update_stress_von_mises_test_c() {
         let param = StressStrain::sample_von_mises();
         let (_, _, _, kappa_ini) = extract_von_mises_params_kg(&param);
         let (drift, mz) = (1e-14, 2.0);
@@ -924,8 +978,7 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ndim = 2;
-        let ideal = Idealization::new(ndim);
+        let ideal = Idealization::<2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
         let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);

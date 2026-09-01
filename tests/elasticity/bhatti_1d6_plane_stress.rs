@@ -72,7 +72,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     nbc.edges(&top, Nbc::Qn, -20.0);
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.lagrange_mult_method(lmm).plane_stress(0.25);
 
     // solution

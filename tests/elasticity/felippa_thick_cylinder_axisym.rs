@@ -74,7 +74,7 @@ fn felippa_thick_cylinder_axisym() -> Result<(), StrError> {
     nbc.edges(&left, Nbc::Qn, -PRESSURE);
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.axisymmetric();
 
     // solution

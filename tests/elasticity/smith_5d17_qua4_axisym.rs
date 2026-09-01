@@ -93,7 +93,7 @@ fn smith_5d17_qua4_axisym() -> Result<(), StrError> {
         .points(&[6], Pbc::Fy, -24.0);
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .out_files("/tmp/pmsim/elasticity", NAME)
         .alt_bb_matrix_method(true)

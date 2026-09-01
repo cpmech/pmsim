@@ -9,7 +9,12 @@ use russell_tensor::{t2_ddot_t4_ddot_t2, t4_ddot_t2, t4_ddot_t2_dyad_t2_ddot_t4}
 /// Defines the callback for the Elastic ODE system
 ///
 /// ODE system: dσ/dt = Dₑ : Δε
-pub(super) fn callback_ode_e(dydt: &mut Vector, _t: f64, y: &Vector, a: &mut Args) -> Result<(), StrError> {
+pub(super) fn callback_ode_e<const DIM: usize>(
+    dydt: &mut Vector,
+    _t: f64,
+    y: &Vector,
+    a: &mut Args<DIM>,
+) -> Result<(), StrError> {
     // copy {y}(t) into σ
     a.state.stress.vector_mut().set_vector(y.as_data());
 
@@ -23,7 +28,12 @@ pub(super) fn callback_ode_e(dydt: &mut Vector, _t: f64, y: &Vector, a: &mut Arg
 /// Defines the callback for the Elastoplastic ODE system
 ///
 /// ODE system: dσ/dt = Dₑₚ : Δε and dz/dt = λ h(σ,z)
-pub(super) fn callback_ode_ep(dydt: &mut Vector, _t: f64, y: &Vector, a: &mut Args) -> Result<(), StrError> {
+pub(super) fn callback_ode_ep<const DIM: usize>(
+    dydt: &mut Vector,
+    _t: f64,
+    y: &Vector,
+    a: &mut Args<DIM>,
+) -> Result<(), StrError> {
     // split {y}(t) into σ and z
     y.split2(a.state.stress.vector_mut().as_mut_data(), a.state.z_set.as_mut_data());
 
@@ -74,7 +84,13 @@ pub(super) fn callback_ode_ep(dydt: &mut Vector, _t: f64, y: &Vector, a: &mut Ar
 }
 
 /// Defines the callback for dense output during intersection detection
-pub(super) fn callback_intersect(stats: &Stats, _h: f64, t: f64, y: &Vector, a: &mut Args) -> Result<bool, StrError> {
+pub(super) fn callback_intersect<const DIM: usize>(
+    stats: &Stats,
+    _h: f64,
+    t: f64,
+    y: &Vector,
+    a: &mut Args<DIM>,
+) -> Result<bool, StrError> {
     // reset the counter
     if stats.n_accepted == 0 {
         a.yf_count = 0;
@@ -102,7 +118,13 @@ pub(super) fn callback_intersect(stats: &Stats, _h: f64, t: f64, y: &Vector, a: 
 }
 
 /// Defines the callback for dense output during stress-strain history recording (elastic)
-pub(super) fn callback_history_e(_stats: &Stats, _h: f64, t: f64, y: &Vector, a: &mut Args) -> Result<bool, StrError> {
+pub(super) fn callback_history_e<const DIM: usize>(
+    _stats: &Stats,
+    _h: f64,
+    t: f64,
+    y: &Vector,
+    a: &mut Args<DIM>,
+) -> Result<bool, StrError> {
     if let Some(h) = a.history_eep.as_mut() {
         // copy {y}(t) into σ
         a.state.stress.vector_mut().set_vector(y.as_data());
@@ -122,7 +144,13 @@ pub(super) fn callback_history_e(_stats: &Stats, _h: f64, t: f64, y: &Vector, a:
 }
 
 /// Defines the callback for dense output during stress-strain history recording (elastoplastic)
-pub(super) fn callback_history_ep(_stats: &Stats, _h: f64, t: f64, y: &Vector, a: &mut Args) -> Result<bool, StrError> {
+pub(super) fn callback_history_ep<const DIM: usize>(
+    _stats: &Stats,
+    _h: f64,
+    t: f64,
+    y: &Vector,
+    a: &mut Args<DIM>,
+) -> Result<bool, StrError> {
     if let Some(h) = a.history_eep.as_mut() {
         // split {y}(t) into σ and z
         y.split2(a.state.stress.vector_mut().as_mut_data(), a.state.z_set.as_mut_data());

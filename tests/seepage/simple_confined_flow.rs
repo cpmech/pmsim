@@ -56,7 +56,7 @@ fn simple_confined_flow() -> Result<(), StrError> {
     let nbc = BcNatural::new();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .lagrange_mult_method(true)
         .out_files(OUT_DIR, NAME)
@@ -72,7 +72,7 @@ fn simple_confined_flow() -> Result<(), StrError> {
     //
 
     // post-processing tool
-    let (post, mut memo) = PostProc::new(OUT_DIR, NAME)?;
+    let (post, mut memo) = PostProc::<2>::new(OUT_DIR, NAME)?;
 
     // load mesh and find vertical section along the gap underneath the wall
     let mid_section = features.search_edges(At::X(18.0), |_| true)?;

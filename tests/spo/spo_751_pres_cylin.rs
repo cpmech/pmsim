@@ -123,7 +123,7 @@ fn run(
     name += &options.key();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
@@ -210,7 +210,7 @@ fn run(
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<2>::new(DIR, &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
 

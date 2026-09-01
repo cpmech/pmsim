@@ -9,9 +9,9 @@ use russell_lab::{mat_inverse, mat_vec_mul, Matrix, NewtonSolver, Vector};
 use russell_tensor::{t4_ddot_t2_update, Tensor2, Tensor4};
 
 /// Implements general elastoplasticity models using implicit stress update
-pub struct ElastoplasticImp {
+pub struct ElastoplasticImp<const DIM: usize> {
     /// Holds the arguments for the implicit stress update algorithm
-    args: Args,
+    args: Args<DIM>,
 
     /// Vector of unknowns for the local Newton-Raphson solver
     ///
@@ -25,9 +25,9 @@ pub struct ElastoplasticImp {
     inv_jac: Matrix,
 }
 
-impl ElastoplasticImp {
+impl<const DIM: usize> ElastoplasticImp<DIM> {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+    pub fn new(ideal: &Idealization<DIM>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         let args = Args::new(ideal, param, settings)?;
         let ndim_nw = args.ncp + args.nz + 1;
         Ok(ElastoplasticImp {
@@ -39,7 +39,7 @@ impl ElastoplasticImp {
     }
 }
 
-impl TraitStressStrain for ElastoplasticImp {
+impl<const DIM: usize> TraitStressStrain<DIM> for ElastoplasticImp<DIM> {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         self.args.model.symmetric_stiffness()
@@ -51,7 +51,7 @@ impl TraitStressStrain for ElastoplasticImp {
     }
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError> {
+    fn initialize_int_vars(&self, state: &mut LocalState<DIM>) -> Result<(), StrError> {
         self.args.model.initialize_int_vars(state)
     }
 
@@ -59,7 +59,7 @@ impl TraitStressStrain for ElastoplasticImp {
     fn stiffness(
         &mut self,
         dd: &mut Tensor4,
-        state: &LocalState,
+        state: &LocalState<DIM>,
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
@@ -106,7 +106,7 @@ impl TraitStressStrain for ElastoplasticImp {
     /// Updates the stress tensor given the strain increment tensor using the implicit method
     fn update_stress(
         &mut self,
-        state: &mut LocalState,
+        state: &mut LocalState<DIM>,
         delta_strain: &Tensor2,
         _cell_id: CellId,
         _gauss_id: usize,
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn implicit_consistent_modulus_matches_von_mises() {
         // Idealization, parameters, and settings
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,

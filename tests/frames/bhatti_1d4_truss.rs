@@ -89,7 +89,7 @@ fn bhatti_1d4_truss() -> Result<(), StrError> {
     nbc.points(&[1], Pbc::Fy, -150000.0);
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.enable_symmetry_check(1e-15);
 
     // solution

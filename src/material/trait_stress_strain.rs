@@ -4,7 +4,7 @@ use gemlab::mesh::CellId;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Specifies the essential functions for stress-strain models
-pub trait TraitStressStrain: Send {
+pub trait TraitStressStrain<const DIM: usize>: Send {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool;
 
@@ -12,13 +12,13 @@ pub trait TraitStressStrain: Send {
     fn nz(&self) -> usize;
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_int_vars(&self, state: &mut LocalState) -> Result<(), StrError>;
+    fn initialize_int_vars(&self, state: &mut LocalState<DIM>) -> Result<(), StrError>;
 
     /// Computes the consistent tangent stiffness
     fn stiffness(
         &mut self,
         dd: &mut Tensor4,
-        state: &LocalState,
+        state: &LocalState<DIM>,
         cell_id: CellId,
         gauss_id: usize,
     ) -> Result<(), StrError>;
@@ -26,7 +26,7 @@ pub trait TraitStressStrain: Send {
     /// Updates the stress tensor given the strain increment tensor
     fn update_stress(
         &mut self,
-        state: &mut LocalState,
+        state: &mut LocalState<DIM>,
         delta_strain: &Tensor2,
         cell_id: CellId,
         gauss_id: usize,

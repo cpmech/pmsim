@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Holds the secondary values (e.g., stress) at all integration points
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SecondaryValues {
+pub struct SecondaryValues<const DIM: usize> {
     /// Holds the number of integration points
     pub ngauss: usize,
 
@@ -20,7 +20,7 @@ pub struct SecondaryValues {
     /// Holds the local states at all integration points of a solid element
     ///
     /// (ngauss)
-    pub(crate) solid: Vec<LocalState>,
+    pub(crate) solid: Vec<LocalState<DIM>>,
 
     /// Holds the local states at all integration points of a porous-liq element
     ///
@@ -35,17 +35,20 @@ pub struct SecondaryValues {
     /// Holds the local states at all integration points of a porous-sld-liq element
     ///
     /// (ngauss)
-    pub(crate) porous_sld_liq: Vec<LocalStatePorousSldLiq>,
+    pub(crate) porous_sld_liq: Vec<LocalStatePorousSldLiq<DIM>>,
 
     /// Holds the local states at all integration points of a porous-sld-liq-gas element
     ///
     /// (ngauss)
-    pub(crate) porous_sld_liq_gas: Vec<LocalStatePorousSldLiq>,
+    pub(crate) porous_sld_liq_gas: Vec<LocalStatePorousSldLiq<DIM>>,
 }
 
-impl SecondaryValues {
+impl<const DIM: usize> SecondaryValues<DIM> {
+    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+
     /// Allocates a new instance with empty arrays
     pub(crate) fn new_empty() -> Self {
+        let _ = Self::CHECK;
         SecondaryValues {
             ngauss: 0,
             diffusion: Vec::new(),
@@ -104,7 +107,7 @@ impl SecondaryValues {
     /// # Input
     ///
     /// * `p` -- index of the integration point
-    pub fn get_local_state(&self, p: usize) -> Result<&LocalState, StrError> {
+    pub fn get_local_state(&self, p: usize) -> Result<&LocalState<DIM>, StrError> {
         if self.ngauss == 0 {
             return Err("secondary values have not been allocated yet");
         }
@@ -260,7 +263,7 @@ mod tests {
 
     #[test]
     fn new_empty_works() {
-        let sv = SecondaryValues::new_empty();
+        let sv = SecondaryValues::<2>::new_empty();
         assert_eq!(sv.ngauss, 0);
         assert_eq!(sv.diffusion.len(), 0);
         assert_eq!(sv.solid.len(), 0);
@@ -272,7 +275,7 @@ mod tests {
 
     #[test]
     fn allocate_diffusion_works() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         let ngauss = 4;
         let ndim = 2;
 
@@ -287,7 +290,7 @@ mod tests {
 
     #[test]
     fn allocate_solid_works() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         let mandel = Mandel::new(2);
         let ngauss = 4;
         let nz = 2;
@@ -303,7 +306,7 @@ mod tests {
 
     #[test]
     fn allocate_porous_liq_works() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         let ngauss = 4;
 
         sv.allocate_porous_liq(ngauss);
@@ -314,7 +317,7 @@ mod tests {
 
     #[test]
     fn allocate_porous_liq_gas_works() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         let ngauss = 4;
 
         sv.allocate_porous_liq_gas(ngauss);
@@ -325,7 +328,7 @@ mod tests {
 
     #[test]
     fn allocate_porous_sld_liq_works() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         let mandel = Mandel::new(2);
         let ngauss = 4;
         let nz = 3;
@@ -341,7 +344,7 @@ mod tests {
 
     #[test]
     fn allocate_porous_sld_liq_gas_works() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         let mandel = Mandel::new(2);
         let ngauss = 4;
         let nz = 3;
@@ -357,7 +360,7 @@ mod tests {
 
     #[test]
     fn get_local_state_handles_errors() {
-        let sv = SecondaryValues::new_empty();
+        let sv = SecondaryValues::<2>::new_empty();
 
         // Not allocated yet
         assert_eq!(
@@ -366,7 +369,7 @@ mod tests {
         );
 
         // Allocate solid and test valid access
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_solid(Mandel::new(2), 4, 2);
 
         // Valid access
@@ -382,7 +385,7 @@ mod tests {
 
     #[test]
     fn get_local_state_works_for_solid() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_solid(Mandel::new(2), 2, 1);
 
         let local_state = sv.get_local_state(0).unwrap();
@@ -391,7 +394,7 @@ mod tests {
 
     #[test]
     fn get_local_state_fails_for_diffusion() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_diffusion(2, 2);
 
         assert_eq!(
@@ -402,7 +405,7 @@ mod tests {
 
     #[test]
     fn get_local_state_fails_for_porous_liq() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq(2);
 
         assert_eq!(
@@ -413,7 +416,7 @@ mod tests {
 
     #[test]
     fn get_local_state_fails_for_porous_liq_gas() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq_gas(2);
 
         assert_eq!(
@@ -424,7 +427,7 @@ mod tests {
 
     #[test]
     fn get_local_state_fails_for_porous_sld_liq() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq(Mandel::new(2), 2, 1);
 
         assert_eq!(
@@ -435,7 +438,7 @@ mod tests {
 
     #[test]
     fn get_local_state_fails_for_porous_sld_liq_gas() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq_gas(Mandel::new(2), 2, 1);
 
         assert_eq!(sv.get_local_state(0).err(), Some("LocalState is not available"));
@@ -443,7 +446,7 @@ mod tests {
 
     #[test]
     fn get_flow_vector_handles_errors() {
-        let sv = SecondaryValues::new_empty();
+        let sv = SecondaryValues::<2>::new_empty();
 
         // Not allocated yet
         assert_eq!(
@@ -452,7 +455,7 @@ mod tests {
         );
 
         // Allocate diffusion and test valid access
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_diffusion(4, 2);
 
         // Valid access
@@ -468,7 +471,7 @@ mod tests {
 
     #[test]
     fn get_flow_vector_works_for_diffusion() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_diffusion(2, 3);
 
         let flow = sv.get_flux_vector(0).unwrap();
@@ -477,7 +480,7 @@ mod tests {
 
     #[test]
     fn get_flow_vector_fails_for_solid() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_solid(Mandel::new(2), 2, 1);
 
         assert_eq!(
@@ -488,7 +491,7 @@ mod tests {
 
     #[test]
     fn get_flow_vector_fails_for_porous_liq() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq(2);
 
         assert_eq!(
@@ -499,7 +502,7 @@ mod tests {
 
     #[test]
     fn get_flow_vector_fails_for_porous_liq_gas() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq_gas(2);
 
         assert_eq!(
@@ -510,7 +513,7 @@ mod tests {
 
     #[test]
     fn get_flow_vector_fails_for_porous_sld_liq() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq(Mandel::new(2), 2, 1);
 
         assert_eq!(
@@ -521,7 +524,7 @@ mod tests {
 
     #[test]
     fn get_flow_vector_fails_for_porous_sld_liq_gas() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq_gas(Mandel::new(2), 2, 1);
 
         assert_eq!(sv.get_flux_vector(0).err(), Some("flow vector is not available"));
@@ -529,13 +532,13 @@ mod tests {
 
     #[test]
     fn stress_handles_errors() {
-        let sv = SecondaryValues::new_empty();
+        let sv = SecondaryValues::<2>::new_empty();
 
         // Not allocated yet
         assert_eq!(sv.stress(0).err(), Some("secondary values have not been allocated yet"));
 
         // Allocate solid and test valid access
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_solid(Mandel::new(2), 4, 2);
 
         // Valid access
@@ -548,7 +551,7 @@ mod tests {
 
     #[test]
     fn stress_works_for_solid() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_solid(Mandel::new(2), 2, 1);
 
         let stress = sv.stress(0).unwrap();
@@ -557,7 +560,7 @@ mod tests {
 
     #[test]
     fn stress_works_for_porous_sld_liq() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq(Mandel::new(2), 2, 1);
 
         let stress = sv.stress(0).unwrap();
@@ -566,7 +569,7 @@ mod tests {
 
     #[test]
     fn stress_works_for_porous_sld_liq_gas() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq_gas(Mandel::new(2), 2, 1);
 
         let stress = sv.stress(0).unwrap();
@@ -575,7 +578,7 @@ mod tests {
 
     #[test]
     fn stress_fails_for_diffusion() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_diffusion(2, 2);
 
         assert_eq!(sv.stress(0).err(), Some("stress is not available for Diffusion"));
@@ -583,7 +586,7 @@ mod tests {
 
     #[test]
     fn stress_fails_for_porous_liq() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq(2);
 
         assert_eq!(sv.stress(0).err(), Some("stress is not available for PorousLiq"));
@@ -591,7 +594,7 @@ mod tests {
 
     #[test]
     fn stress_fails_for_porous_liq_gas() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq_gas(2);
 
         assert_eq!(sv.stress(0).err(), Some("stress is not available for PorousLiqGas"));
@@ -599,13 +602,13 @@ mod tests {
 
     #[test]
     fn strain_handles_errors() {
-        let sv = SecondaryValues::new_empty();
+        let sv = SecondaryValues::<2>::new_empty();
 
         // Not allocated yet
         assert_eq!(sv.strain(0).err(), Some("secondary values have not been allocated yet"));
 
         // Allocate solid and test (without strain recording enabled)
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_solid(Mandel::new(2), 4, 2);
 
         // Out of bounds
@@ -620,7 +623,7 @@ mod tests {
 
     #[test]
     fn strain_works_for_solid_when_enabled() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_solid(Mandel::new(2), 2, 1);
 
         // Enable strain recording
@@ -633,7 +636,7 @@ mod tests {
 
     #[test]
     fn strain_works_for_porous_sld_liq_when_enabled() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq(Mandel::new(2), 2, 1);
 
         // Enable strain recording
@@ -645,7 +648,7 @@ mod tests {
 
     #[test]
     fn strain_works_for_porous_sld_liq_gas_when_enabled() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_sld_liq_gas(Mandel::new(2), 2, 1);
 
         // Enable strain recording
@@ -657,7 +660,7 @@ mod tests {
 
     #[test]
     fn strain_fails_for_diffusion() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_diffusion(2, 2);
 
         assert_eq!(sv.strain(0).err(), Some("strain is not available for Diffusion"));
@@ -665,7 +668,7 @@ mod tests {
 
     #[test]
     fn strain_fails_for_porous_liq() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq(2);
 
         assert_eq!(sv.strain(0).err(), Some("strain is not available for PorousLiq"));
@@ -673,7 +676,7 @@ mod tests {
 
     #[test]
     fn strain_fails_for_porous_liq_gas() {
-        let mut sv = SecondaryValues::new_empty();
+        let mut sv = SecondaryValues::<2>::new_empty();
         sv.allocate_porous_liq_gas(2);
 
         assert_eq!(sv.strain(0).err(), Some("strain is not available for PorousLiqGas"));

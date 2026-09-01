@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// This data is associated with a Gauss (integration) point
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LocalStatePorousSldLiq {
+pub struct LocalStatePorousSldLiq<const DIM: usize> {
     //
     // -- solid --
     //
@@ -38,7 +38,7 @@ pub struct LocalStatePorousSldLiq {
     pub porosity: f64,
 }
 
-impl LocalStatePorousSldLiq {
+impl<const DIM: usize> LocalStatePorousSldLiq<DIM> {
     /// Allocates a new instance
     ///
     /// # Arguments
@@ -66,7 +66,7 @@ impl LocalStatePorousSldLiq {
     }
 
     /// Copy data from another state into this state
-    pub fn mirror(&mut self, other: &LocalStatePorousSldLiq) {
+    pub fn mirror(&mut self, other: &LocalStatePorousSldLiq<DIM>) {
         // -- solid --
         self.elastic = other.elastic;
         self.lambda_alg = other.lambda_alg;

@@ -79,7 +79,7 @@ fn prescribe_displacements_2d() -> Result<(), StrError> {
 
 fn run_test(lmm: bool, mesh: &Mesh, schema: &Schema, ebc: &BcEssential, nbc: &BcNatural) -> Result<(), StrError> {
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.lagrange_mult_method(lmm);
 
     // solution

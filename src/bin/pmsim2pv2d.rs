@@ -5,7 +5,7 @@ use structopt::StructOpt;
 /// Command line options
 #[derive(StructOpt)]
 #[structopt(
-    name = "pmsim_to_paraview",
+    name = "pmsim2pv2d",
     about = "Generates VTU and PVD files for visualization with Paraview"
 )]
 struct Options {
@@ -22,7 +22,7 @@ fn main() -> Result<(), StrError> {
     let options = Options::from_args();
 
     // load data
-    let (post, mut memo) = PostProc::new(&options.out_dir, &options.fn_stem)?;
+    let (post, mut memo) = PostProc::<2>::new(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
     for index in 0..post.nfile() {

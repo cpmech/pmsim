@@ -13,14 +13,14 @@ use russell_nonlin::{IniDir, Output as NlOutput, Stop};
 use uuid::Uuid;
 
 /// Performs general (linear or nonlinear) finite element simulations
-pub struct Simulator<'a> {
+pub struct Simulator<'a, const DIM: usize> {
     data_uuid: Uuid,
     nl_config: &'a NlConfig,
-    nl_solver: NlSolver<'a, FemData<'a>>,
-    nl_output: NlOutput<'a, FemData<'a>>,
+    nl_solver: NlSolver<'a, FemData<'a, DIM>>,
+    nl_output: NlOutput<'a, FemData<'a, DIM>>,
 }
 
-impl<'a> Simulator<'a> {
+impl<'a, const DIM: usize> Simulator<'a, DIM> {
     /// Allocates a new instance
     ///
     /// Typical usage:
@@ -32,11 +32,11 @@ impl<'a> Simulator<'a> {
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
-        config: &'a Config,
+        config: &'a Config<DIM>,
         ebc: &'a BcEssential,
         nbc: &'a BcNatural,
         nl_config: &'a mut NlConfig,
-    ) -> Result<(Self, FemData<'a>), StrError> {
+    ) -> Result<(Self, FemData<'a, DIM>), StrError> {
         // Allocate the data structure
         let data = FemData::new(&mesh, &schema, &config, &ebc, &nbc)?;
 
@@ -91,7 +91,7 @@ impl<'a> Simulator<'a> {
     /// ```
     pub fn steady(
         &mut self,
-        data: &mut FemData<'a>,
+        data: &mut FemData<'a, DIM>,
         ini_dir: IniDir,
         stop: Stop,
         dll: DeltaLambda,

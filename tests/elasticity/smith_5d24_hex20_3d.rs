@@ -80,7 +80,7 @@ fn smith_5d24_hex20_3d() -> Result<(), StrError> {
     nbc.faces(&top, Nbc::Qn, -1.0);
 
     // configuration
-    let config = Config::new(&mesh);
+    let config = Config::<3>::new(&mesh);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

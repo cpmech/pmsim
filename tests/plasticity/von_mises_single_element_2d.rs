@@ -142,7 +142,7 @@ fn run_test(
 
     // update configuration
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
@@ -177,7 +177,7 @@ fn run_test(
     }
 
     // check the results
-    let (post, _) = PostProc::new("/tmp/pmsim/plasticity", &name)?;
+    let (post, _) = PostProc::<2>::new("/tmp/pmsim/plasticity", &name)?;
     let lambdas = post.stations();
     let ss = post.history_local_state(0).unwrap();
     if !options.arclength {

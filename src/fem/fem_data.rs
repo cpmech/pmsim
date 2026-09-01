@@ -12,7 +12,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 /// Holds the main data structures for the FEM simulation
-pub struct FemData<'a> {
+pub struct FemData<'a, const DIM: usize> {
     /// Holds a unique identifier for this instance such that it can be tracked externally
     pub(crate) uuid: Uuid,
 
@@ -20,7 +20,7 @@ pub struct FemData<'a> {
     pub(crate) schema: &'a Schema,
 
     /// Holds the configuration
-    pub(crate) config: &'a Config<'a>,
+    pub(crate) config: &'a Config<'a, DIM>,
 
     /// Stopwatch to measure computer time
     pub(crate) stopwatch: Stopwatch,
@@ -39,10 +39,10 @@ pub struct FemData<'a> {
     pub(crate) conc_loads: Vec<(usize, Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>)>,
 
     // Holds a collection of boundary elements
-    pub(crate) boundaries: ElementsBoundary<'a>,
+    pub(crate) boundaries: ElementsBoundary<'a, DIM>,
 
     /// Holds a collection of elements
-    pub(crate) elements: ElementsInterior<'a>,
+    pub(crate) elements: ElementsInterior<'a, DIM>,
 
     /// Number of degrees of freedom
     pub(crate) ndof: usize,
@@ -69,7 +69,7 @@ pub struct FemData<'a> {
     pub(crate) kk_check: CooMatrix,
 
     /// Holds the current state of the simulation
-    pub(crate) state: FemState,
+    pub(crate) state: FemState<DIM>,
 
     /// Vector of internal forces
     ///
@@ -87,15 +87,15 @@ pub struct FemData<'a> {
     pub(crate) ppu: Vector,
 
     /// Handles output files
-    pub(crate) files: OutputFiles,
+    pub(crate) files: OutputFiles<DIM>,
 }
 
-impl<'a> FemData<'a> {
+impl<'a, const DIM: usize> FemData<'a, DIM> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
-        config: &'a Config,
+        config: &'a Config<DIM>,
         ebc: &'a BcEssential,
         nbc: &'a BcNatural,
     ) -> Result<Self, StrError> {
@@ -264,7 +264,7 @@ impl<'a> FemData<'a> {
     }
 
     /// Returns an access the current state
-    pub fn state(&self) -> &FemState {
+    pub fn state(&self) -> &FemState<DIM> {
         &self.state
     }
 
@@ -298,7 +298,7 @@ impl<'a> FemData<'a> {
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState<DIM>>> {
         self.files.history_local_state(cell_id)
     }
 
@@ -461,7 +461,7 @@ mod tests {
         let nbc = BcNatural::new();
 
         // error due to config.validate
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<3>::new(&mesh);
         config.theta(0.0);
         assert_eq!(
             FemData::new(&mesh, &schema, &config, &ebc, &nbc).err(),

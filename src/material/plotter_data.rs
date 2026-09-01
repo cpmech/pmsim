@@ -86,7 +86,7 @@ impl PlotterData {
     }
 
     /// Allocates a new instance given an array of LocalState
-    pub fn from_states(states: &[LocalState]) -> Self {
+    pub fn from_states<const DIM: usize>(states: &[LocalState<DIM>]) -> Self {
         if states.len() < 1 {
             return PlotterData { all: Vec::new() };
         }
@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn from_states_and_array_work() {
         let lode = 1.0;
-        let states = generate_states_von_mises(true, 1000.0, 600.0, lode);
+        let states = generate_states_von_mises::<2>(1000.0, 600.0, lode);
         let mut data = PlotterData::from_states(&states);
 
         // stress
@@ -337,12 +337,11 @@ mod tests {
         let alpha = PI / 2.0 - theta;
         let distance = 1.0;
         let radius = 2.0;
-        let two_dim = true;
         let mandel = Mandel::Symmetric;
-        let mut state_a = LocalState::new(mandel, 0);
-        let mut state_b = LocalState::new(mandel, 0);
-        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
-        state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, two_dim).unwrap();
+        let mut state_a = LocalState::<2>::new(mandel, 0);
+        let mut state_b = LocalState::<2>::new(mandel, 0);
+        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, /*2D*/ true).unwrap();
+        state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, /*2D*/ true).unwrap();
 
         // calculate projection
         let data = PlotterData::from_states(&[state_a, state_b]);

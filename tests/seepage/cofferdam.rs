@@ -128,7 +128,7 @@ fn cofferdam() -> Result<(), StrError> {
     let nbc = BcNatural::new();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .lagrange_mult_method(true)
         .out_files(OUT_DIR, NAME)
@@ -207,9 +207,9 @@ fn cofferdam() -> Result<(), StrError> {
 }
 
 fn calc_flux_through_flat_section(
-    post: &PostProc,
+    post: &PostProc<2>,
     memo: &mut PostProcMemo,
-    state: &FemState,
+    state: &FemState<2>,
     cells: &Vec<CellId>,
     section: &Edges,
     unit_normal: &Vector,

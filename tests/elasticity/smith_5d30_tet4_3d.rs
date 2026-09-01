@@ -67,7 +67,7 @@ fn smith_5d30_tet4_3d() -> Result<(), StrError> {
     nbc.points(&[0, 5], Pbc::Fz, -0.1667).points(&[1, 4], Pbc::Fz, -0.3333);
 
     // configuration
-    let config = Config::new(&mesh);
+    let config = Config::<3>::new(&mesh);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

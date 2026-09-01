@@ -8,7 +8,7 @@ use russell_sparse::{CooMatrix, LinSolver, Sym};
 use uuid::Uuid;
 
 /// Performs linear finite element simulations
-pub struct SimulatorLin<'a> {
+pub struct SimulatorLin<'a, const DIM: usize> {
     data_uuid: Uuid,
     mm: CooMatrix,
     kk_bar: CooMatrix,
@@ -18,7 +18,7 @@ pub struct SimulatorLin<'a> {
     rhs: Vector,
 }
 
-impl<'a> SimulatorLin<'a> {
+impl<'a, const DIM: usize> SimulatorLin<'a, DIM> {
     /// Allocates a new instance
     ///
     /// Typical usage:
@@ -29,10 +29,10 @@ impl<'a> SimulatorLin<'a> {
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
-        config: &'a Config,
+        config: &'a Config<DIM>,
         essential: &'a BcEssential,
         natural: &'a BcNatural,
-    ) -> Result<(Self, FemData<'a>), StrError> {
+    ) -> Result<(Self, FemData<'a, DIM>), StrError> {
         let data = FemData::new(&mesh, &schema, &config, &essential, &natural)?;
         let ls = LinSolver::new(data.config.lin_sol_genie)?;
         let nsys = data.nsys; // system dimension
@@ -71,7 +71,7 @@ impl<'a> SimulatorLin<'a> {
     /// sim.steady(&mut data, true)?;
     //  let state = data.get_state();
     /// ```
-    pub fn steady(&mut self, data: &mut FemData<'a>, post_compute_second_values: bool) -> Result<(), StrError> {
+    pub fn steady(&mut self, data: &mut FemData<'a, DIM>, post_compute_second_values: bool) -> Result<(), StrError> {
         // Check UUID
         if data.uuid != self.data_uuid {
             return Err("The solver requires FemData with matching UUID");

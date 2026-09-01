@@ -12,7 +12,7 @@ use std::path::Path;
 
 /// Holds the state of a simulation
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FemState {
+pub struct FemState<const DIM: usize> {
     /// Time t
     pub time: f64,
 
@@ -96,15 +96,15 @@ pub struct FemState {
     /// Holds the secondary values (e.g. stress) at all integration (Gauss) points of all elements
     ///
     /// (ncell)
-    pub gauss: Vec<SecondaryValues>,
+    pub gauss: Vec<SecondaryValues<DIM>>,
 
     /// Records the last set of Lagrange multipliers as required to restart a simulation
     pub lag_mult: Option<Vector>,
 }
 
-impl FemState {
+impl<const DIM: usize> FemState<DIM> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config) -> Result<FemState, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config<DIM>) -> Result<FemState<DIM>, StrError> {
         // check number of cells
         let ncell = mesh.cells.len();
         if ncell == 0 {
@@ -270,7 +270,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         assert_eq!(
             FemState::new(&mesh, &schema, &config).err(),
             Some("there are no cells in the mesh")
@@ -287,7 +287,7 @@ mod tests {
             .add_rod(3, p3)
             .build(&mesh)
             .unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         assert_eq!(
             FemState::new(&mesh, &schema, &config).err(),
             Some("cannot combine Diffusion elements with other elements")
@@ -301,7 +301,7 @@ mod tests {
             .add_rod(3, p3)
             .build(&mesh)
             .unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         assert_eq!(
             FemState::new(&mesh, &schema, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
@@ -315,7 +315,7 @@ mod tests {
             .add_rod(3, p3)
             .build(&mesh)
             .unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         assert_eq!(
             FemState::new(&mesh, &schema, &config).err(),
             Some("cannot combine PorousLiq or PorousLiqGas with other elements")
@@ -335,7 +335,7 @@ mod tests {
             .add_beam(3, p3)
             .build(&mesh)
             .unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
         assert_eq!(state.uu.dim(), schema.ndof().unwrap());
@@ -347,7 +347,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
         config.transient = true;
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
@@ -365,7 +365,7 @@ mod tests {
         let p1 = ParamRod::sample();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
         assert_eq!(state.uu.dim(), schema.ndof().unwrap());
@@ -382,7 +382,7 @@ mod tests {
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
         assert_eq!(state.uu.dim(), schema.ndof().unwrap());
@@ -394,7 +394,7 @@ mod tests {
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
         assert_eq!(state.uu.dim(), schema.ndof().unwrap());
@@ -406,7 +406,7 @@ mod tests {
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let mut schema = Schema::new();
         schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
         assert_eq!(state.uu.dim(), schema.ndof().unwrap());
@@ -419,7 +419,7 @@ mod tests {
         let p2 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).add_solid(2, p2).build(&mesh).unwrap();
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
         config.dynamics = true;
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         assert_eq!(state.dduu.dim(), schema.ndof().unwrap());
@@ -437,7 +437,7 @@ mod tests {
         let p1 = ParamRod::sample();
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         let state = FemState::new(&mesh, &schema, &config).unwrap();
         let clone = state.clone();
         let str_ori = format!("{:?}", clone).to_string();
@@ -445,7 +445,7 @@ mod tests {
         // serialize
         let json = serde_json::to_string(&clone).unwrap();
         // deserialize
-        let read: FemState = serde_json::from_str(&json).unwrap();
+        let read: FemState<2> = serde_json::from_str(&json).unwrap();
         assert_eq!(format!("{:?}", read), str_ori);
     }
 }

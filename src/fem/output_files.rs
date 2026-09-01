@@ -13,7 +13,7 @@ use std::path::Path;
 
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct OutputFiles {
+pub(crate) struct OutputFiles<const DIM: usize> {
     /// Number of files written
     counter: usize,
 
@@ -46,12 +46,12 @@ pub(crate) struct OutputFiles {
     /// History (time or lambda) of LocalState at selected integration points
     ///
     /// Note: Only the results at the first integration point are saved.
-    history_local_state: HashMap<CellId, Vec<LocalState>>,
+    history_local_state: HashMap<CellId, Vec<LocalState<DIM>>>,
 }
 
-impl OutputFiles {
+impl<const DIM: usize> OutputFiles<DIM> {
     /// Allocates a new instance with deactivated generation of files
-    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config, np: usize) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config<DIM>, np: usize) -> Result<Self, StrError> {
         if config.out_files {
             // create directory
             fs::create_dir_all(&config.out_dir).map_err(|_| "cannot create output directory")?;
@@ -118,7 +118,7 @@ impl OutputFiles {
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState<DIM>>> {
         self.history_local_state.get(&cell_id)
     }
 
@@ -157,8 +157,8 @@ impl OutputFiles {
     pub(crate) fn execute(
         &mut self,
         schema: &Schema,
-        config: &Config,
-        state: &FemState,
+        config: &Config<DIM>,
+        state: &FemState<DIM>,
         yy: &Vector,
     ) -> Result<(), StrError> {
         if config.out_files || config.out_history {
@@ -217,7 +217,7 @@ impl OutputFiles {
     }
 
     /// Stops the output
-    pub(crate) fn stop(&self, config: &Config) -> Result<(), StrError> {
+    pub(crate) fn stop(&self, config: &Config<DIM>) -> Result<(), StrError> {
         if config.out_files {
             self.write_json(&format!("{}/{}.json", config.out_dir, config.out_fn_stem))?;
         }

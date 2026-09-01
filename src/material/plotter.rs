@@ -541,8 +541,8 @@ mod tests {
     #[test]
     pub fn add_and_save_work_1() {
         let (bulk, shear) = (1000.0, 600.0);
-        let states_a = generate_states_von_mises(true, bulk, shear, 1.0);
-        let states_b = generate_states_von_mises(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let states_a = generate_states_von_mises::<2>(bulk, shear, 1.0);
+        let states_b = generate_states_von_mises::<2>(1.2 * bulk, 0.8 * shear, -1.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
@@ -570,8 +570,8 @@ mod tests {
     #[test]
     pub fn add_and_save_work_2() {
         let (bulk, shear) = (1000.0, 600.0);
-        let states_a = generate_states_von_mises(true, bulk, shear, 1.0);
-        let states_b = generate_states_von_mises(true, 1.2 * bulk, 0.8 * shear, -1.0);
+        let states_a = generate_states_von_mises::<2>(bulk, shear, 1.0);
+        let states_b = generate_states_von_mises::<2>(1.2 * bulk, 0.8 * shear, -1.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
@@ -636,10 +636,9 @@ mod tests {
         // constants
         let distance = 1.0;
         let radius = 2.0;
-        let two_dim = true;
         let mandel = Mandel::Symmetric2D;
-        let mut state_a = LocalState::new(mandel, 0);
-        let mut state_b = LocalState::new(mandel, 0);
+        let mut state_a = LocalState::<2>::new(mandel, 0);
+        let mut state_b = LocalState::<2>::new(mandel, 0);
 
         // plotter
         let mut plotter = Plotter::new();
@@ -656,8 +655,8 @@ mod tests {
         // add curves to plotter
         let mut markers = ["*", "o", "^"].iter();
         for lode in &[-1.0, 0.0, 1.0] {
-            state_a.stress = Tensor2::new_from_octahedral(distance, radius, *lode, two_dim).unwrap();
-            state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, *lode, two_dim).unwrap();
+            state_a.stress = Tensor2::new_from_octahedral(distance, radius, *lode, /*2D*/ true).unwrap();
+            state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, *lode, /*2D*/ true).unwrap();
             let data = PlotterData::from_states(&[state_a.clone(), state_b.clone()]);
             plotter
                 .add(Axis::OctX, Axis::OctY, &data, |curve| {
@@ -681,16 +680,15 @@ mod tests {
         // constants
         let distance = 1.0;
         let radius = 0.0; // <<< isotropic state
-        let two_dim = true;
         let mandel = Mandel::Symmetric2D;
         let lode = 0.0;
-        let mut state_a = LocalState::new(mandel, 0);
+        let mut state_a = LocalState::<2>::new(mandel, 0);
 
         // plotter
         let mut plotter = Plotter::new();
 
         // add curve to plotter
-        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, two_dim).unwrap();
+        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, /*2D*/ true).unwrap();
         let data = PlotterData::from_states(&[state_a.clone()]);
         plotter
             .add(Axis::OctX, Axis::OctY, &data, |curve| {
@@ -708,8 +706,8 @@ mod tests {
 
     #[test]
     pub fn add_2x2_works_1() {
-        let states_a = generate_states_von_mises(true, 1000.0, 600.0, 1.0);
-        let states_b = generate_states_von_mises(true, 500.0, 200.0, 0.0);
+        let states_a = generate_states_von_mises::<2>(1000.0, 600.0, 1.0);
+        let states_b = generate_states_von_mises::<2>(500.0, 200.0, 0.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();
@@ -738,8 +736,8 @@ mod tests {
 
     #[test]
     pub fn add_3x2_works_1() {
-        let states_a = generate_states_von_mises(true, 1000.0, 600.0, 1.0);
-        let states_b = generate_states_von_mises(true, 500.0, 200.0, 0.0);
+        let states_a = generate_states_von_mises::<2>(1000.0, 600.0, 1.0);
+        let states_b = generate_states_von_mises::<2>(500.0, 200.0, 0.0);
         let data_a = PlotterData::from_states(&states_a);
         let data_b = PlotterData::from_states(&states_b);
         let mut plotter = Plotter::new();

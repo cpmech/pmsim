@@ -5,32 +5,6 @@ use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
 use std::collections::{HashMap, HashSet};
 
-/*
-use russell_tensor::Tensor4;
-
-struct Config<const DIM: usize> {
-    modulus: Tensor4<{ DIM * 2 }>,
-}
-
-impl<const DIM: usize> Config<DIM> {
-    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
-
-    fn new() -> Self {
-        let _ = Self::CHECK;
-        Config {
-            modulus: Tensor4::<{ DIM * 2 }>::new(),
-        }
-    }
-}
-
-fn main() {
-    let c2 = Config::<2>::new();   // Tensor4<4>
-    let c3 = Config::<3>::new();   // Tensor4<6>
-    assert_eq!(c2.modulus.dim(), 4);
-    assert_eq!(c3.modulus.dim(), 6);
-}
-*/
-
 /// Defines the smallest allowed Δt
 pub const CONFIG_DT_MIN: f64 = 1e-7;
 
@@ -43,14 +17,14 @@ pub const CONFIG_MIN_THETA: f64 = 0.0001;
 /// Holds configuration parameters
 ///
 /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-pub struct Config<'a> {
+pub struct Config<'a, const DIM: usize> {
     // Essential constants --------------------------------------------------------------------
     //
     /// Space dimension
     pub(crate) ndim: usize,
 
     /// Geometry idealization
-    pub(crate) ideal: Idealization,
+    pub(crate) ideal: Idealization<DIM>,
 
     /// Shows generic messages
     pub(crate) verbose: bool,
@@ -184,13 +158,50 @@ pub struct Config<'a> {
     pub(crate) out_history: bool,
 }
 
-impl<'a> Config<'a> {
+/*
+use russell_tensor::Tensor4;
+
+struct Config<const DIM: usize> {
+    modulus: Tensor4<{ DIM * 2 }>,
+}
+
+impl<const DIM: usize> Config<DIM> {
+    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+
+    fn new() -> Self {
+        let _ = Self::CHECK;
+        Config {
+            modulus: Tensor4::<{ DIM * 2 }>::new(),
+        }
+    }
+}
+
+fn main() {
+    let c2 = Config::<2>::new();   // Tensor4<4>
+    let c3 = Config::<3>::new();   // Tensor4<6>
+    assert_eq!(c2.modulus.dim(), 4);
+    assert_eq!(c3.modulus.dim(), 6);
+}
+*/
+
+impl<'a, const DIM: usize> Config<'a, DIM> {
+    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+
     /// Allocates a new instance
     pub fn new(mesh: &Mesh) -> Self {
+        let _ = Self::CHECK;
+
+        // check the dimension of th mesh
+        if mesh.ndim != DIM {
+            // TODO: Convert this to "return Err"
+            panic!("the dimension of the mesh must match DIM");
+        }
+
+        // allocate Config
         Config {
             // Essential constants
             ndim: mesh.ndim,
-            ideal: Idealization::new(mesh.ndim),
+            ideal: Idealization::<DIM>::new(),
             verbose: true,
             // Problem definition
             transient: false,
@@ -569,7 +580,7 @@ mod tests {
     fn new_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
 
-        let config = Config::new(&mesh);
+        let config = Config::<2>::new(&mesh);
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
         assert_eq!(config.lagrange_mult_method, false);
@@ -577,7 +588,7 @@ mod tests {
         assert_eq!(config.ideal.plane_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
 
         config.param_fluids = Some(ParamFluids {
             density_liquid: ParamRealDensity {
@@ -599,7 +610,7 @@ mod tests {
     #[test]
     fn validate_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
 
         // Essential constants
 
@@ -718,7 +729,7 @@ mod tests {
     fn update_model_settings_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let marker = mesh.cells[0].marker;
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
         config
             .update_model_settings(marker)
             .set_general_plasticity(true)
@@ -729,7 +740,7 @@ mod tests {
     #[test]
     fn set_transient_and_dynamics_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<2>::new(&mesh);
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
 

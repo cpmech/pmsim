@@ -53,8 +53,8 @@ fn main() -> Result<(), StrError> {
     name2 += &opt2.key();
 
     // load summary and associated files
-    let (post1, _) = PostProc::new(DIR, &name1)?;
-    let (post2, _) = PostProc::new(DIR, &name2)?;
+    let (post1, _) = PostProc::<2>::new(DIR, &name1)?;
+    let (post2, _) = PostProc::<2>::new(DIR, &name2)?;
     let mesh = post1.mesh();
     let schema = post1.schema();
 

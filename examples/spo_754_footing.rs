@@ -122,7 +122,7 @@ fn main() -> Result<(), StrError> {
     name += &options.key();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
@@ -186,7 +186,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // check the results
-    let (post, mut memo) = PostProc::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<2>::new(DIR, &name)?;
     let nstate = post.nfile();
 
     // calculate the reaction using the internal forces
@@ -302,7 +302,7 @@ fn main() -> Result<(), StrError> {
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((0, 1.0, 1e-9)),
+            Some((1, 1.0, 1e-9)),
         )?;
         assert!(all_good);
     }

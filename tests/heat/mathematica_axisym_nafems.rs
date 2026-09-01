@@ -97,7 +97,7 @@ fn mathematica_axisym_nafems() -> Result<(), StrError> {
     nbc.edges(&edges_flux, Nbc::Qt, -5e5); // inward flux
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.axisymmetric();
 
     // solution

@@ -8,7 +8,7 @@ use std::path::Path;
 
 const WITH_CELL_DATA: bool = false;
 
-impl PostProc {
+impl<const DIM: usize> PostProc<DIM> {
     /// Writes a file associated with a single time station to perform visualization with ParaView
     ///
     /// **Warning:** This function **does not** create the output directory if it does not exist.
@@ -21,7 +21,7 @@ impl PostProc {
         memo: &mut PostProcMemo,
         dir: &str,
         fn_stem: &str,
-        state: &FemState,
+        state: &FemState<DIM>,
         index: usize,
         with_elastic_flags: bool,
     ) -> Result<String, StrError> {

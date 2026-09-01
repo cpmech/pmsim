@@ -49,9 +49,9 @@ fn main() -> Result<(), StrError> {
     name3 += &opt3.key(genie3);
 
     // load summary and associated files
-    let (post1, _) = PostProc::new(DIR, &name1)?;
-    let (post2, _) = PostProc::new(DIR, &name2)?;
-    let (post3, _) = PostProc::new(DIR, &name3)?;
+    let (post1, _) = PostProc::<2>::new(DIR, &name1)?;
+    let (post2, _) = PostProc::<2>::new(DIR, &name2)?;
+    let (post3, _) = PostProc::<2>::new(DIR, &name3)?;
     let mesh = post1.mesh();
     let schema = post1.schema();
 

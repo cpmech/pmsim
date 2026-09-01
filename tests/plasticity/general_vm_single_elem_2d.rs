@@ -3,7 +3,6 @@ use gemlab::prelude::*;
 use plotpy::{Canvas, Curve, DarkMode, Plot};
 use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
-use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::approx_eq;
 use russell_lab::math::SQRT_2_BY_3;
@@ -106,7 +105,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
 
     // update configuration
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
@@ -130,7 +129,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
     sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.3), ddl)?;
 
     // check the results
-    let (post, _) = PostProc::new("/tmp/pmsim/plasticity", NAME)?;
+    let (post, _) = PostProc::<2>::new("/tmp/pmsim/plasticity", NAME)?;
     let lambdas = post.stations();
     let ss = post.history_local_state(0).unwrap();
     for i in 0..lambdas.len() {

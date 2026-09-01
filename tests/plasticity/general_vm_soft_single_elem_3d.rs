@@ -100,7 +100,7 @@ fn general_vm_soft_single_elem_3d() -> Result<(), StrError> {
     ebc.faces(&max_z, Dof::Uz, -dz);
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<3>::new(&mesh);
     config
         .out_history_uu_comp(corner, Dof::Uz)
         .out_history_yy_comp(corner, Dof::Uz)
@@ -123,7 +123,7 @@ fn general_vm_soft_single_elem_3d() -> Result<(), StrError> {
     sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.06), ddl)?;
 
     // load the results
-    let (post, _) = PostProc::new("/tmp/pmsim/plasticity", NAME)?;
+    let (post, _) = PostProc::<3>::new("/tmp/pmsim/plasticity", NAME)?;
     let lambdas = post.stations();
 
     // figure

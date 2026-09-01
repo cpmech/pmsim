@@ -10,7 +10,7 @@ use russell_lab::read_data;
 const NAME: &str = "spo_754_footing_nat_sps_bord_mumps";
 
 pub fn main() -> Result<(), StrError> {
-    let (post, mut memo) = PostProc::new("/tmp/pmsim/spo_754", NAME)?;
+    let (post, mut memo) = PostProc::<2>::new("/tmp/pmsim/spo_754", NAME)?;
     post.write_paraview(&mut memo, "/tmp/pmsim/spo_754", NAME, false)?;
 
     let (min, max) = post.mesh().get_limits();

@@ -71,7 +71,7 @@ fn mathematica_axisym_simple() -> Result<(), StrError> {
     nbc.edges(&left, Nbc::Qt, -100.0); // inward flux
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.axisymmetric();
 
     // solution

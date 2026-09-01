@@ -113,7 +113,7 @@ fn run(
     name += &options.key();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<2>::new(&mesh);
     config.out_files(DIR, &name).lagrange_mult_method(options.lmm);
 
     // nonlinear solver configuration
@@ -162,7 +162,7 @@ fn run(
     //
 
     // check the results
-    let (post, mut memo) = PostProc::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<2>::new(DIR, &name)?;
     let nstate = post.nfile();
     let footing_cells = features.get_cells_via_2d_edges(&footing);
     let mut normalized_settlement = Vec::with_capacity(nstate);

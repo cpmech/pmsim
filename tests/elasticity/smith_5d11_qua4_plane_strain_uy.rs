@@ -75,7 +75,7 @@ fn smith_5d11_qua4_plane_strain_uy() -> Result<(), StrError> {
     let nbc = BcNatural::new();
 
     // configuration
-    let config = Config::new(&mesh);
+    let config = Config::<2>::new(&mesh);
 
     // solution
     let (mut sim, mut data) = SimulatorLin::new(&mesh, &schema, &config, &ebc, &nbc)?;

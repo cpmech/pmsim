@@ -5,7 +5,7 @@ use russell_lab::Vector;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Collects arguments for functions dealing with the explicit elastoplastic stress update
-pub(super) struct Args {
+pub(super) struct Args<const DIM: usize> {
     /// Holds the dimension of the elastic ODE system
     pub(super) ndim_e: usize,
 
@@ -13,10 +13,10 @@ pub(super) struct Args {
     pub(super) ndim_ep: usize,
 
     /// Holds the current state of the material
-    pub(super) state: LocalState,
+    pub(super) state: LocalState<DIM>,
 
     /// Holds the plasticity model
-    pub(super) model: Box<dyn TraitPlasticity>,
+    pub(super) model: Box<dyn TraitPlasticity<DIM>>,
 
     /// Holds the increment of strain given to the stress-update algorithm
     pub(super) del_eps: Tensor2,
@@ -82,16 +82,16 @@ pub(super) struct Args {
     pub(super) history_eep: Option<PlotterData>,
 }
 
-impl Args {
+impl<const DIM: usize> Args<DIM> {
     /// Allocates a new instance
     pub(super) fn new(
-        ideal: &Idealization,
+        ideal: &Idealization<DIM>,
         param: &StressStrain,
         settings: &Settings,
         interp_npoint: usize,
     ) -> Result<Self, StrError> {
         // Allocate the plasticity model
-        let model: Box<dyn TraitPlasticity> = match param {
+        let model: Box<dyn TraitPlasticity<DIM>> = match param {
             StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
             StressStrain::VonMisesSoft { .. } => Box::new(VonMisesSoft::new(ideal, param, settings)?),
             _ => return Err("selected model cannot be used with general Elastoplastic"),
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn new_works_2d() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let interp_npoint = 3;
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn new_works_3d() {
-        let ideal = Idealization::new(3);
+        let ideal = Idealization::<3>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let interp_npoint = 5;
@@ -187,7 +187,7 @@ mod tests {
 
     #[test]
     fn new_errors_on_unsupported_model() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let settings = Settings::new();
 
         let param = StressStrain::LinearElastic {
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn new_errors_on_zero_z_ini() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::VonMises {
             young: 1500.0,
             poisson: 0.25,
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn new_yf_values_sized_by_interp_npoint() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         for interp_npoint in [0, 1, 5] {
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn new_allocates_independent_vectors() {
-        let ideal = Idealization::new(2);
+        let ideal = Idealization::<2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let mut args = Args::new(&ideal, &param, &settings, 3).unwrap();

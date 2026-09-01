@@ -4,10 +4,7 @@ use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Mandel, Tensor2, Tensor4
 use russell_tensor::{SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
 
 /// Holds stress and strains related via linear elasticity defining stress paths
-pub struct LoadingPath {
-    /// Indicates 2D (plane-strain, axisymmetric) instead of 3D
-    two_dim: bool,
-
+pub struct LoadingPath<const DIM: usize> {
     /// Holds the Mandel representation
     mandel: Mandel,
 
@@ -53,25 +50,25 @@ pub struct LoadingPath {
     delta_stress: Tensor2,
 }
 
-impl LoadingPath {
+impl<const DIM: usize> LoadingPath<DIM> {
     /// Allocates a new instance
+    ///
+    /// Note: The plane-stress case is not available.
     ///
     /// # Input
     ///
-    /// * `two_dim` -- indicates 2D (plane-strain or axisymmetric) instead of 3D. The plane-stress case is not available here.
     /// * `young` -- Young's modulus to calculate stress from strain and vice-versa (using linear elasticity)
     /// * `poisson` -- Poisson's coefficient to calculate stress from strain and vice-versa (using linear elasticity)
-    pub fn new(two_dim: bool, young: f64, poisson: f64) -> Result<Self, StrError> {
-        let mandel = if two_dim {
+    pub fn new(young: f64, poisson: f64) -> Result<Self, StrError> {
+        let mandel = if DIM == 2 {
             Mandel::Symmetric2D
         } else {
             Mandel::Symmetric
         };
-        let ela = LinElasticity::new(young, poisson, two_dim, false);
+        let ela = LinElasticity::new(young, poisson, DIM == 2, false);
         let mut cc = Tensor4::new(mandel);
         ela.calc_compliance(&mut cc)?;
         Ok(LoadingPath {
-            two_dim,
             mandel,
             stresses: Vec::new(),
             strains: Vec::new(),
@@ -89,7 +86,6 @@ impl LoadingPath {
     ///
     /// # Input
     ///
-    /// * `two_dim` -- indicates 2D (plane-strain or axisymmetric) instead of 3D. The plane-stress case is not available here.
     /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
     /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
     /// * `n_increments` -- number of increments
@@ -99,7 +95,6 @@ impl LoadingPath {
     /// * `dsigma_d` -- the increment of sigma_d
     /// * `lode` -- the lode invariant in -1 ≤ lode ≤ 1
     pub fn new_linear_oct(
-        two_dim: bool,
         young: f64,
         poisson: f64,
         n_increments: usize,
@@ -109,7 +104,7 @@ impl LoadingPath {
         dsigma_d: f64,
         lode: f64,
     ) -> Result<Self, StrError> {
-        let mut path = LoadingPath::new(two_dim, young, poisson)?;
+        let mut path = LoadingPath::new(young, poisson)?;
         let strain_driven = true;
         path.push_stress_oct(sigma_m_0, sigma_d_0, lode, strain_driven);
         for i in 0..n_increments {
@@ -125,7 +120,6 @@ impl LoadingPath {
     ///
     /// # Input
     ///
-    /// * `two_dim` -- indicates 2D (plane-strain or axisymmetric) instead of 3D. The plane-stress case is not available here.
     /// * `young` -- Young's modulus to calculate stress from strain or vice-versa
     /// * `poisson` -- Poisson's coefficient to calculate stress from strain or vice-versa
     /// * `n_increments` -- number of increments
@@ -135,7 +129,6 @@ impl LoadingPath {
     /// * `dsigma_d` -- the increment of sigma_d
     /// * `alpha` -- alpha angle in -π ≤ alpha ≤ π
     pub fn new_linear_oct_alpha(
-        two_dim: bool,
         young: f64,
         poisson: f64,
         n_increments: usize,
@@ -145,7 +138,7 @@ impl LoadingPath {
         dsigma_d: f64,
         alpha: f64,
     ) -> Result<Self, StrError> {
-        let mut path = LoadingPath::new(two_dim, young, poisson)?;
+        let mut path = LoadingPath::new(young, poisson)?;
         let strain_driven = true;
         path.push_stress_oct_alpha(sigma_m_0, sigma_d_0, alpha, strain_driven);
         for i in 0..n_increments {
@@ -174,7 +167,7 @@ impl LoadingPath {
         assert!(lode >= -1.0 && lode <= 1.0);
         let distance = sigma_m * SQRT_3;
         let radius = sigma_d * SQRT_2_BY_3;
-        let sigma = Tensor2::new_from_octahedral(distance, radius, lode, self.two_dim).unwrap();
+        let sigma = Tensor2::new_from_octahedral(distance, radius, lode, DIM == 2).unwrap();
         self.push_stress(&sigma, strain_driven);
     }
 
@@ -194,7 +187,7 @@ impl LoadingPath {
         assert!(alpha >= -PI && alpha <= PI);
         let distance = sigma_m * SQRT_3;
         let radius = sigma_d * SQRT_2_BY_3;
-        let sigma = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, self.two_dim).unwrap();
+        let sigma = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, DIM == 2).unwrap();
         self.push_stress(&sigma, strain_driven);
     }
 
@@ -215,7 +208,7 @@ impl LoadingPath {
         assert!(lode >= -1.0 && lode <= 1.0);
         let distance = eps_v / SQRT_3;
         let radius = eps_d * SQRT_3_BY_2;
-        let strain = Tensor2::new_from_octahedral(distance, radius, lode, self.two_dim).unwrap();
+        let strain = Tensor2::new_from_octahedral(distance, radius, lode, DIM == 2).unwrap();
         self.push_strain(&strain, strain_driven);
     }
 
@@ -284,7 +277,6 @@ mod tests {
 
     #[test]
     fn push_stress_works() {
-        let two_dim = true;
         let young = 1500.0;
         let poisson = 0.25;
         let kk = young / (3.0 * (1.0 - 2.0 * poisson));
@@ -295,8 +287,8 @@ mod tests {
         let depsilon_d = dsigma_d / (3.0 * gg);
         let lode = 1.0;
 
-        let mut path_a = LoadingPath::new(two_dim, young, poisson).unwrap();
-        let mut path_b = LoadingPath::new(two_dim, young, poisson).unwrap();
+        let mut path_a = LoadingPath::<2>::new(young, poisson).unwrap();
+        let mut path_b = LoadingPath::<2>::new(young, poisson).unwrap();
         let strain_driven = true;
 
         for i in 0..4 {
@@ -334,7 +326,6 @@ mod tests {
 
     #[test]
     fn new_linear_oct_works() {
-        let two_dim = true;
         let young = 1500.0;
         let poisson = 0.25;
         let sigma_m_0 = 10.0;
@@ -345,8 +336,7 @@ mod tests {
         let alpha = PI / 2.0;
         let n_increments = 2;
 
-        let path_a = LoadingPath::new_linear_oct(
-            two_dim,
+        let path_a = LoadingPath::<2>::new_linear_oct(
             young,
             poisson,
             n_increments,
@@ -358,8 +348,7 @@ mod tests {
         )
         .unwrap();
 
-        let path_b = LoadingPath::new_linear_oct_alpha(
-            two_dim,
+        let path_b = LoadingPath::<2>::new_linear_oct_alpha(
             young,
             poisson,
             n_increments,
