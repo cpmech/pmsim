@@ -12,7 +12,7 @@ const DIR: &str = "/tmp/pmsim/spo_754";
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.48; // Poisson's coefficient

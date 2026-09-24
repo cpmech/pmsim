@@ -41,7 +41,7 @@ const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0; // in the verification step
 
 const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero

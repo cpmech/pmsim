@@ -14,7 +14,7 @@ const DIR: &str = "/tmp/pmsim/spo_753";
 const NAME: &str = "spo_753_circ_plate";
 const GENERATE_MESH: bool = false;
 const DRAW_MESH_AND_EXIT: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0;
 
 const LAMBDAS: [f64; 13] = [

@@ -43,7 +43,7 @@ const DIR: &str = "/tmp/pmsim/spo_752";
 const NAME_MESH: &str = "spo_751_pres_cylin"; // same as 751
 const NAME_COLLAPSE: &str = "spo_752_pres_sphere_collapse";
 const NAME_RESIDUAL: &str = "spo_752_pres_sphere_residual";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0; // in the verification step
 
 const P_MAX_RES: f64 = 0.28; // maximum pressure achieved by the residual simulation before unloading completely to zero

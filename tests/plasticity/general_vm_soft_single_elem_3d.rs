@@ -43,7 +43,7 @@ use russell_lab::math::SQRT_2_BY_3;
 // * Hardening: H = 800, Initial yield stress: z0 = 9.0
 
 const NAME: &str = "general_vm_soft_single_elem_3d";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 // constants
 const YOUNG: f64 = 1500.0;

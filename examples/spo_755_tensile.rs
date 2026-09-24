@@ -13,7 +13,7 @@ const MESH_NAME: &str = "spo_755_tensile";
 const NAME: &str = "spo_755_tensile";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 const YOUNG: f64 = 206.9; // Young's modulus
 const POISSON: f64 = 0.29; // Poisson's coefficient

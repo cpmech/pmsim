@@ -52,7 +52,7 @@ use russell_lab::math::SQRT_2_BY_3;
 //    Theory and applications, Wiley, 791p
 
 const NAME: &str = "general_vm_single_elem_2d";
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 // constants
 const L0: f64 = 1.0; // initial length of the domain
