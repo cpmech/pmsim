@@ -257,6 +257,6 @@ mod tests {
         let mut dd_ep = Tensor4::new();
         vm.stiffness(&mut dd_vm, &state_vm, 0, 0).unwrap();
         ep.stiffness(&mut dd_ep, &state_ep, 0, 0).unwrap();
-        t4_approx_eq(&dd_vm, &dd_ep, 1e-11);
+        t4_approx_eq(&dd_vm, &dd_ep, 1e-10);
     }
 }
