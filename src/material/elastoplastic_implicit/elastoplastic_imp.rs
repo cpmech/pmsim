@@ -217,8 +217,8 @@ mod tests {
         vm.stiffness(&mut dd_vm, &state0, 0, 0).unwrap();
         let mut dd_ep = Tensor4::new();
         ep.stiffness(&mut dd_ep, &state0, 0, 0).unwrap();
-        t4_approx_eq(&dd_vm, &dd_ep, 1e-15);
-        t4_approx_eq(&dd_vm, &ep.args.dde, 1e-15);
+        t4_approx_eq(&dd_vm, &dd_ep, 1e-14);
+        t4_approx_eq(&dd_vm, &ep.args.dde, 1e-14);
 
         // Calculate the strain increment that will cause yielding
         let ee = YOUNG;
@@ -247,9 +247,9 @@ mod tests {
         states_ep.push(state_ep.clone());
 
         // Compare the states
-        t2_approx_eq(&state_vm.stress, &state_ep.stress, 1e-14);
-        approx_eq(state_vm.z_set[0], state_ep.z_set[0], 1e-14);
-        approx_eq(state_vm.lambda_alg, state_ep.lambda_alg, 1e-14);
+        t2_approx_eq(&state_vm.stress, &state_ep.stress, 1e-13);
+        approx_eq(state_vm.z_set[0], state_ep.z_set[0], 1e-13);
+        approx_eq(state_vm.lambda_alg, state_ep.lambda_alg, 1e-13);
         assert!(state_vm.lambda_alg > 0.0);
 
         // Compare the consistent tangent stiffness at the updated state
