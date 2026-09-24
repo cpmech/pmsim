@@ -1,5 +1,5 @@
 #!/bin/bash
 
-cargo test
+cargo test --all-features
 
-bash zscripts/ex-spo-all.bash
+bash yscripts/ex-spo-all.bash

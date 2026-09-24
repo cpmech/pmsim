@@ -3,14 +3,14 @@ use gemlab::util::any_x;
 use plotpy::{Curve, Legend, Plot};
 use pmsim::base::Dof;
 use pmsim::fem::PostProc;
-use pmsim::StrError;
+use pmsim::{StrError, D2};
 use russell_lab::math::SQRT_3;
 use russell_lab::read_data;
 
 const NAME: &str = "spo_754_footing_nat_sps_bord_mumps";
 
 pub fn main() -> Result<(), StrError> {
-    let (post, mut memo) = PostProc::new("/tmp/pmsim/spo_754", NAME)?;
+    let (post, mut memo) = PostProc::<D2>::new("/tmp/pmsim/spo_754", NAME)?;
     post.write_paraview(&mut memo, "/tmp/pmsim/spo_754", NAME, false)?;
 
     let (min, max) = post.mesh().get_limits();
@@ -20,8 +20,8 @@ pub fn main() -> Result<(), StrError> {
     let footing_cells = features.get_cells_via_2d_edges(&footing);
 
     let width = 100.0; // 2*B
-    let z_ini = 848.7 * 100.0; // multiply by 100 because we used cm in the mesh
-    let cohesion = z_ini / SQRT_3;
+    let kappa_ini = 848.7 * 100.0; // multiply by 100 because we used cm in the mesh
+    let cohesion = kappa_ini / SQRT_3;
 
     let mut normalized_settlement = Vec::new();
     let mut normalized_pressure = Vec::new();

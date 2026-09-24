@@ -4,17 +4,16 @@ use russell_lab::Vector;
 
 /// Generates an array of LocalState according to a linear elastic model for the VonMises model
 #[allow(dead_code)]
-pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lode: f64) -> Vec<LocalState> {
+pub(super) fn generate_states_von_mises<const N: usize>(bulk: f64, shear: f64, lode: f64) -> Vec<LocalState<N>> {
     let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
     let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
-    let z = 9.0; // size of the von Mises yield surface
+    let kappa = 9.0; // size of the von Mises yield surface
     let n_increments = 2;
     let sigma_m_0 = 0.0;
     let sigma_d_0 = 0.0;
     let dsigma_m = 1.0;
-    let dsigma_d = z;
-    let path = LoadingPath::new_linear_oct(
-        two_dim,
+    let dsigma_d = kappa;
+    let path = LoadingPath::<N>::new_linear_oct(
         young,
         poisson,
         n_increments,
@@ -31,47 +30,48 @@ pub(crate) fn generate_states_von_mises(two_dim: bool, bulk: f64, shear: f64, lo
         .zip(path.strains.iter())
         .map(|(sig, eps)| LocalState {
             elastic: true,
-            int_vars: Vector::from(&[z, 0.0]), // VonMises needs [z, lambda]
+            lambda_alg: 0.0,
             stress: sig.clone(),
+            z_set: Vector::from(&[kappa, 0.0]), // kappa and alpha
             strain: Some(eps.clone()),
         })
         .collect();
     array
 }
 
-/// Returns (E, ν, H, z_ini) for the von Mises model
+/// Returns (E, ν, H, kappa_ini) for the von Mises model
 #[allow(dead_code)]
-pub(crate) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, f64) {
+pub(super) fn extract_von_mises_params(param: &StressStrain) -> (f64, f64, f64, f64) {
     match *param {
         StressStrain::VonMises {
             young,
             poisson,
             hh,
-            z_ini,
+            kappa_ini,
         } => (
-            young,   // E
-            poisson, // ν
-            hh,      // H
-            z_ini,   // z_ini
+            young,     // E
+            poisson,   // ν
+            hh,        // H
+            kappa_ini, // kappa_ini
         ),
         _ => panic!("VonMises parameters required"),
     }
 }
 
-/// Returns (K, G, H, z_ini) for the von Mises model
+/// Returns (K, G, H, kappa_ini) for the von Mises model
 #[allow(dead_code)]
-pub(crate) fn extract_von_mises_params_kg(param: &StressStrain) -> (f64, f64, f64, f64) {
+pub(super) fn extract_von_mises_params_kg(param: &StressStrain) -> (f64, f64, f64, f64) {
     match *param {
         StressStrain::VonMises {
             young,
             poisson,
             hh,
-            z_ini,
+            kappa_ini,
         } => (
             young / (3.0 * (1.0 - 2.0 * poisson)), // K
             young / (2.0 * (1.0 + poisson)),       // G
             hh,                                    // H
-            z_ini,                                 // z_ini
+            kappa_ini,                             // kappa_ini
         ),
         _ => panic!("VonMises parameters required"),
     }
@@ -92,19 +92,19 @@ mod tests {
 
     #[test]
     fn extract_von_mises_params_works() {
-        let (ee, nu, hh, z_ini) = extract_von_mises_params(&StressStrain::sample_von_mises());
+        let (ee, nu, hh, kappa_ini) = extract_von_mises_params(&StressStrain::sample_von_mises());
         assert!(ee > 0.0);
         assert!(nu > 0.0);
         assert!(hh > 0.0);
-        assert!(z_ini > 0.0);
+        assert!(kappa_ini > 0.0);
     }
 
     #[test]
     fn extract_von_mises_params_kg_works() {
-        let (kk, gg, hh, z_ini) = extract_von_mises_params_kg(&StressStrain::sample_von_mises());
+        let (kk, gg, hh, kappa_ini) = extract_von_mises_params_kg(&StressStrain::sample_von_mises());
         assert!(kk > 0.0);
         assert!(gg > 0.0);
         assert!(hh > 0.0);
-        assert!(z_ini > 0.0);
+        assert!(kappa_ini > 0.0);
     }
 }

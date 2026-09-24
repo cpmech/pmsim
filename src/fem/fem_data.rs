@@ -6,13 +6,17 @@ use gemlab::mesh::{CellId, Mesh, PointId};
 use russell_lab::{Stopwatch, Vector};
 use russell_pde::EquationHandler;
 use russell_sparse::{CooMatrix, Sym};
+use russell_tensor::Tensor1;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::sync::Arc;
 use uuid::Uuid;
 
 /// Holds the main data structures for the FEM simulation
-pub struct FemData<'a> {
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
+pub struct FemData<'a, const N: usize> {
     /// Holds a unique identifier for this instance such that it can be tracked externally
     pub(crate) uuid: Uuid,
 
@@ -20,7 +24,7 @@ pub struct FemData<'a> {
     pub(crate) schema: &'a Schema,
 
     /// Holds the configuration
-    pub(crate) config: &'a Config<'a>,
+    pub(crate) config: &'a Config<'a, N>,
 
     /// Stopwatch to measure computer time
     pub(crate) stopwatch: Stopwatch,
@@ -39,10 +43,10 @@ pub struct FemData<'a> {
     pub(crate) conc_loads: Vec<(usize, Arc<dyn Fn(f64) -> f64 + Send + Sync + 'a>)>,
 
     // Holds a collection of boundary elements
-    pub(crate) boundaries: ElementsBoundary<'a>,
+    pub(crate) boundaries: ElementsBoundary<'a, N>,
 
     /// Holds a collection of elements
-    pub(crate) elements: ElementsInterior<'a>,
+    pub(crate) elements: ElementsInterior<'a, N>,
 
     /// Number of degrees of freedom
     pub(crate) ndof: usize,
@@ -69,7 +73,7 @@ pub struct FemData<'a> {
     pub(crate) kk_check: CooMatrix,
 
     /// Holds the current state of the simulation
-    pub(crate) state: FemState,
+    pub(crate) state: FemState<N>,
 
     /// Vector of internal forces
     ///
@@ -87,18 +91,22 @@ pub struct FemData<'a> {
     pub(crate) ppu: Vector,
 
     /// Handles output files
-    pub(crate) files: OutputFiles,
+    pub(crate) files: OutputFiles<N>,
 }
 
-impl<'a> FemData<'a> {
+impl<'a, const N: usize> FemData<'a, N> {
+    const VALIDATE_N: () = assert!(N == 4 || N == 6, "N must be 4 or 6 (=2*NDIM)");
+
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
-        config: &'a Config,
+        config: &'a Config<N>,
         ebc: &'a BcEssential,
         nbc: &'a BcNatural,
     ) -> Result<Self, StrError> {
+        let _ = Self::VALIDATE_N;
+
         // Check
         if let Some(msg) = config.validate() {
             println!("ERROR: {}", msg);
@@ -264,7 +272,7 @@ impl<'a> FemData<'a> {
     }
 
     /// Returns an access the current state
-    pub fn state(&self) -> &FemState {
+    pub fn state(&self) -> &FemState<N> {
         &self.state
     }
 
@@ -293,12 +301,12 @@ impl<'a> FemData<'a> {
     }
 
     /// Returns the history (time or lambda) of flux vectors at selected integration points
-    pub fn history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+    pub fn history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Tensor1>> {
         self.files.history_local_flux(cell_id)
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState>> {
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState<N>>> {
         self.files.history_local_state(cell_id)
     }
 
@@ -448,6 +456,7 @@ impl<'a> FemData<'a> {
 mod tests {
     use super::FemData;
     use crate::base::{BcEssential, BcNatural, Config, ParamSolid, Schema};
+    use crate::D3;
     use gemlab::mesh::Samples;
 
     #[test]
@@ -461,7 +470,7 @@ mod tests {
         let nbc = BcNatural::new();
 
         // error due to config.validate
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<D3>::new(&mesh).unwrap();
         config.theta(0.0);
         assert_eq!(
             FemData::new(&mesh, &schema, &config, &ebc, &nbc).err(),

@@ -1,0 +1,253 @@
+use crate::base::{Idealization, StressStrain};
+use crate::material::{LocalState, Settings, TraitPlasticity, VonMises, VonMisesSoft};
+use crate::StrError;
+use russell_lab::{Matrix, Vector};
+use russell_tensor::{Tensor2, Tensor4};
+
+/// Collects arguments for functions dealing with the implicit elastoplastic stress update
+pub(super) struct Args<const N: usize> {
+    /// Holds the number of stress components
+    pub(super) ncp: usize,
+
+    /// Holds the number of internal variables
+    pub(super) nz: usize,
+
+    /// Holds the current stress-strain state
+    pub(super) state: LocalState<N>,
+
+    /// Holds the plasticity model
+    pub(super) model: Box<dyn TraitPlasticity<N>>,
+
+    /// Holds the gradient of the yield function
+    ///
+    /// ```text
+    ///       ∂f
+    /// fs := ──
+    ///       ∂σ
+    /// ```
+    pub(super) fs: Tensor2<N>,
+
+    /// Holds the gradient of the plastic potential function
+    ///
+    /// ```text
+    ///       ∂g
+    /// gs := ──
+    ///       ∂σ
+    /// ```
+    pub(super) gs: Tensor2<N>,
+
+    /// Holds the derivative of the yield function w.r.t internal variables
+    ///
+    /// ```text
+    ///        ∂f
+    /// fzₖ := ───
+    ///        ∂zₖ
+    /// ```
+    pub(super) fz: Vector,
+
+    /// Holds the hardening coefficients
+    pub(super) h: Vector,
+
+    /// Holds the elastic compliance tensor: Cₑ (inverse of the elastic stiffness)
+    pub(super) cce: Tensor4<N>,
+
+    /// Holds the elastic stiffness tensor: Dₑ
+    pub(super) dde: Tensor4<N>,
+
+    /// Indicates whether the elastic moduli (Dₑ and Cₑ) have been calculated
+    pub(super) elastic_moduli_calculated: bool,
+
+    /// Holds the trial strain ε_trial = Cₑ : σ_trial
+    pub(super) eps_trial: Tensor2<N>,
+
+    /// Holds the previous internal variables z_old
+    pub(super) z_old: Vector,
+
+    /// Holds the second derivative of the plastic potential function with respect to stress
+    ///
+    /// ```text
+    ///             ∂(gs)     ∂²g
+    /// ggs := Gσ = ───── = ───────
+    ///              ∂σ     ∂σ ⊗ ∂σ
+    /// ```
+    ///
+    /// **Important:** `ggs` must be a Symmetric Tensor4, **not** Symmetric2D even if the problem is 2D. The reason for
+    /// this requirement is that the second derivatives of some invariants cannot be expressed as a 4x4 matrix.
+    pub(super) ggs: Tensor4<N>,
+
+    /// Holds the second derivatives of the plastic potential function with respect to stress and internal variables
+    ///
+    /// ```text
+    ///               ∂(gs)
+    /// ggz := Gz|k = ─────
+    ///                ∂zₖ
+    ///
+    /// ggz is (ncp x nz)
+    /// ```
+    pub(super) ggz: Matrix,
+
+    /// Holds the second derivatives of the hardening function with respect to stress
+    ///
+    /// ```text
+    ///               ∂hₖ
+    /// hhs := Hσ|k = ───
+    ///               ∂σ
+    ///
+    /// hhs is (nz x ncp)
+    /// ```
+    pub(super) hhs: Matrix,
+
+    /// Holds the second derivatives of the hardening function with respect to internal variables
+    ///
+    /// ```text
+    ///                ∂hᵢ
+    /// hhz := Hz|ij = ───
+    ///                ∂zⱼ
+    ///
+    /// hhz is (nz x nz)
+    /// ```
+    pub(super) hhz: Matrix,
+}
+
+impl<const N: usize> Args<N> {
+    /// Allocates a new instance
+    pub(super) fn new(ideal: &Idealization<N>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+        // Allocate the plasticity model
+        let model: Box<dyn TraitPlasticity<N>> = match param {
+            StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
+            StressStrain::VonMisesSoft { .. } => Box::new(VonMisesSoft::new(ideal, param, settings)?),
+            _ => return Err("selected model cannot be used with general Elastoplastic"),
+        };
+
+        // Set some constants
+        let ncp = N; // number of stress components
+        let nz = model.nz(); // number of internal variables
+
+        Ok(Args {
+            ncp,
+            nz,
+            state: LocalState::new(nz),
+            model,
+            fs: Tensor2::new(),
+            gs: Tensor2::new(),
+            fz: Vector::new(nz),
+            h: Vector::new(nz),
+            cce: Tensor4::new(),
+            dde: Tensor4::new(),
+            elastic_moduli_calculated: false,
+            eps_trial: Tensor2::new(),
+            z_old: Vector::new(nz),
+            ggs: Tensor4::new(),
+            ggz: Matrix::new(ncp, nz),
+            hhs: Matrix::new(nz, ncp),
+            hhz: Matrix::new(nz, nz),
+        })
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use super::Args;
+    use crate::base::{Idealization, StressStrain};
+    use crate::material::{von_mises::F_TOL, Settings};
+    use crate::{D2, D3};
+
+    #[test]
+    fn new_works_2d() {
+        let ideal = Idealization::<D2>::new();
+        let param = StressStrain::sample_von_mises();
+        let settings = Settings::new();
+        let args = Args::new(&ideal, &param, &settings).unwrap();
+        assert_eq!(args.ncp, 4);
+        assert_eq!(args.nz, 2);
+        assert_eq!(args.fz.dim(), 2);
+        assert_eq!(args.h.dim(), 2);
+        assert_eq!(args.z_old.dim(), 2);
+        assert_eq!(args.ggz.nrow(), 4);
+        assert_eq!(args.ggz.ncol(), 2);
+        assert_eq!(args.hhs.nrow(), 2);
+        assert_eq!(args.hhs.ncol(), 4);
+        assert_eq!(args.hhz.nrow(), 2);
+        assert_eq!(args.hhz.ncol(), 2);
+        assert!(!args.elastic_moduli_calculated);
+    }
+
+    #[test]
+    fn new_works_3d() {
+        let ideal = Idealization::<D3>::new();
+        let param = StressStrain::sample_von_mises();
+        let settings = Settings::new();
+        let args = Args::new(&ideal, &param, &settings).unwrap();
+        assert_eq!(args.ncp, 6);
+        assert_eq!(args.nz, 2);
+        assert_eq!(args.fz.dim(), 2);
+        assert_eq!(args.h.dim(), 2);
+        assert_eq!(args.z_old.dim(), 2);
+        assert_eq!(args.ggz.nrow(), 6);
+        assert_eq!(args.ggz.ncol(), 2);
+        assert_eq!(args.hhs.nrow(), 2);
+        assert_eq!(args.hhs.ncol(), 6);
+        assert_eq!(args.hhz.nrow(), 2);
+        assert_eq!(args.hhz.ncol(), 2);
+        assert!(!args.elastic_moduli_calculated);
+    }
+
+    #[test]
+    fn new_errors_on_unsupported_model() {
+        let ideal = Idealization::<D2>::new();
+        let settings = Settings::new();
+
+        let param = StressStrain::LinearElastic {
+            young: 1500.0,
+            poisson: 0.25,
+        };
+        assert!(Args::new(&ideal, &param, &settings).is_err());
+
+        let param = StressStrain::DruckerPrager {
+            young: 1500.0,
+            poisson: 0.25,
+            c: 10.0,
+            phi: 0.5,
+            hh: 800.0,
+        };
+        assert!(Args::new(&ideal, &param, &settings).is_err());
+
+        let param = StressStrain::CamClay {
+            mm: 0.5,
+            lambda: 0.1,
+            kappa: 0.01,
+        };
+        assert!(Args::new(&ideal, &param, &settings).is_err());
+    }
+
+    #[test]
+    fn new_errors_on_zero_z_ini() {
+        let ideal = Idealization::<D2>::new();
+        let param = StressStrain::VonMises {
+            young: 1500.0,
+            poisson: 0.25,
+            hh: 800.0,
+            kappa_ini: F_TOL,
+        };
+        let settings = Settings::new();
+        assert!(Args::new(&ideal, &param, &settings).is_err());
+    }
+
+    #[test]
+    fn new_allocates_independent_vectors() {
+        let ideal = Idealization::<D2>::new();
+        let param = StressStrain::sample_von_mises();
+        let settings = Settings::new();
+        let mut args = Args::new(&ideal, &param, &settings).unwrap();
+
+        assert_eq!(args.fz[0], 0.0);
+        assert_eq!(args.h[0], 0.0);
+
+        // modify h and verify fz is untouched
+        args.h[0] = 99.0;
+        assert_eq!(args.h[0], 99.0);
+        assert_eq!(args.fz[0], 0.0);
+    }
+}

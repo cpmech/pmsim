@@ -1,0 +1,10 @@
+mod bhatti_1d6_plane_stress;
+mod felippa_thick_cylinder_axisym;
+mod smith_5d11_qua4_plane_strain_uy;
+mod smith_5d15_qua8_plane_strain;
+mod smith_5d17_qua4_axisym;
+mod smith_5d24_hex20_3d;
+mod smith_5d27_qua9_plane_strain;
+mod smith_5d2_tri3_plane_strain;
+mod smith_5d30_tet4_3d;
+mod smith_5d7_tri15_plane_strain;

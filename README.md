@@ -950,3 +950,20 @@ Example:
 ```bash
 cargo test test_spo_755_tensile -- --nocapture
 ```
+
+## Development
+
+### Using local `russell` crates
+
+Add the following to `Cargo.toml`:
+
+```text
+[patch.crates-io]
+russell_lab = { path = "../russell/russell_lab" }
+russell_nonlin = { path = "../russell/russell_nonlin" }
+russell_ode = { path = "../russell/russell_ode" }
+russell_pde = { path = "../russell/russell_pde" }
+russell_sparse = { path = "../russell/russell_sparse" }
+russell_stat = { path = "../russell/russell_stat" }
+russell_tensor = { path = "../russell/russell_tensor" }
+```

@@ -1,5 +1,6 @@
 use super::{Dof, Idealization, Init, ParamFluids};
 use crate::material::Settings;
+use crate::{StrError, D2};
 use gemlab::mesh::{CellId, CellMarker, Mesh, PointId};
 use russell_lab::math::ONE_BY_3;
 use russell_sparse::{Genie, LinSolParams};
@@ -17,14 +18,14 @@ pub const CONFIG_MIN_THETA: f64 = 0.0001;
 /// Holds configuration parameters
 ///
 /// Double "d" here means capital delta (Δ) whereas single "d" means small delta (δ).
-pub struct Config<'a> {
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
+pub struct Config<'a, const N: usize> {
     // Essential constants --------------------------------------------------------------------
     //
-    /// Space dimension
-    pub(crate) ndim: usize,
-
     /// Geometry idealization
-    pub(crate) ideal: Idealization,
+    pub(crate) ideal: Idealization<N>,
 
     /// Shows generic messages
     pub(crate) verbose: bool,
@@ -158,13 +159,22 @@ pub struct Config<'a> {
     pub(crate) out_history: bool,
 }
 
-impl<'a> Config<'a> {
+impl<'a, const N: usize> Config<'a, N> {
+    const VALIDATE_N: () = assert!(N == 4 || N == 6, "N must be 4 or 6 (=2*NDIM)");
+
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh) -> Self {
-        Config {
+    pub fn new(mesh: &Mesh) -> Result<Self, StrError> {
+        let _ = Self::VALIDATE_N;
+
+        // check the dimension of th mesh
+        if mesh.ndim != N / 2 {
+            return Err("the mesh dimension is incompatible with this configuration");
+        }
+
+        // allocate Config
+        Ok(Config {
             // Essential constants
-            ndim: mesh.ndim,
-            ideal: Idealization::new(mesh.ndim),
+            ideal: Idealization::<N>::new(),
             verbose: true,
             // Problem definition
             transient: false,
@@ -201,7 +211,7 @@ impl<'a> Config<'a> {
             out_history_local_flux: HashSet::new(),
             out_history_local_state: HashSet::new(),
             out_history: false,
-        }
+        })
     }
 
     /// Validates all configuration parameters
@@ -216,10 +226,10 @@ impl<'a> Config<'a> {
                 self.ideal.thickness
             ));
         }
-        if self.ideal.axisymmetric && !self.ideal.two_dim {
+        if self.ideal.axisymmetric && N != D2 {
             return Some("axisymmetric idealization does not work in 3D".to_string());
         }
-        if self.ideal.plane_stress && !self.ideal.two_dim {
+        if self.ideal.plane_stress && N != D2 {
             return Some("plane-stress idealization does not work in 3D".to_string());
         }
         if !self.ideal.plane_stress && self.ideal.thickness != 1.0 {
@@ -538,12 +548,13 @@ impl<'a> Config<'a> {
 mod tests {
     use super::Config;
     use crate::base::{Init, ParamFluids, ParamRealDensity, SampleMeshes};
+    use crate::{D2, D3};
 
     #[test]
     fn new_works() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
 
-        let config = Config::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
         assert_eq!(config.lagrange_mult_method, false);
@@ -551,7 +562,7 @@ mod tests {
         assert_eq!(config.ideal.plane_stress, false);
         assert_eq!(config.initial_overburden_stress(), 0.0);
 
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<D2>::new(&mesh).unwrap();
 
         config.param_fluids = Some(ParamFluids {
             density_liquid: ParamRealDensity {
@@ -572,138 +583,138 @@ mod tests {
 
     #[test]
     fn validate_works() {
-        let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
+        let mesh2d = SampleMeshes::bhatti_example_1d6_bracket();
+        let mesh3d = SampleMeshes::truss_12member_3d();
+        let mut config2d = Config::<D2>::new(&mesh2d).unwrap();
+        let mut config3d = Config::<D3>::new(&mesh3d).unwrap();
 
         // Essential constants
 
-        config.ideal.thickness = 0.0;
+        config2d.ideal.thickness = 0.0;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("thickness = 0.0 is incorrect; it must be > 0.0".to_string())
         );
-        config.ideal.thickness = 1.0;
+        config2d.ideal.thickness = 1.0;
 
-        config.ideal.axisymmetric = true;
-        config.ideal.two_dim = false;
+        config3d.ideal.axisymmetric = true;
         assert_eq!(
-            config.validate(),
+            config3d.validate(),
             Some("axisymmetric idealization does not work in 3D".to_string())
         );
-        config.ideal.axisymmetric = false;
+        config3d.ideal.axisymmetric = false;
 
-        config.ideal.plane_stress = true;
-        config.ideal.two_dim = false;
+        config3d.ideal.plane_stress = true;
         assert_eq!(
-            config.validate(),
+            config3d.validate(),
             Some("plane-stress idealization does not work in 3D".to_string())
         );
-        config.ideal.two_dim = true;
+        config3d.ideal.plane_stress = false;
 
-        config.ideal.plane_stress = false;
-        config.ideal.thickness = 0.5;
+        config2d.ideal.plane_stress = false;
+        config2d.ideal.thickness = 0.5;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("thickness = 0.5 is incorrect; it must be = 1.0 for plane-strain or 3D".to_string())
         );
-        config.ideal.thickness = 1.0;
+        config2d.ideal.thickness = 1.0;
 
         // Initialization
 
-        config.initialization = Init::Geostatic(123.0);
+        config2d.initialization = Init::Geostatic(123.0);
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("overburden stress = 123.0 is incorrect; it must be ≤ 0.0 (compressive)".to_string())
         );
 
-        config.ideal.plane_stress = true;
-        config.initialization = Init::Geostatic(-123.0);
+        config2d.ideal.plane_stress = true;
+        config2d.initialization = Init::Geostatic(-123.0);
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("Init::Geostatic does not work with plane-stress".to_string())
         );
 
-        config.ideal.plane_stress = false;
-        assert_eq!(config.validate(), None);
+        config2d.ideal.plane_stress = false;
+        assert_eq!(config2d.validate(), None);
 
-        config.ideal.plane_stress = true;
-        config.initialization = Init::Isotropic(-123.0);
+        config2d.ideal.plane_stress = true;
+        config2d.initialization = Init::Isotropic(-123.0);
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("Init::Isotropic does not work with plane-stress".to_string())
         );
-        config.ideal.plane_stress = false;
+        config2d.ideal.plane_stress = false;
 
         // Transient/dynamics parameters
 
-        config.theta = 0.0;
+        config2d.theta = 0.0;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("theta = 0.0 is incorrect; it must be 0.0001 ≤ θ ≤ 1.0".to_string())
         );
-        config.theta = 1.1;
+        config2d.theta = 1.1;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("theta = 1.1 is incorrect; it must be 0.0001 ≤ θ ≤ 1.0".to_string())
         );
-        config.theta = 0.5;
+        config2d.theta = 0.5;
 
-        config.theta1 = 0.0;
+        config2d.theta1 = 0.0;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("theta1 = 0.0 is incorrect; it must be 0.0001 ≤ θ₁ ≤ 1.0".to_string())
         );
-        config.theta1 = 1.1;
+        config2d.theta1 = 1.1;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("theta1 = 1.1 is incorrect; it must be 0.0001 ≤ θ₁ ≤ 1.0".to_string())
         );
-        config.theta1 = 0.5;
+        config2d.theta1 = 0.5;
 
-        config.theta2 = 0.0;
+        config2d.theta2 = 0.0;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("theta2 = 0.0 is incorrect; it must be 0.0001 ≤ θ₂ ≤ 1.0".to_string())
         );
-        config.theta2 = 1.1;
+        config2d.theta2 = 1.1;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("theta2 = 1.1 is incorrect; it must be 0.0001 ≤ θ₂ ≤ 1.0".to_string())
         );
-        config.theta2 = 0.5;
+        config2d.theta2 = 0.5;
 
-        config.hht_alpha = -1.0;
+        config2d.hht_alpha = -1.0;
         assert_eq!(
-            config.validate(),
+            config2d.validate(),
             Some("hht_alpha = -1.0 is incorrect; it must be -1/3 ≤ α ≤ 0.0".to_string())
         );
-        config.hht_alpha = 0.0;
+        config2d.hht_alpha = 0.0;
 
         // All good
 
-        config.ideal.plane_stress = false;
-        assert_eq!(config.validate(), None);
+        config2d.ideal.plane_stress = false;
+        assert_eq!(config2d.validate(), None);
 
-        config.initialization = Init::Zero;
-        assert_eq!(config.validate(), None);
+        config2d.initialization = Init::Zero;
+        assert_eq!(config2d.validate(), None);
     }
 
     #[test]
     fn update_model_settings_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
         let marker = mesh.cells[0].marker;
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<D2>::new(&mesh).unwrap();
         config
             .update_model_settings(marker)
             .set_general_plasticity(true)
             .set_gp_interp_nn_max(20);
-        assert_eq!(config.model_settings(marker).general_plasticity, true);
+        assert_eq!(config.model_settings(marker).general_plasticity(), true);
     }
 
     #[test]
     fn set_transient_and_dynamics_work() {
         let mesh = SampleMeshes::bhatti_example_1d6_bracket();
-        let mut config = Config::new(&mesh);
+        let mut config = Config::<D2>::new(&mesh).unwrap();
         assert_eq!(config.transient, false);
         assert_eq!(config.dynamics, false);
 

@@ -6,15 +6,15 @@ use gemlab::integ::{self, Gauss};
 use gemlab::mesh::{CellId, Mesh};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{Matrix, Vector};
-use russell_tensor::{t2_dot_vec, Tensor2};
+use russell_tensor::{t2_dot_t1, Tensor1, Tensor2, SET};
 
 /// Implements the local Diffusion Element equations
-pub(crate) struct ElementDiffusion<'a> {
+pub(crate) struct ElementDiffusion<'a, const N: usize> {
     /// Holds the ID of the associated cell in the Mesh
     cell_id: CellId,
 
     /// Global configuration
-    config: &'a Config<'a>,
+    config: &'a Config<'a, N>,
 
     /// Material parameters
     param: &'a ParamDiffusion,
@@ -29,26 +29,26 @@ pub(crate) struct ElementDiffusion<'a> {
     gauss: Gauss,
 
     /// Conductivity model
-    model: ModelConductivity,
+    model: ModelConductivity<N>,
 
     /// (temporary) Conductivity tensor at a single integration point
-    conductivity: Tensor2,
+    conductivity: Tensor2<N>,
 
     /// (temporary) Gradient of temperature at a single integration point
     ///
     /// ∇ϕ @ ip
-    grad_phi: Vector,
+    grad_phi: Tensor1,
 
     /// Indicates that the calculation of flux vectors is performed (for post-processing)
     save_flux: bool,
 }
 
-impl<'a> ElementDiffusion<'a> {
+impl<'a, const N: usize> ElementDiffusion<'a, N> {
     /// Allocates a new instance
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
-        config: &'a Config,
+        config: &'a Config<N>,
         param: &'a ParamDiffusion,
         cell_id: CellId,
     ) -> Result<Self, StrError> {
@@ -56,24 +56,23 @@ impl<'a> ElementDiffusion<'a> {
         let local_to_global = schema.local_to_global(cell_id)?;
 
         // pad for numerical integration
-        let ndim = mesh.ndim;
         let pad = mesh.get_pad(cell_id);
 
         // integration points
         let gauss = Gauss::new_or_sized(pad.kind, param.ngauss)?;
 
         // material model
-        let model = ModelConductivity::new(&config.ideal, &param.conductivity)?;
+        let model = ModelConductivity::new(&param.conductivity)?;
 
         // auxiliary conductivity tensor
-        let conductivity = Tensor2::new_sym_ndim(ndim);
+        let conductivity = Tensor2::new();
 
         // set a flag to output flux vectors (for post-processing)
         let settings = config.model_settings(mesh.cells[cell_id].marker);
-        let save_flux = settings.save_flux;
+        let save_flux = settings.save_flux();
 
         // auxiliary gradient tensor
-        let grad_phi = Vector::new(ndim);
+        let grad_phi = Tensor1::new();
 
         // allocate new instance
         Ok(ElementDiffusion {
@@ -91,7 +90,7 @@ impl<'a> ElementDiffusion<'a> {
     }
 }
 
-impl<'a> ElementTrait for ElementDiffusion<'a> {
+impl<'a, const N: usize> ElementTrait<N> for ElementDiffusion<'a, N> {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool {
         self.model.has_symmetric_k() && !self.model.has_variable_k()
@@ -103,14 +102,13 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Initializes the internal variables
-    fn initialize_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
+    fn initialize_internal_values(&mut self, _state: &mut FemState<N>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
-    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState<N>) -> Result<(), StrError> {
         // constants
-        let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
         let l2g = &self.local_to_global;
 
@@ -131,16 +129,16 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 phi += nn[m] * state.uu[l2g[m]];
             }
             // interpolate ∇ϕ at integration point
-            for i in 0..ndim {
-                self.grad_phi[i] = 0.0;
+            for i in 0..(N / 2) {
+                self.grad_phi.set(i, 0.0);
                 for m in 0..nnode {
-                    self.grad_phi[i] += bb.get(m, i) * state.uu[l2g[m]];
+                    self.grad_phi.add(i, bb.get(m, i) * state.uu[l2g[m]]);
                 }
             }
             // compute conductivity tensor at integration point
             self.model.calc_k(&mut self.conductivity, phi)?;
             // we need -w; however w = -k·∇ϕ, thus -w = -(-k·∇ϕ) = k·∇ϕ
-            t2_dot_vec(w, 1.0, &self.conductivity, &self.grad_phi);
+            t2_dot_t1(w, SET, 1.0, &self.conductivity, &self.grad_phi);
             Ok(())
         })
         .unwrap();
@@ -184,9 +182,8 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     }
 
     /// Calculates the elemental Jacobian matrix Ke
-    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState<N>) -> Result<(), StrError> {
         // arguments for the integrator
-        let ndim = self.config.ndim;
         let nnode = self.pad.xxt.ncol();
         let l2g = &self.local_to_global;
         let mut args = integ::CommonArgs::new(&mut self.pad, &self.gauss);
@@ -225,16 +222,16 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                     phi += nn[m] * state.uu[l2g[m]];
                 }
                 // interpolate ∇ϕ at integration point
-                for i in 0..ndim {
-                    self.grad_phi[i] = 0.0;
+                for i in 0..(N / 2) {
+                    self.grad_phi.set(i, 0.0);
                     for m in 0..nnode {
-                        self.grad_phi[i] += bb.get(m, i) * state.uu[l2g[m]];
+                        self.grad_phi.add(i, bb.get(m, i) * state.uu[l2g[m]]);
                     }
                 }
                 // conductivity ← ∂k/∂ϕ
                 self.model.calc_dk_dphi(&mut self.conductivity, phi)?;
                 // compute hₖ = ∂k/∂ϕ · ∇ϕ
-                t2_dot_vec(hk, 1.0, &self.conductivity, &self.grad_phi);
+                t2_dot_t1(hk, SET, 1.0, &self.conductivity, &self.grad_phi);
                 Ok(())
             })
             .unwrap();
@@ -265,7 +262,7 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
     /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.u, state.v, and state.a have been updated already
-    fn update_secondary_values(&mut self, state: &mut FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, state: &mut FemState<N>) -> Result<(), StrError> {
         // save the flow vector for post-processing, if requested
         if self.save_flux {
             for p in 0..self.gauss.npoint() {
@@ -280,23 +277,23 @@ impl<'a> ElementTrait for ElementDiffusion<'a> {
                 // conductivity and flow vector
                 self.model.calc_k(&mut self.conductivity, phi)?;
                 let w = &mut state.gauss[self.cell_id].diffusion[p];
-                t2_dot_vec(w, -1.0, &self.conductivity, &self.grad_phi); // w  = -k  · ∇φ
+                t2_dot_t1(w, SET, -1.0, &self.conductivity, &self.grad_phi); // w  = -k  · ∇φ
             }
         }
         Ok(())
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, _state: &FemState, _alternative: bool) {}
+    fn backup_secondary_values(&mut self, _state: &FemState<N>, _alternative: bool) {}
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, _state: &mut FemState, _alternative: bool) {}
+    fn restore_secondary_values(&self, _state: &mut FemState<N>, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
+    fn reset_algorithmic_variables(&self, _state: &mut FemState<N>) {}
 
     /// Returns the number of Gauss points at elastoplastic state
-    fn count_elastoplastic_gauss_points(&self, _state: &FemState) -> usize {
+    fn count_elastoplastic_gauss_points(&self, _state: &FemState<N>) -> usize {
         0
     }
 }
@@ -308,10 +305,11 @@ mod tests {
     use super::ElementDiffusion;
     use crate::base::{Conductivity, Config, ParamDiffusion, Schema};
     use crate::fem::{ElementTrait, FemState};
+    use crate::{D2, D3};
     use gemlab::integ;
     use gemlab::mesh::Samples;
     use russell_lab::{mat_approx_eq, vec_approx_eq, Matrix, Vector};
-    use russell_tensor::{Mandel, Tensor2};
+    use russell_tensor::Tensor2;
 
     /// Finds the symmetry status of the Jacobian matrix
     ///
@@ -336,7 +334,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
@@ -391,7 +389,7 @@ mod tests {
         p1.ngauss = Some(123); // wrong
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         assert_eq!(
             ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).err(),
             Some("requested number of integration points is not available for Tri class")
@@ -413,8 +411,8 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let mut config = Config::new(&mesh);
-        config.update_model_settings(1).save_flux = true;
+        let mut config = Config::<D2>::new(&mesh).unwrap();
+        config.update_model_settings(1).set_save_flux(true);
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the right to the left
@@ -448,8 +446,8 @@ mod tests {
         let ngauss = elem.gauss.npoint();
         for p in 0..ngauss {
             let w = &state.gauss[0].diffusion[p];
-            assert_eq!(w[0], w0);
-            assert_eq!(w[1], w1);
+            assert_eq!(w.get(0), w0);
+            assert_eq!(w.get(1), w1);
         }
 
         // with source term -------------------------------------------------
@@ -460,7 +458,7 @@ mod tests {
         p1_new.source = Some(source);
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
         // check Fe vector
@@ -485,7 +483,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<D3>::new(&mesh).unwrap();
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1, 0).unwrap();
 
         // set heat flow from the top to bottom and right to left
@@ -513,8 +511,7 @@ mod tests {
         // check Jacobian matrix
         let mut jacobian = Matrix::new(neq, neq);
         elem.calc_kke(&mut jacobian, &state).unwrap();
-        let conductivity =
-            Tensor2::from_matrix(&[[KX, 0.0, 0.0], [0.0, KY, 0.0], [0.0, 0.0, KZ]], Mandel::Symmetric).unwrap();
+        let conductivity = Tensor2::<6>::from_std_matrix(&[[KX, 0.0, 0.0], [0.0, KY, 0.0], [0.0, 0.0, KZ]]).unwrap();
         let correct_kk = ana.mat_03_btb(&conductivity);
         mat_approx_eq(&jacobian, &correct_kk, 1e-15);
 
@@ -526,7 +523,7 @@ mod tests {
         p1_new.source = Some(source);
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1_new).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<D3>::new(&mesh).unwrap();
         let mut elem = ElementDiffusion::new(&mesh, &schema, &config, &p1_new, 0).unwrap();
 
         // check Fe vector

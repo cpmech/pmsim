@@ -13,7 +13,7 @@ use russell_lab::{mat_add, vec_outer, Matrix, Vector};
 ///    Engineering Structures, 234:111755
 /// 2. Bonet J, Wood RD (2008) Nonlinear Continuum Mechanics for Finite Element Analysis,
 ///    2nd Edition, Cambridge University Press
-pub(crate) struct ElementRodGnl<'a> {
+pub(crate) struct ElementRodGnl<'a, const N: usize> {
     /// Material parameters
     param: &'a ParamRod,
 
@@ -37,7 +37,7 @@ pub(crate) struct ElementRodGnl<'a> {
     btb: Matrix,
 }
 
-impl<'a> ElementRodGnl<'a> {
+impl<'a, const N: usize> ElementRodGnl<'a, N> {
     /// Allocates a new instance
     pub fn new(mesh: &Mesh, schema: &'a Schema, param: &'a ParamRod, cell_id: CellId) -> Result<Self, StrError> {
         let ndim = mesh.ndim;
@@ -103,7 +103,7 @@ impl<'a> ElementRodGnl<'a> {
     /// Updates B vector and computes the updated length of the rod
     ///
     /// Returns the current length of the rod L
-    fn update_bb(&mut self, state: &FemState) -> f64 {
+    fn update_bb(&mut self, state: &FemState<N>) -> f64 {
         if self.ndim == 2 {
             let uxa = state.uu[self.local_to_global[0]];
             let uya = state.uu[self.local_to_global[1]];
@@ -160,7 +160,7 @@ impl<'a> ElementRodGnl<'a> {
     }
 }
 
-impl<'a> ElementTrait for ElementRodGnl<'a> {
+impl<'a, const N: usize> ElementTrait<N> for ElementRodGnl<'a, N> {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool {
         true
@@ -172,12 +172,12 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     }
 
     /// Initializes the internal variables
-    fn initialize_internal_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
+    fn initialize_internal_values(&mut self, _state: &mut FemState<N>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
-    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState) -> Result<(), StrError> {
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState<N>) -> Result<(), StrError> {
         let ll = self.update_bb(state);
         let (axial_strain, den) = self.calc_strain(ll);
         let axial_force = self.param.young * self.param.area * axial_strain;
@@ -193,7 +193,7 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     }
 
     /// Calculates the elemental Jacobian matrix Ke
-    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState) -> Result<(), StrError> {
+    fn calc_kke(&mut self, kke: &mut Matrix, state: &FemState<N>) -> Result<(), StrError> {
         let ll = self.update_bb(state);
         let (axial_strain, den) = self.calc_strain(ll);
         let ead = self.param.young * self.param.area / den;
@@ -205,21 +205,21 @@ impl<'a> ElementTrait for ElementRodGnl<'a> {
     /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.u, state.v, and state.a have been updated already
-    fn update_secondary_values(&mut self, _state: &mut FemState) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &mut FemState<N>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, _state: &FemState, _alternative: bool) {}
+    fn backup_secondary_values(&mut self, _state: &FemState<N>, _alternative: bool) {}
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, _state: &mut FemState, _alternative: bool) {}
+    fn restore_secondary_values(&self, _state: &mut FemState<N>, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, _state: &mut FemState) {}
+    fn reset_algorithmic_variables(&self, _state: &mut FemState<N>) {}
 
     /// Returns the number of Gauss points at elastoplastic state
-    fn count_elastoplastic_gauss_points(&self, _state: &FemState) -> usize {
+    fn count_elastoplastic_gauss_points(&self, _state: &FemState<N>) -> usize {
         0
     }
 }
@@ -231,6 +231,7 @@ mod tests {
     use super::ElementRodGnl;
     use crate::base::{Config, GnlStrain, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
+    use crate::D2;
     use gemlab::mesh::{Cell, Draw, GeoKind, Mesh, Point};
     use russell_lab::{approx_eq, mat_approx_eq, vec_approx_eq, Matrix, Vector};
 
@@ -285,7 +286,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).add_rod(2, p2).build(&mesh).unwrap();
-        let config = Config::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut element = ElementRodGnl::new(&mesh, &schema, &p1, 0).unwrap();
 
         // set initial coordinates

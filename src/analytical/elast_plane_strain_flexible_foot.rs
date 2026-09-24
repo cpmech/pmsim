@@ -1,6 +1,6 @@
 use plotpy::linspace;
 use russell_lab::math::{sign, PI};
-use russell_tensor::{Mandel, Tensor2};
+use russell_tensor::Tensor2;
 
 /// Solution of a flexible footing on an infinite plane-strain domain
 ///
@@ -48,7 +48,7 @@ pub struct ElastPlaneStrainFlexibleFoot {
 
 impl ElastPlaneStrainFlexibleFoot {
     /// Calculates the stress field due the footing loading
-    pub fn stress(&self, x: f64, y: f64) -> Tensor2 {
+    pub fn stress(&self, x: f64, y: f64) -> Tensor2<4> {
         assert!(x >= 0.0 && y >= 0.0 && y <= self.hh);
         let z = self.hh - y;
         let d1 = x - self.bb;
@@ -68,14 +68,11 @@ impl ElastPlaneStrainFlexibleFoot {
         let sxx = m * ((th2 - 0.5 * s2) - (th1 - 0.5 * s1));
         let sxy = m * (ss2 - ss1);
         let szz = self.poisson * (sxx + syy);
-        Tensor2::from_matrix(
-            &[
-                [sxx, sxy, 0.0], //
-                [sxy, syy, 0.0], //
-                [0.0, 0.0, szz], //
-            ],
-            Mandel::Symmetric,
-        )
+        Tensor2::from_std_matrix(&[
+            [sxx, sxy, 0.0], //
+            [sxy, syy, 0.0], //
+            [0.0, 0.0, szz], //
+        ])
         .unwrap()
     }
 
@@ -95,7 +92,7 @@ impl ElastPlaneStrainFlexibleFoot {
         let ll = linspace(0.0, self.hh / self.bb, np);
         let ss: Vec<_> = ll
             .iter()
-            .map(|l| -self.stress(0.0, l * self.bb).get(1, 1) / self.qn)
+            .map(|l| -self.stress(0.0, l * self.bb).get_std(1, 1) / self.qn)
             .collect();
         (ss, ll)
     }
@@ -118,7 +115,7 @@ impl ElastPlaneStrainFlexibleFoot {
         let xx = linspace(0.0, x_max, np);
         let ss: Vec<_> = xx
             .iter()
-            .map(|x| -self.stress(*x, self.hh - depth).get(1, 1) / self.qn)
+            .map(|x| -self.stress(*x, self.hh - depth).get_std(1, 1) / self.qn)
             .collect();
         (xx, ss)
     }

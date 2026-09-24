@@ -16,11 +16,11 @@ pub enum Axis {
     /// Projected y coordinates on the octahedral plane
     OctY,
 
-    /// (optional) Volumetric strain (percent, negative)
-    EpsV(/*percent*/ bool, /*negative*/ bool),
+    /// (optional) Isomorphic mean strain (percent, negative)
+    EpsMean(/*percent*/ bool, /*negative*/ bool),
 
-    /// (optional) Deviatoric strain (percent)
-    EpsD(/*percent*/ bool),
+    /// (optional) Isomorphic deviatoric strain (percent)
+    EpsDev(/*percent*/ bool),
 
     /// (optional) Yield function value
     Yield,
@@ -31,7 +31,7 @@ pub enum Axis {
 
 impl Axis {
     /// Generates labels for the axis
-    pub(crate) fn label(&self) -> String {
+    pub(super) fn label(&self) -> String {
         match self {
             Self::SigM(negative) => {
                 let n = if *negative { "-" } else { "" };
@@ -47,14 +47,14 @@ impl Axis {
             Self::Lode => "$\\ell$".to_string(),
             Self::OctX => "".to_string(),
             Self::OctY => "".to_string(),
-            Self::EpsV(percent, negative) => {
+            Self::EpsMean(percent, negative) => {
                 let n = if *negative { "-" } else { "" };
                 let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("${}\\varepsilon_v{}$", n, p)
+                format!("${}\\varepsilon_{{mean}}{}$", n, p)
             }
-            Self::EpsD(percent) => {
+            Self::EpsDev(percent) => {
                 let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("$\\varepsilon_d{}$", p)
+                format!("$\\varepsilon_{{dev}}{}$", p)
             }
             Self::Yield => "yield function".to_string(),
             Self::Time => "pseudo time".to_string(),
@@ -71,13 +71,13 @@ mod tests {
 
     #[test]
     fn derive_works() {
-        let axis = Axis::EpsD(false).clone();
-        let axes = HashSet::from([Axis::EpsD(false), Axis::EpsV(false, true)]);
-        assert_eq!(axis, Axis::EpsD(false));
-        assert_eq!(format!("{:?}", axis), "EpsD(false)");
-        assert_eq!(axes.contains(&Axis::EpsD(false)), true);
-        assert_eq!(axes.contains(&Axis::EpsV(false, false)), false);
-        assert_eq!(axes.contains(&Axis::EpsV(false, true)), true);
+        let axis = Axis::EpsDev(false).clone();
+        let axes = HashSet::from([Axis::EpsDev(false), Axis::EpsMean(false, true)]);
+        assert_eq!(axis, Axis::EpsDev(false));
+        assert_eq!(format!("{:?}", axis), "EpsDev(false)");
+        assert_eq!(axes.contains(&Axis::EpsDev(false)), true);
+        assert_eq!(axes.contains(&Axis::EpsMean(false, false)), false);
+        assert_eq!(axes.contains(&Axis::EpsMean(false, true)), true);
     }
 
     #[test]
@@ -101,20 +101,20 @@ mod tests {
 
         // strain
 
-        let axis = Axis::EpsV(false, false);
-        assert_eq!(axis.label(), "$\\varepsilon_v$");
+        let axis = Axis::EpsMean(false, false);
+        assert_eq!(axis.label(), "$\\varepsilon_{mean}$");
 
-        let axis = Axis::EpsV(true, false);
-        assert_eq!(axis.label(), "$\\varepsilon_v\\;[\\%]$");
+        let axis = Axis::EpsMean(true, false);
+        assert_eq!(axis.label(), "$\\varepsilon_{mean}\\;[\\%]$");
 
-        let axis = Axis::EpsV(true, true);
-        assert_eq!(axis.label(), "$-\\varepsilon_v\\;[\\%]$");
+        let axis = Axis::EpsMean(true, true);
+        assert_eq!(axis.label(), "$-\\varepsilon_{mean}\\;[\\%]$");
 
-        let axis = Axis::EpsD(false);
-        assert_eq!(axis.label(), "$\\varepsilon_d$");
+        let axis = Axis::EpsDev(false);
+        assert_eq!(axis.label(), "$\\varepsilon_{dev}$");
 
-        let axis = Axis::EpsD(true);
-        assert_eq!(axis.label(), "$\\varepsilon_d\\;[\\%]$");
+        let axis = Axis::EpsDev(true);
+        assert_eq!(axis.label(), "$\\varepsilon_{dev}\\;[\\%]$");
 
         // others
 

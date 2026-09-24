@@ -12,14 +12,14 @@ const DIR: &str = "/tmp/pmsim/spo_754";
 const NAME: &str = "spo_754_footing";
 const DRAW_MESH_AND_EXIT: bool = false;
 const VERBOSE_LEVEL: usize = 0;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 
 const YOUNG: f64 = 1e7; // Young's modulus
 const POISSON: f64 = 0.48; // Poisson's coefficient
-const Z_INI: f64 = 848.7; // Initial size of yield surface
+const KAPPA_INI: f64 = 848.7; // Initial size of yield surface
 const WIDTH: f64 = 100.0; // 2*B
 const B: f64 = WIDTH / 2.0; // half-width of footing
-const COHESION: f64 = Z_INI / SQRT_3;
+const COHESION: f64 = KAPPA_INI / SQRT_3;
 const H: f64 = 0.0; // hardening coefficient
 const NGAUSS: usize = 4; // number of gauss points
 
@@ -93,7 +93,7 @@ fn main() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            z_ini: Z_INI,
+            kappa_ini: KAPPA_INI,
             hh: H,
         },
         ngauss: Some(NGAUSS),
@@ -122,7 +122,7 @@ fn main() -> Result<(), StrError> {
     name += &options.key();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
@@ -186,7 +186,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // check the results
-    let (post, mut memo) = PostProc::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<D2>::new(DIR, &name)?;
     let nstate = post.nfile();
 
     // calculate the reaction using the internal forces
@@ -302,6 +302,7 @@ fn main() -> Result<(), StrError> {
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
+            Some((1, 1.0, 1e-9)),
         )?;
         assert!(all_good);
     }

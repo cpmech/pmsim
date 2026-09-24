@@ -167,8 +167,8 @@ impl PresCylinPlaneStrain {
             return Err("c can only be calculated with P0 < P < P_lim");
         }
         let args = &mut 0;
-        let solver = RootFinder::new();
-        let (c_root, _) = solver.brent(self.a, self.b, args, |c, _| {
+        let mut solver = RootFinder::new();
+        let c_root = solver.brent(self.a, self.b, args, |c, _| {
             let l = self.yy * f64::ln(c / self.a);
             let m = 0.5 * self.yy * (1.0 - c * c / (self.b * self.b));
             Ok(l + m - pp)

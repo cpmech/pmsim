@@ -1,6 +1,7 @@
 use crate::StrError;
 use gemlab::shapes::Scratchpad;
 use russell_lab::Vector;
+use russell_tensor::Tensor1;
 
 /// Calculates the gradient of a scalar quantity such as φ, pl, and pg at a Gauss point from the global U vector
 ///
@@ -19,7 +20,7 @@ use russell_lab::Vector;
 /// * `grad` -- Will contain the gradient vector
 /// * This function also returns the scalar quantity interpolated to the Gauss point
 pub(crate) fn calculate_gradient(
-    grad_phi: &mut Vector,
+    grad_phi: &mut Tensor1,
     uu: &Vector,
     l2g: &[usize],
     ksi: &[f64],
@@ -42,9 +43,9 @@ pub(crate) fn calculate_gradient(
 
     // interpolate ∇ϕ at integration point
     for i in 0..space_ndim {
-        grad_phi[i] = 0.0;
+        grad_phi.set(i, 0.0);
         for m in 0..nnode {
-            grad_phi[i] += bb.get(m, i) * uu[l2g[m]];
+            grad_phi.add(i, bb.get(m, i) * uu[l2g[m]]);
         }
     }
 
@@ -59,7 +60,8 @@ mod tests {
     use crate::base::{generate_scalar_field_ax_plus_by, ParamDiffusion, Schema};
     use gemlab::integ::Gauss;
     use gemlab::mesh::Samples;
-    use russell_lab::{approx_eq, vec_approx_eq, Vector};
+    use russell_lab::approx_eq;
+    use russell_tensor::{t1_approx_eq, Tensor1};
 
     #[test]
     fn calculate_gradient_works() {
@@ -91,15 +93,11 @@ mod tests {
             let gauss = Gauss::new(cell.kind);
 
             // gradient vector
-            let mut grad_phi = Vector::new(mesh.ndim);
+            let mut grad_phi = Tensor1::new();
 
             // solution
-            let mut x = Vector::new(mesh.ndim);
-            let correct_grad = if mesh.ndim == 2 {
-                Vector::from(&[A, B])
-            } else {
-                Vector::from(&[A, B, 0.0])
-            };
+            let mut x = Tensor1::new();
+            let correct_grad = Tensor1::from(&[A, B, 0.0]);
 
             // check increment of strains for all integration points
             for p in 0..gauss.npoint() {
@@ -107,8 +105,8 @@ mod tests {
                 pad.calc_coords(&mut x, iota).unwrap();
                 let phi = calculate_gradient(&mut grad_phi, &uu, &l2g, iota, &mut pad).unwrap();
                 // println!("x = {:?}, phi = {:?}, grad_phi = {:?}", x.as_data(), phi, grad_phi.as_data());
-                approx_eq(phi, A * x[0] + B * x[1], 1e-14);
-                vec_approx_eq(&grad_phi, &correct_grad, 1e-13);
+                approx_eq(phi, A * x.get(0) + B * x.get(1), 1e-14);
+                t1_approx_eq(&grad_phi, &correct_grad, 1e-13);
             }
         }
     }

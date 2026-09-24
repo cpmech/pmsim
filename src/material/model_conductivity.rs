@@ -1,12 +1,13 @@
-use crate::base::{Conductivity, Idealization};
+use crate::base::Conductivity;
 use crate::StrError;
+use crate::D3;
 use russell_tensor::Tensor2;
 
 /// Implements conductivity models
-pub struct ModelConductivity {
-    /// Indicates a 2D conductivity tensor
-    two_dim: bool,
-
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
+pub struct ModelConductivity<const N: usize> {
     /// Use Constant model
     cte_enabled: bool,
 
@@ -41,12 +42,15 @@ pub struct ModelConductivity {
     pze_beta: f64,
 }
 
-impl ModelConductivity {
+impl<const N: usize> ModelConductivity<N> {
+    const VALIDATE_N: () = assert!(N == 4 || N == 6, "N must be 4 or 6 (=2*NDIM)");
+
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization, param: &Conductivity) -> Result<Self, StrError> {
+    pub fn new(param: &Conductivity) -> Result<Self, StrError> {
+        let _ = Self::VALIDATE_N;
+
         match *param {
             Conductivity::Constant { kx, ky, kz } => Ok(ModelConductivity {
-                two_dim: ideal.two_dim,
                 cte_enabled: true,
                 iso_enabled: false,
                 iso_kr: 0.0,
@@ -60,7 +64,6 @@ impl ModelConductivity {
                 pze_beta: 0.0,
             }),
             Conductivity::IsotropicLinear { kr, beta } => Ok(ModelConductivity {
-                two_dim: ideal.two_dim,
                 cte_enabled: false,
                 iso_enabled: true,
                 iso_kr: kr,
@@ -82,7 +85,6 @@ impl ModelConductivity {
                 alpha,
                 beta,
             } => Ok(ModelConductivity {
-                two_dim: ideal.two_dim,
                 cte_enabled: false,
                 iso_enabled: false,
                 iso_kr: 0.0,
@@ -109,21 +111,21 @@ impl ModelConductivity {
     }
 
     /// Calculates the conductivity tensor
-    pub fn calc_k(&self, k: &mut Tensor2, phi: f64) -> Result<(), StrError> {
+    pub fn calc_k(&self, k: &mut Tensor2<N>, phi: f64) -> Result<(), StrError> {
         k.clear();
         if self.cte_enabled {
-            k.sym_set(0, 0, self.kx);
-            k.sym_set(1, 1, self.ky);
-            if !self.two_dim {
-                k.sym_set(2, 2, self.kz);
+            k.sym_set_std(0, 0, self.kx);
+            k.sym_set_std(1, 1, self.ky);
+            if N == D3 {
+                k.sym_set_std(2, 2, self.kz);
             }
         } else if self.iso_enabled {
             // k = (1 + β T) kᵣ I   (I is the identity tensor)
             let val = (1.0 + self.iso_beta * phi) * self.iso_kr;
-            k.sym_set(0, 0, val);
-            k.sym_set(1, 1, val);
-            if !self.two_dim {
-                k.sym_set(2, 2, val);
+            k.sym_set_std(0, 0, val);
+            k.sym_set_std(1, 1, val);
+            if N == D3 {
+                k.sym_set_std(2, 2, val);
             }
         } else {
             let _ = self.pze_lambda_0;
@@ -136,17 +138,17 @@ impl ModelConductivity {
     }
 
     /// Calculates the derivative of the conductivity tensor with respect to phi (∂k/∂ϕ)
-    pub fn calc_dk_dphi(&self, dk_dphi: &mut Tensor2, _phi: f64) -> Result<(), StrError> {
+    pub fn calc_dk_dphi(&self, dk_dphi: &mut Tensor2<N>, _phi: f64) -> Result<(), StrError> {
         dk_dphi.clear();
         if self.cte_enabled {
             // nothing else needed
         } else if self.iso_enabled {
             // k = (1 + β T) kᵣ I   →  ∂k/∂ϕ = ∂k/∂T = β kᵣ I
             let val = self.iso_beta * self.iso_kr;
-            dk_dphi.sym_set(0, 0, val);
-            dk_dphi.sym_set(1, 1, val);
-            if !self.two_dim {
-                dk_dphi.sym_set(2, 2, val);
+            dk_dphi.sym_set_std(0, 0, val);
+            dk_dphi.sym_set_std(1, 1, val);
+            if N == D3 {
+                dk_dphi.sym_set_std(2, 2, val);
             }
         } else {
             return Err("TODO: Pedroso-Zhang-Ehlers Conductivity model");
@@ -160,36 +162,34 @@ impl ModelConductivity {
 #[cfg(test)]
 mod tests {
     use super::ModelConductivity;
-    use crate::base::{Conductivity, Idealization};
+    use crate::base::Conductivity;
+    use crate::D2;
     use russell_lab::{approx_eq, deriv1_central5};
-    use russell_tensor::{Mandel, Tensor2};
+    use russell_tensor::Tensor2;
 
     #[test]
     fn derivative_works() {
         let param = Conductivity::IsotropicLinear { kr: 20.0, beta: 0.5 };
-        let ideal = Idealization::new(2);
-        let model = ModelConductivity::new(&ideal, &param).unwrap();
+        let model = ModelConductivity::<D2>::new(&param).unwrap();
 
         let phi_ini = 100.0;
-        let mut dk_dphi_ana = Tensor2::new(Mandel::Symmetric2D);
+        let mut dk_dphi_ana = Tensor2::<D2>::new();
         model.calc_dk_dphi(&mut dk_dphi_ana, phi_ini).unwrap();
 
         struct Args {
-            temp: Tensor2,
+            temp: Tensor2<D2>,
         }
-        let mut args = Args {
-            temp: Tensor2::new(Mandel::Symmetric2D),
-        };
+        let mut args = Args { temp: Tensor2::new() };
 
         for i in 0..2 {
             for j in 0..2 {
                 let num = deriv1_central5(phi_ini, &mut args, |phi_at, a| {
                     model.calc_k(&mut a.temp, phi_at).unwrap();
-                    Ok(a.temp.get(i, j))
+                    Ok(a.temp.get_std(i, j))
                 })
                 .unwrap();
                 // println!("k[{},{}] = {:?} → {:?}", i, j, dk_dphi_ana.get(i, j), num);
-                approx_eq(dk_dphi_ana.get(i, j), num, 1e-10);
+                approx_eq(dk_dphi_ana.get_std(i, j), num, 1e-10);
             }
         }
     }

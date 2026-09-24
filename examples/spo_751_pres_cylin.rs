@@ -41,7 +41,7 @@ const NAME_MESH: &str = "spo_751_pres_cylin";
 const NAME_COLLAPSE: &str = "spo_751_pres_cylin_collapse";
 const NAME_RESIDUAL: &str = "spo_751_pres_cylin_residual";
 const GENERATE_MESH: bool = false;
-const SAVE_FIGURE: bool = true;
+const SAVE_FIGURE: bool = false;
 const VERBOSE_LEVEL: usize = 0; // in the verification step
 
 const P_MAX_RES: f64 = 0.18; // maximum pressure achieved by the residual simulation before unloading completely to zero
@@ -101,7 +101,7 @@ fn main() -> Result<(), StrError> {
             young: YOUNG,
             poisson: POISSON,
             hh: 0.0,
-            z_ini: 0.24,
+            kappa_ini: 0.24,
         },
         ngauss: Some(NGAUSS),
     };
@@ -130,7 +130,7 @@ fn main() -> Result<(), StrError> {
     name += &options.key();
 
     // configuration
-    let mut config = Config::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .out_files(DIR, &name)
         .lagrange_mult_method(options.lmm)
@@ -210,6 +210,7 @@ fn main() -> Result<(), StrError> {
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
+            Some((1, 1.0, 1e-11)),
         )?;
         assert!(all_good);
     }
@@ -219,7 +220,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<D2>::new(DIR, &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
 

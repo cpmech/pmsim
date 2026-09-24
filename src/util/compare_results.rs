@@ -1,5 +1,5 @@
 use super::{ReferenceData, ReferenceDataType};
-use crate::base::{Config, Dof, Schema};
+use crate::base::{Config, Dof, Schema, NZ_VON_MISES};
 use crate::fem::{FemState, PostProc};
 use crate::StrError;
 use gemlab::mesh::Mesh;
@@ -56,14 +56,19 @@ fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
 ///   - 0 => no output
 ///   - 1 => shows error
 ///   - 2 => shows values and error
+/// * `eps_bar_p` -- Tells this function to check the accumulated plastic strain (eps_bar_p).
+///   The values in the tuple are `(index_in_z_set, conversion_factor, tolerance).`
 ///
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
-pub fn compare_results(
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
+pub fn compare_results<const N: usize>(
     mesh: &Mesh,
     schema: &Schema,
-    config: &Config,
+    config: &Config<N>,
     dir: &str,
     fn_stem: &str,
     ref_type: ReferenceDataType,
@@ -71,6 +76,7 @@ pub fn compare_results(
     tol_displacement: f64,
     tol_stress: f64,
     verbose: usize,
+    eps_bar_p: Option<(usize, f64, f64)>,
 ) -> Result<bool, StrError> {
     // constants
     let dofs = [Dof::Ux, Dof::Uy, Dof::Uz];
@@ -97,11 +103,12 @@ pub fn compare_results(
     // stats
     let mut diff_displacement_max = f64::MIN;
     let mut diff_stress_max = f64::MIN;
+    let mut diff_eps_bar_p_max = f64::MIN;
 
     // compare results
     let mut all_good = true;
     let mut elastic_flags_ok = true;
-    let (pp, _) = PostProc::new(dir, fn_stem)?;
+    let (pp, _) = PostProc::<N>::new(dir, fn_stem)?;
     if pp.nfile() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
@@ -110,7 +117,7 @@ pub fn compare_results(
         let step = index - 1;
 
         // load state
-        let fem_state = FemState::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
+        let fem_state = FemState::<N>::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
 
         if verbose > 0 {
             println!(
@@ -121,7 +128,7 @@ pub fn compare_results(
 
         // check displacements
         if verbose > 0 {
-            println!("ERROR ON DISPLACEMENTS");
+            println!("DISPLACEMENTS");
         }
         for p in 0..npoint {
             for i in 0..ndim {
@@ -141,7 +148,7 @@ pub fn compare_results(
 
         // check stresses
         if verbose > 0 {
-            println!("ERROR ON STRESSES");
+            println!("STRESSES");
         }
         for e in 0..ncell {
             let ngauss = dat.actual.ngauss(step, e);
@@ -152,7 +159,7 @@ pub fn compare_results(
             for ip in 0..ngauss {
                 let local_state = &secondary_values.solid[ip];
                 for i in 0..tensor_vec_dim {
-                    let a = local_state.stress.vector()[i];
+                    let a = local_state.stress.get(i);
                     let b = if i > 2 {
                         dat.actual.stresses(step, e, ip, i) * SQRT_2 // convert to Mandel
                     } else {
@@ -172,7 +179,7 @@ pub fn compare_results(
 
         // check elastic flags
         if verbose > 0 {
-            println!("ERROR ON ELASTIC FLAGS");
+            println!("ELASTIC FLAGS");
         }
         let mut n_elastic = 0;
         for e in 0..ncell {
@@ -200,10 +207,43 @@ pub fn compare_results(
         if verbose > 0 {
             println!("num elastic = {}", n_elastic);
         }
+
+        // check accumulated plastic strain (eps_bar_p) if requested (von Mise model only)
+        if let Some((index, conversion_factor, tolerance)) = eps_bar_p {
+            if verbose > 0 {
+                println!("ACCUMULATED PLASTIC STRAIN (eps_bar_p)");
+            }
+            for e in 0..ncell {
+                let ngauss = dat.actual.ngauss(step, e);
+                if ngauss < 1 {
+                    return Err("there must be at least on integration point in reference data (plast_apex_epbar)");
+                }
+                let secondary_values = &fem_state.gauss[e];
+                for ip in 0..ngauss {
+                    let local_state = &secondary_values.solid[ip];
+                    if local_state.z_set.dim() != NZ_VON_MISES {
+                        return Err("the number of internal variables in the local state must equal NZ_VON_MISES");
+                    }
+                    let a = local_state.z_set[index];
+                    let b = dat.actual.eps_bar_p(step, e, ip) * conversion_factor;
+                    let (fail, diff) = query_failed(a, b, tolerance, verbose);
+                    diff_eps_bar_p_max = f64::max(diff_eps_bar_p_max, diff);
+                    if fail {
+                        all_good = false;
+                    }
+                    if verbose > 0 {
+                        println!();
+                    }
+                }
+            }
+        }
     }
     let s_ok = if elastic_flags_ok { "yes" } else { "no" };
     println!("\ndiff_displacement_max = {:9.2e}", diff_displacement_max);
     println!("diff_stress_max       = {:9.2e}", diff_stress_max);
+    if eps_bar_p.is_some() {
+        println!("diff_eps_bar_p_max    = {:9.2e}", diff_eps_bar_p_max);
+    }
     println!("are elastic flags ok  ? {:>9}\n", s_ok);
     Ok(all_good)
 }
