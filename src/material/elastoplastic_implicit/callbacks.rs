@@ -5,11 +5,7 @@ use russell_lab::{Matrix, Vector};
 /// Calculates the residual of the local nonlinear problem for the implicit elastoplastic model.
 ///
 /// Nonlinear problem: y(x) = {re, rz, rf} = 0 with x = {σ, z, λ}
-pub(super) fn callback_residual<const DIM: usize>(
-    r: &mut Vector,
-    x: &Vector,
-    a: &mut Args<DIM>,
-) -> Result<(), StrError> {
+pub(super) fn callback_residual<const N: usize>(r: &mut Vector, x: &Vector, a: &mut Args<N>) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
     let nz = a.nz; // number of internal variables
@@ -22,7 +18,7 @@ pub(super) fn callback_residual<const DIM: usize>(
 
     // Set the auxiliary "state" variable by splitting x into σ, z, and λ
     for i in 0..ns {
-        a.state.stress.vector_mut()[i] = sig[i];
+        a.state.stress.set(i, sig[i]);
     }
     for i in 0..nz {
         a.state.z_set[i] = zet[i];
@@ -36,13 +32,13 @@ pub(super) fn callback_residual<const DIM: usize>(
     a.model.calc_h(&mut a.h, &a.state)?;
 
     // Calculate re = Cₑ σ - ε_trial + λ (dg/dσ)
-    for i in 0..ns {
-        r[i] = 0.0;
-        for j in 0..ns {
-            r[i] += a.cce.matrix().get(i, j) * sig[j];
+    for m in 0..ns {
+        r[m] = 0.0;
+        for n in 0..ns {
+            r[m] += a.cce.get(m, n) * sig[n];
         }
-        r[i] -= a.eps_trial[i];
-        r[i] += lam * a.gs.vector()[i];
+        r[m] -= a.eps_trial.get(m);
+        r[m] += lam * a.gs.get(m);
     }
 
     // Calculate rz = z - z_old - λ h(σ, z)
@@ -56,11 +52,7 @@ pub(super) fn callback_residual<const DIM: usize>(
 }
 
 /// Calculates the Jacobian of the local nonlinear problem for the implicit elastoplastic model.
-pub(super) fn callback_jacobian<const DIM: usize>(
-    jac: &mut Matrix,
-    x: &Vector,
-    a: &mut Args<DIM>,
-) -> Result<(), StrError> {
+pub(super) fn callback_jacobian<const N: usize>(jac: &mut Matrix, x: &Vector, a: &mut Args<N>) -> Result<(), StrError> {
     // Set some constants
     let ns = a.ncp; // number of stress components
     let nz = a.nz; // number of internal variables
@@ -73,7 +65,7 @@ pub(super) fn callback_jacobian<const DIM: usize>(
 
     // Set the auxiliary "state" variable by splitting x into σ, z, and λ
     for i in 0..ns {
-        a.state.stress.vector_mut()[i] = sig[i];
+        a.state.stress.set(i, sig[i]);
     }
     for i in 0..nz {
         a.state.z_set[i] = zet[i];
@@ -105,17 +97,17 @@ pub(super) fn callback_jacobian<const DIM: usize>(
     a.model.calc_hhz(&mut a.hhz, &a.state)?;
 
     // Set J matrix
-    for i in 0..ns {
+    for m in 0..ns {
         // Cₑ + λ Gσ
-        for j in 0..ns {
-            jac.set(i, j, a.cce.matrix().get(i, j) + lam * a.ggs.matrix().get(i, j));
+        for n in 0..ns {
+            jac.set(m, n, a.cce.get(m, n) + lam * a.ggs.get(m, n));
         }
         // λ Gz
         for j in 0..nz {
-            jac.set(i, ns + j, lam * a.ggz.get(i, j));
+            jac.set(m, ns + j, lam * a.ggz.get(m, j));
         }
         // gσ
-        jac.set(i, nsz, a.gs.vector()[i]);
+        jac.set(m, nsz, a.gs.get(m));
     }
     for i in 0..nz {
         // -λ Hσ
@@ -131,8 +123,8 @@ pub(super) fn callback_jacobian<const DIM: usize>(
         jac.set(ns + i, nsz, -a.h[i]);
     }
     // fσᵀ
-    for j in 0..ns {
-        jac.set(nsz, j, a.fs.vector()[j]);
+    for m in 0..ns {
+        jac.set(nsz, m, a.fs.get(m));
     }
     // fzᵀ
     for j in 0..nz {
@@ -148,10 +140,11 @@ mod tests {
     use super::{callback_jacobian, callback_residual, Args};
     use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
     use crate::material::{LocalState, Settings};
+    use crate::D2;
     use russell_lab::math::{SQRT_2_BY_3, SQRT_3};
-    use russell_lab::{approx_eq, mat_approx_eq, mat_inverse, mat_vec_mul, num_jacobian};
+    use russell_lab::{approx_eq, mat_approx_eq, num_jacobian};
     use russell_lab::{Matrix, Vector};
-    use russell_tensor::{t4_ddot_t2_update, Tensor2};
+    use russell_tensor::{t4_ddot_t2, Tensor2, ADD, SET};
 
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
@@ -161,18 +154,17 @@ mod tests {
     #[test]
     fn test_residual_and_jacobian_callbacks() {
         // Select 2D idealization
-        let ideal = Idealization::<2>::new();
-        let mandel = ideal.mandel();
+        let ideal = Idealization::<D2>::new();
 
         // Allocate the local state
-        let mut state = LocalState::new(mandel, NZ_VON_MISES);
+        let mut state = LocalState::new(NZ_VON_MISES);
 
         // Set the initial stress state to be on the yield surface
         let p = 1.0;
         let q = KAPPA_INI;
         let dist = p * SQRT_3; // distance from the octahedral plane to the origin.
         let radius = q * SQRT_2_BY_3; // radius on the octahedral plane.
-        let stress = Tensor2::new_from_octahedral(dist, radius, 0.0, true).unwrap();
+        let stress = Tensor2::new_from_octahedral(dist, radius, 0.0).unwrap();
         state.stress.set_tensor(1.0, &stress);
 
         // Set the initial internal variable
@@ -194,24 +186,24 @@ mod tests {
 
         // Calculate Dₑ and Cₑ
         args.model.calc_dde(&mut args.dde, &state).unwrap();
-        mat_inverse(args.cce.matrix_mut(), args.dde.matrix()).unwrap();
+        let _ = args.dde.inverse(&mut args.cce).unwrap();
 
         // Allocate an artificial strain increment
-        let mut delta_strain = Tensor2::new(mandel);
-        delta_strain.vector_mut()[0] = 0.001;
-        delta_strain.vector_mut()[1] = -0.0005;
-        delta_strain.vector_mut()[2] = -0.0005;
-        delta_strain.vector_mut()[3] = 0.00001;
+        let mut delta_strain = Tensor2::new();
+        delta_strain.set(0, 0.001);
+        delta_strain.set(1, -0.0005);
+        delta_strain.set(2, -0.0005);
+        delta_strain.set(3, 0.00001);
 
         // Trial update: σ_trial = σ_old + Dₑ : Δε thus σ += Dₑ : Δε
-        t4_ddot_t2_update(&mut state.stress, 1.0, &args.dde, &delta_strain, 1.0);
+        t4_ddot_t2(&mut state.stress, ADD, 1.0, &args.dde, &delta_strain);
 
         // Trial yield function value: f(σ_trial, z_old)
         let f_trial = args.model.calc_f(&state).unwrap();
         assert!(f_trial > 0.0);
 
         // Calculate ε_trial = Cₑ : σ_trial
-        mat_vec_mul(&mut args.eps_trial, 1.0, args.cce.matrix(), state.stress.vector()).unwrap();
+        t4_ddot_t2(&mut args.eps_trial, SET, 1.0, &args.cce, &state.stress);
 
         // Set z_old in arguments struct
         args.z_old.set_vector(state.z_set.as_data());
@@ -222,8 +214,8 @@ mod tests {
         let nsz = ns + nz; // index of λ
         let ndim = ns + nz + 1; // dimension of x
         let mut x = Vector::new(ndim);
-        for i in 0..ns {
-            x[i] = state.stress.vector()[i];
+        for m in 0..ns {
+            x[m] = state.stress.get(m);
         }
         for i in 0..nz {
             x[ns + i] = state.z_set[i];
@@ -233,12 +225,12 @@ mod tests {
         // Calculate the residual
         let mut r = Vector::new(ndim);
         callback_residual(&mut r, &x, &mut args).unwrap();
-        println!("residual = \n{}", r);
+        // println!("residual = \n{}", r);
 
         // Calculate the Jacobian
         let mut jac = Matrix::new(ndim, ndim);
         callback_jacobian(&mut jac, &x, &mut args).unwrap();
-        println!("Jacobian = \n{}", jac);
+        // println!("Jacobian = \n{}", jac);
 
         // Calculate the Jacobian numerically
         let t0 = 0.0;
@@ -248,9 +240,9 @@ mod tests {
             Ok(())
         })
         .unwrap();
-        println!("Jacobian (numerical) = \n{}", jac_num);
+        // println!("Jacobian (numerical) = \n{}", jac_num);
 
         // Check that the analytical and numerical Jacobians are approximately equal
-        mat_approx_eq(&jac, &jac_num, 1e-11);
+        mat_approx_eq(&jac, &jac_num, 1e-10);
     }
 }

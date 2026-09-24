@@ -1,6 +1,7 @@
 use super::{ElementTrait, FemState};
 use crate::base::{ParamRod, Schema};
 use crate::StrError;
+use crate::D2;
 use gemlab::mesh::{CellId, Mesh};
 use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 
@@ -9,7 +10,7 @@ use russell_lab::{mat_copy, mat_vec_mul, Matrix, Vector};
 /// # References
 ///
 /// * Felippa C., Chapter 20: Implementation of One-Dimensional Elements (IFEM.Ch20.pdf)
-pub(crate) struct ElementRod<'a, const DIM: usize> {
+pub(crate) struct ElementRod<'a, const N: usize> {
     /// Local-to-global mapping
     local_to_global: &'a Vec<usize>,
 
@@ -20,7 +21,7 @@ pub(crate) struct ElementRod<'a, const DIM: usize> {
     u: Vector,
 }
 
-impl<'a, const DIM: usize> ElementRod<'a, DIM> {
+impl<'a, const N: usize> ElementRod<'a, N> {
     /// Allocates a new instance
     #[rustfmt::skip]
     pub fn new(
@@ -40,7 +41,7 @@ impl<'a, const DIM: usize> ElementRod<'a, DIM> {
         let yb = mesh.points[pp[1]].coords[1];
         let dx = xb - xa;
         let dy = yb - ya;
-        let stiffness = if DIM == 2 {
+        let stiffness = if N == D2 {
             let l = f64::sqrt(dx * dx + dy * dy);
             let m = param.young * param.area / (l * l * l);
             Matrix::from(&[
@@ -64,15 +65,16 @@ impl<'a, const DIM: usize> ElementRod<'a, DIM> {
                 [-dz*dx*m, -dz*dy*m, -dz*dz*m,  dz*dx*m,  dz*dy*m,  dz*dz*m],
             ])
         };
+        let ndim = N / 2;
         Ok(ElementRod {
             local_to_global: schema.local_to_global(cell_id)?,
             stiffness,
-            u:Vector::new(2*DIM),
+            u:Vector::new(2*ndim),
         })
     }
 }
 
-impl<'a, const DIM: usize> ElementTrait<DIM> for ElementRod<'a, DIM> {
+impl<'a, const N: usize> ElementTrait<N> for ElementRod<'a, N> {
     /// Returns whether the local Jacobian matrix is symmetric or not
     fn symmetric_jacobian(&self) -> bool {
         true
@@ -84,12 +86,12 @@ impl<'a, const DIM: usize> ElementTrait<DIM> for ElementRod<'a, DIM> {
     }
 
     /// Initializes the internal variables
-    fn initialize_internal_values(&mut self, _state: &mut FemState<DIM>) -> Result<(), StrError> {
+    fn initialize_internal_values(&mut self, _state: &mut FemState<N>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Calculates the elemental vector of internal forces (including dynamical/transient terms) Ye
-    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState<DIM>) -> Result<(), StrError> {
+    fn calc_yye(&mut self, yye: &mut Vector, state: &FemState<N>) -> Result<(), StrError> {
         for local in 0..self.local_to_global.len() {
             let global = self.local_to_global[local];
             self.u[local] = state.uu[global];
@@ -104,7 +106,7 @@ impl<'a, const DIM: usize> ElementTrait<DIM> for ElementRod<'a, DIM> {
     }
 
     /// Calculates the elemental Jacobian matrix Ke
-    fn calc_kke(&mut self, kke: &mut Matrix, _state: &FemState<DIM>) -> Result<(), StrError> {
+    fn calc_kke(&mut self, kke: &mut Matrix, _state: &FemState<N>) -> Result<(), StrError> {
         mat_copy(kke, &self.stiffness).unwrap();
         Ok(())
     }
@@ -112,21 +114,21 @@ impl<'a, const DIM: usize> ElementTrait<DIM> for ElementRod<'a, DIM> {
     /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.u, state.v, and state.a have been updated already
-    fn update_secondary_values(&mut self, _state: &mut FemState<DIM>) -> Result<(), StrError> {
+    fn update_secondary_values(&mut self, _state: &mut FemState<N>) -> Result<(), StrError> {
         Ok(())
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    fn backup_secondary_values(&mut self, _state: &FemState<DIM>, _alternative: bool) {}
+    fn backup_secondary_values(&mut self, _state: &FemState<N>, _alternative: bool) {}
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    fn restore_secondary_values(&self, _state: &mut FemState<DIM>, _alternative: bool) {}
+    fn restore_secondary_values(&self, _state: &mut FemState<N>, _alternative: bool) {}
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    fn reset_algorithmic_variables(&self, _state: &mut FemState<DIM>) {}
+    fn reset_algorithmic_variables(&self, _state: &mut FemState<N>) {}
 
     /// Returns the number of Gauss points at elastoplastic state
-    fn count_elastoplastic_gauss_points(&self, _state: &FemState<DIM>) -> usize {
+    fn count_elastoplastic_gauss_points(&self, _state: &FemState<N>) -> usize {
         0
     }
 }
@@ -138,6 +140,7 @@ mod tests {
     use super::ElementRod;
     use crate::base::{Config, ParamRod, Schema};
     use crate::fem::{ElementTrait, FemState};
+    use crate::{D2, D3};
     use gemlab::mesh::{Cell, GeoKind, Mesh, Point};
     use russell_lab::{mat_approx_eq, Matrix, Vector};
 
@@ -167,7 +170,7 @@ mod tests {
         let mut schema = Schema::new();
         schema.add_rod(1, p1); // skip build => thus the check for number of nodes is not made
         assert_eq!(
-            ElementRod::<2>::new(&mesh, &schema, &p1, 0).err(),
+            ElementRod::<D2>::new(&mesh, &schema, &p1, 0).err(),
             Some("number of nodes for Rod must be 2")
         );
     }
@@ -196,7 +199,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &schema, &config).unwrap();
@@ -239,7 +242,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let config = Config::<3>::new(&mesh);
+        let config = Config::<D3>::new(&mesh).unwrap();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &schema, &config).unwrap();
@@ -285,7 +288,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_rod(1, p1).build(&mesh).unwrap();
-        let config = Config::<3>::new(&mesh);
+        let config = Config::<D3>::new(&mesh).unwrap();
         let cell = &mesh.cells[0];
         let mut rod = ElementRod::new(&mesh, &schema, &p1, cell.id).unwrap();
         let state = FemState::new(&mesh, &schema, &config).unwrap();

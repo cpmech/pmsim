@@ -60,7 +60,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     // configuration
     let key = if lmm { "_lmm" } else { "_sps" };
     let name = &format!("{}{}", NAME, key);
-    let mut config = Config::<2>::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .lagrange_mult_method(lmm)
         .out_files("/tmp/pmsim/extrapolation", name);
@@ -74,7 +74,7 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
     //
 
     // results
-    let (post, mut memo) = PostProc::<2>::new("/tmp/pmsim/extrapolation", name)?;
+    let (post, mut memo) = PostProc::<D2>::new("/tmp/pmsim/extrapolation", name)?;
 
     // features
     let left = features.search_edges(At::X(0.0), any_x)?;
@@ -106,16 +106,16 @@ fn run_test(lmm: bool) -> Result<(), StrError> {
             &mut buf,
             "{:8.3} =? {:8.3}  │  {:8.3} =? {:8.3}  │  {:8.3} =? {:8.3}",
             fix_zero(nodal.txx[i]),
-            fix_zero(ana.stress(x, y).get(0, 0)),
+            fix_zero(ana.stress(x, y).get_std(0, 0)),
             fix_zero(nodal.tyy[i]),
-            fix_zero(ana.stress(x, y).get(1, 1)),
+            fix_zero(ana.stress(x, y).get_std(1, 1)),
             fix_zero(nodal.txy[i]),
-            fix_zero(ana.stress(x, y).get(0, 1))
+            fix_zero(ana.stress(x, y).get_std(0, 1))
         )
         .unwrap();
-        approx_eq(f64::abs(nodal.txx[i] - ana.stress(x, y).get(0, 0)) / QN, 0.0, 0.25);
-        approx_eq(f64::abs(nodal.tyy[i] - ana.stress(x, y).get(1, 1)) / QN, 0.0, 0.23);
-        approx_eq(f64::abs(nodal.txy[i] - ana.stress(x, y).get(0, 1)) / QN, 0.0, 0.09);
+        approx_eq(f64::abs(nodal.txx[i] - ana.stress(x, y).get_std(0, 0)) / QN, 0.0, 0.25);
+        approx_eq(f64::abs(nodal.tyy[i] - ana.stress(x, y).get_std(1, 1)) / QN, 0.0, 0.23);
+        approx_eq(f64::abs(nodal.txy[i] - ana.stress(x, y).get_std(0, 1)) / QN, 0.0, 0.09);
     }
     writeln!(&mut buf, "{}", thin_line).unwrap();
     println!("{}", buf);

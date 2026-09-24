@@ -87,7 +87,7 @@ fn run_test(
     nbc: &BcNatural,
 ) -> Result<(), StrError> {
     // configuration
-    let mut config = Config::<2>::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config.lagrange_mult_method(lmm);
 
     // solution

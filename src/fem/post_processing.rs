@@ -8,12 +8,16 @@ use gemlab::mesh::{At, CellId, Edges, Features, Mesh, PointId};
 use gemlab::recovery::{get_extrap_matrix, get_points_coords};
 use gemlab::shapes::Scratchpad;
 use russell_lab::{argsort2_f64, argsort3_f64, mat_mat_mul, Matrix, Vector};
+use russell_tensor::Tensor1;
 use std::collections::HashMap;
 
 /// Assists in post-processing the results given at Gauss points
 ///
 /// This structure also implements the extrapolation from Gauss points to nodes.
-pub struct PostProc<const DIM: usize> {
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
+pub struct PostProc<const N: usize> {
     /// Directory with the results
     dir: String,
 
@@ -21,7 +25,7 @@ pub struct PostProc<const DIM: usize> {
     fn_stem: String,
 
     /// Holds the output files handler
-    pub(crate) files: OutputFiles<DIM>,
+    pub(crate) files: OutputFiles<N>,
 
     /// Holds the Mesh
     pub(crate) mesh: Mesh,
@@ -42,8 +46,8 @@ pub struct PostProcMemo {
     all_extrap_mat: HashMap<CellId, Matrix>,
 }
 
-impl<const DIM: usize> PostProc<DIM> {
-    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+impl<const N: usize> PostProc<N> {
+    const VALIDATE_N: () = assert!(N == 4 || N == 6, "N must be 4 or 6 (=2*NDIM)");
 
     /// Load the results for post-processing
     ///
@@ -63,7 +67,7 @@ impl<const DIM: usize> PostProc<DIM> {
     ///
     /// Returns an error if any of the files cannot be read or parsed.
     pub fn new(dir: &str, fn_stem: &str) -> Result<(Self, PostProcMemo), StrError> {
-        let _ = Self::CHECK;
+        let _ = Self::VALIDATE_N;
 
         // load results
         let files = OutputFiles::read_json(&format!("{}/{}.json", dir, fn_stem))?;
@@ -72,8 +76,8 @@ impl<const DIM: usize> PostProc<DIM> {
         let mesh = Mesh::read(&format!("{}/{}-mesh.msh", dir, fn_stem))?;
 
         // check mesh dimension
-        if mesh.ndim != DIM {
-            return Err("the dimension of the mesh must match DIM");
+        if mesh.ndim != N / 2 {
+            return Err("the mesh dimension is incompatible with this configuration");
         }
 
         // reads the Schema
@@ -153,7 +157,7 @@ impl<const DIM: usize> PostProc<DIM> {
     /// # Errors
     ///
     /// Returns an error if the state file cannot be read or parsed.
-    pub fn read_file(&self, index: usize) -> Result<FemState<DIM>, StrError> {
+    pub fn read_file(&self, index: usize) -> Result<FemState<N>, StrError> {
         let path = format!("{}/{}-{}.json", self.dir, self.fn_stem, index);
         FemState::read_json(&path)
     }
@@ -176,12 +180,12 @@ impl<const DIM: usize> PostProc<DIM> {
     }
 
     /// Returns the history (time or lambda) of flux vectors at selected integration points
-    pub fn history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+    pub fn history_local_fluxes(&self, cell_id: CellId) -> Option<&Vec<Tensor1>> {
         self.files.history_local_flux(cell_id)
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState<DIM>>> {
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState<N>>> {
         self.files.history_local_state(cell_id)
     }
 
@@ -200,7 +204,7 @@ impl<const DIM: usize> PostProc<DIM> {
     /// # Errors
     ///
     /// Returns an error if the Gauss points cannot be retrieved.
-    pub fn gauss_coords(&self, memo: &mut PostProcMemo, cell_id: CellId) -> Result<Vec<Vector>, StrError> {
+    pub fn gauss_coords(&self, memo: &mut PostProcMemo, cell_id: CellId) -> Result<Vec<Tensor1>, StrError> {
         let cell = &self.mesh.cells[cell_id];
         let elem_type = self.schema.elem_type(cell.marker)?;
         let ngauss_opt = elem_type.ngauss();
@@ -265,9 +269,9 @@ impl<const DIM: usize> PostProc<DIM> {
             let coords = self.gauss_coords(memo, *cell_id)?;
             let ngauss = coords.len();
             for p in 0..ngauss {
-                let x = coords[p][0];
-                let y = coords[p][1];
-                let z = if ndim == 3 { coords[p][2] } else { 0.0 };
+                let x = coords[p].get(0);
+                let y = coords[p].get(1);
+                let z = if ndim == 3 { coords[p].get(2) } else { 0.0 };
                 if filter(x, y, z) {
                     xx.push(x);
                     yy.push(y);
@@ -319,7 +323,7 @@ impl<const DIM: usize> PostProc<DIM> {
     /// # Errors
     ///
     /// Returns an error if the vector components cannot be retrieved.
-    pub fn gauss_fluxes(&self, state: &FemState<DIM>, cell_id: CellId, dof: Dof) -> Result<Matrix, StrError> {
+    pub fn gauss_fluxes(&self, state: &FemState<N>, cell_id: CellId, dof: Dof) -> Result<Matrix, StrError> {
         let ndim = self.mesh.ndim;
         let second = &state.gauss[cell_id];
         let mut res = Matrix::new(second.ngauss, ndim);
@@ -330,7 +334,7 @@ impl<const DIM: usize> PostProc<DIM> {
             for p in 0..second.ngauss {
                 let w = state.gauss[cell_id].get_flux_vector(p)?;
                 for i in 0..ndim {
-                    res.set(p, i, w[i]);
+                    res.set(p, i, w.get(i));
                 }
             }
         } else {
@@ -357,7 +361,7 @@ impl<const DIM: usize> PostProc<DIM> {
     /// # Errors
     ///
     /// Returns an error if the stress components cannot be retrieved.
-    pub fn gauss_stresses(&self, state: &FemState<DIM>, cell_id: CellId) -> Result<Matrix, StrError> {
+    pub fn gauss_stresses(&self, state: &FemState<N>, cell_id: CellId) -> Result<Matrix, StrError> {
         self.gauss_tensors(state, cell_id, false)
     }
 
@@ -386,7 +390,7 @@ impl<const DIM: usize> PostProc<DIM> {
     /// # Errors
     ///
     /// Returns an error if the strain components cannot be retrieved.
-    pub fn gauss_strains(&self, state: &FemState<DIM>, cell_id: CellId) -> Result<Matrix, StrError> {
+    pub fn gauss_strains(&self, state: &FemState<N>, cell_id: CellId) -> Result<Matrix, StrError> {
         self.gauss_tensors(state, cell_id, true)
     }
 
@@ -409,32 +413,32 @@ impl<const DIM: usize> PostProc<DIM> {
     /// # Errors
     ///
     /// Returns an error if the tensor components cannot be retrieved.
-    fn gauss_tensors(&self, state: &FemState<DIM>, cell_id: CellId, strain: bool) -> Result<Matrix, StrError> {
+    fn gauss_tensors(&self, state: &FemState<N>, cell_id: CellId, strain: bool) -> Result<Matrix, StrError> {
         let ndim = self.mesh.ndim;
         let second = &state.gauss[cell_id];
         let mut res = Matrix::new(second.ngauss, ndim * 2);
         if strain {
             for p in 0..second.ngauss {
                 let strain = state.gauss[cell_id].strain(p)?;
-                res.set(p, 0, strain.get(0, 0));
-                res.set(p, 1, strain.get(1, 1));
-                res.set(p, 2, strain.get(2, 2));
-                res.set(p, 3, strain.get(0, 1));
+                res.set(p, 0, strain.get_std(0, 0));
+                res.set(p, 1, strain.get_std(1, 1));
+                res.set(p, 2, strain.get_std(2, 2));
+                res.set(p, 3, strain.get_std(0, 1));
                 if ndim == 3 {
-                    res.set(p, 4, strain.get(1, 2));
-                    res.set(p, 5, strain.get(2, 0));
+                    res.set(p, 4, strain.get_std(1, 2));
+                    res.set(p, 5, strain.get_std(2, 0));
                 }
             }
         } else {
             for p in 0..second.ngauss {
                 let stress = state.gauss[cell_id].stress(p)?;
-                res.set(p, 0, stress.get(0, 0));
-                res.set(p, 1, stress.get(1, 1));
-                res.set(p, 2, stress.get(2, 2));
-                res.set(p, 3, stress.get(0, 1));
+                res.set(p, 0, stress.get_std(0, 0));
+                res.set(p, 1, stress.get_std(1, 1));
+                res.set(p, 2, stress.get_std(2, 2));
+                res.set(p, 3, stress.get_std(0, 1));
                 if ndim == 3 {
-                    res.set(p, 4, stress.get(1, 2));
-                    res.set(p, 5, stress.get(2, 0));
+                    res.set(p, 4, stress.get_std(1, 2));
+                    res.set(p, 5, stress.get_std(2, 0));
                 }
             }
         }
@@ -451,7 +455,7 @@ impl<const DIM: usize> PostProc<DIM> {
     /// # Returns
     ///
     /// A vector `(ngauss)` containing the elastic flags components at each Gauss point.
-    pub fn gauss_elastic_flags(&self, state: &FemState<DIM>, cell_id: CellId) -> Result<Vector, StrError> {
+    pub fn gauss_elastic_flags(&self, state: &FemState<N>, cell_id: CellId) -> Result<Vector, StrError> {
         let second = &state.gauss[cell_id];
         let mut res = Vector::new(second.ngauss);
         for p in 0..second.ngauss {
@@ -493,7 +497,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn gauss_fluxes_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         dof: Dof,
         filter: F,
@@ -556,7 +560,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn gauss_stresses_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
@@ -594,7 +598,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn gauss_strains_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
@@ -626,7 +630,7 @@ impl<const DIM: usize> PostProc<DIM> {
     fn gauss_tensors_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         strain: bool,
         filter: F,
@@ -679,7 +683,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn gauss_elastic_flags_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialScalar, StrError>
@@ -741,7 +745,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn nodal_fluxes(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_id: CellId,
         dof: Dof,
     ) -> Result<Matrix, StrError> {
@@ -773,7 +777,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn nodal_stresses(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_id: CellId,
     ) -> Result<Matrix, StrError> {
         self.nodal_tensors(memo, state, cell_id, false)
@@ -806,7 +810,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn nodal_strains(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_id: CellId,
     ) -> Result<Matrix, StrError> {
         self.nodal_tensors(memo, state, cell_id, true)
@@ -833,7 +837,7 @@ impl<const DIM: usize> PostProc<DIM> {
     fn nodal_tensors(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_id: CellId,
         strain: bool,
     ) -> Result<Matrix, StrError> {
@@ -879,7 +883,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn nodal_fluxes_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         dof: Dof,
         filter: F,
@@ -951,7 +955,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn nodal_stresses_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
@@ -984,7 +988,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn nodal_strains_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         filter: F,
     ) -> Result<SpatialTensor, StrError>
@@ -1018,7 +1022,7 @@ impl<const DIM: usize> PostProc<DIM> {
     fn nodal_tensors_patch<F>(
         &self,
         memo: &mut PostProcMemo,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         cell_ids: &[CellId],
         strain: bool,
         filter: F,
@@ -1136,7 +1140,7 @@ impl<const DIM: usize> PostProc<DIM> {
     pub fn values_along_x<F>(
         &self,
         features: &Features,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         dof: Dof,
         y: f64,
         filter: F,
@@ -1179,7 +1183,7 @@ impl<const DIM: usize> PostProc<DIM> {
     /// This function will panic if the points along the line do not have the specified DOF.
     pub fn values_along_edges(
         &self,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         edges: &Edges,
         dof: Dof,
     ) -> Result<(Vec<PointId>, Vec<Vec<f64>>, Vec<f64>), StrError> {
@@ -1286,12 +1290,13 @@ mod tests {
     use crate::base::{Config, Dof, ParamDiffusion, ParamSolid, Schema, StressStrain};
     use crate::fem::{ElementDiffusion, ElementSolid, ElementTrait, FemState, OutputFiles};
     use crate::StrError;
+    use crate::{D2, D3};
     use gemlab::mesh::{At, Cell, Draw, Edges, Features, GeoKind, Mesh, Point, Samples};
     use gemlab::util::any_x;
     use plotpy::{Curve, Text};
     use russell_lab::math::SQRT_3;
-    use russell_lab::{approx_eq, array_approx_eq, vec_approx_eq, vec_copy, vec_update, Vector};
-    use russell_tensor::Tensor2;
+    use russell_lab::{approx_eq, array_approx_eq, vec_copy, vec_update, Vector};
+    use russell_tensor::{t1_approx_eq, t2_approx_eq, Tensor1, Tensor2};
     use std::collections::{HashMap, HashSet};
     use std::fs;
     use std::sync::Once;
@@ -1314,13 +1319,13 @@ mod tests {
 
     /// Generates temperature and flux vector fields
     #[allow(unused)]
-    fn generate_state_diffusion<const DIM: usize>(
+    fn generate_state_diffusion<const N: usize>(
         param: &ParamDiffusion,
         mesh: &Mesh,
         schema: &Schema,
-        config: &Config<DIM>,
+        config: &Config<N>,
         phi: &Vector,
-    ) -> FemState<DIM> {
+    ) -> FemState<N> {
         // update displacement
         let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         vec_copy(&mut state.uu, &phi).unwrap();
@@ -1339,13 +1344,13 @@ mod tests {
 
     /// Generates displacement, stress, and strain state given displacements
     #[allow(unused)]
-    fn generate_state_solid<const DIM: usize>(
+    fn generate_state_solid<const N: usize>(
         param: &ParamSolid,
         mesh: &Mesh,
         schema: &Schema,
-        config: &Config<DIM>,
+        config: &Config<N>,
         duu: &Vector,
-    ) -> FemState<DIM> {
+    ) -> FemState<N> {
         // update displacement
         let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         vec_copy(&mut state.dduu, &duu).unwrap();
@@ -1424,7 +1429,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
-        let mut config = Config::<2>::new(&mesh);
+        let mut config = Config::<D2>::new(&mesh).unwrap();
         config
             .out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
@@ -1480,7 +1485,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).add_diffusion(2, p1).build(&mesh).unwrap();
-        let mut config = Config::<3>::new(&mesh);
+        let mut config = Config::<D3>::new(&mesh).unwrap();
         config.out_files(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d");
         config.update_model_settings(1).set_save_flux(true);
         config.update_model_settings(2).set_save_flux(true);
@@ -1549,7 +1554,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let mut config = Config::<2>::new(&mesh);
+        let mut config = Config::<D2>::new(&mesh).unwrap();
         config
             .out_files(ARTIFICIAL_DATA_FILES_DIR, name)
             .update_model_settings(1)
@@ -1619,7 +1624,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_solid(1, p1).add_solid(2, p1).build(&mesh).unwrap();
-        let mut config = Config::<3>::new(&mesh);
+        let mut config = Config::<D3>::new(&mesh).unwrap();
         config.update_model_settings(1).set_save_strain(true);
         config.update_model_settings(2).set_save_strain(true);
 
@@ -1668,7 +1673,7 @@ mod tests {
         generate_data_files();
 
         // read results
-        let (post, _) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let (post, _) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
@@ -1680,10 +1685,10 @@ mod tests {
         // read state
         let ndim = post.mesh.ndim;
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         for id in 0..post.mesh.cells.len() {
             for w in &state.gauss[id].diffusion {
-                vec_approx_eq(w, &w_correct, 1e-14);
+                t1_approx_eq(w, &w_correct, 1e-14);
             }
         }
 
@@ -1700,7 +1705,7 @@ mod tests {
         let cell_id = 1;
         let s = post.files.history_local_flux(cell_id).unwrap();
         for i in 0..ndim {
-            approx_eq(s[0][i], w_correct[i], 1e-14);
+            approx_eq(s[0].get(i), w_correct.get(i), 1e-14);
         }
         Ok(())
     }
@@ -1710,7 +1715,7 @@ mod tests {
         generate_data_files();
 
         // read results
-        let (post, _) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
+        let (post, _) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
@@ -1721,10 +1726,10 @@ mod tests {
         // read state
         let ndim = post.mesh.ndim;
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         for id in 0..post.mesh.cells.len() {
             for w in &state.gauss[id].diffusion {
-                vec_approx_eq(w, &w_correct, 1e-14);
+                t1_approx_eq(w, &w_correct, 1e-14);
             }
         }
 
@@ -1741,7 +1746,7 @@ mod tests {
         let cell_id = 1;
         let s = post.files.history_local_flux(cell_id).unwrap();
         for i in 0..ndim {
-            approx_eq(s[0][i], w_correct[i], 1e-14);
+            approx_eq(s[0].get(i), w_correct.get(i), 1e-14);
         }
         Ok(())
     }
@@ -1751,7 +1756,7 @@ mod tests {
         generate_data_files();
 
         // read results
-        let (post, _) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
+        let (post, _) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         assert_eq!(post.mesh.ndim, 2);
         assert_eq!(post.mesh.points.len(), 5);
         assert_eq!(post.mesh.cells.len(), 3);
@@ -1761,32 +1766,19 @@ mod tests {
         assert_eq!(post.schema.ndof()?, 10);
 
         // read state
-        let ndim = post.mesh.ndim;
         let state_h = post.read_file(0).unwrap();
         let state_v = post.read_file(1).unwrap();
         let state_s = post.read_file(2).unwrap();
-        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, STRAIN);
+        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, STRAIN);
+        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, STRAIN);
         for id in 0..post.mesh.cells.len() {
-            vec_approx_eq(state_h.gauss[id].solid[0].stress.vector(), stress_h.vector(), 1e-14);
-            vec_approx_eq(state_v.gauss[id].solid[0].stress.vector(), stress_v.vector(), 1e-14);
-            vec_approx_eq(state_s.gauss[id].solid[0].stress.vector(), stress_s.vector(), 1e-14);
-            vec_approx_eq(
-                state_h.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
-                strain_h.vector(),
-                1e-15,
-            );
-            vec_approx_eq(
-                state_v.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
-                strain_v.vector(),
-                1e-15,
-            );
-            vec_approx_eq(
-                state_s.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
-                strain_s.vector(),
-                1e-15,
-            );
+            t2_approx_eq(&state_h.gauss[id].solid[0].stress, &stress_h, 1e-14);
+            t2_approx_eq(&state_v.gauss[id].solid[0].stress, &stress_v, 1e-14);
+            t2_approx_eq(&state_s.gauss[id].solid[0].stress, &stress_s, 1e-14);
+            t2_approx_eq(state_h.gauss[id].solid[0].strain.as_ref().unwrap(), &strain_h, 1e-15);
+            t2_approx_eq(state_v.gauss[id].solid[0].strain.as_ref().unwrap(), &strain_v, 1e-15);
+            t2_approx_eq(state_s.gauss[id].solid[0].strain.as_ref().unwrap(), &strain_s, 1e-15);
         }
 
         // check selected displacements
@@ -1812,8 +1804,8 @@ mod tests {
         let ncp = 4;
         for i in 0..3 {
             for j in 0..ncp {
-                approx_eq(s[i].stress.vector()[j], sig[i].vector()[j], 1e-14);
-                approx_eq(s[i].strain.as_ref().unwrap().vector()[j], eps[i].vector()[j], 1e-14);
+                approx_eq(s[i].stress.get(j), sig[i].get(j), 1e-14);
+                approx_eq(s[i].strain.as_ref().unwrap().get(j), eps[i].get(j), 1e-14);
             }
         }
         Ok(())
@@ -1824,7 +1816,7 @@ mod tests {
         generate_data_files();
 
         // read results
-        let (post, _) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
+        let (post, _) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         assert_eq!(post.mesh.ndim, 3);
         assert_eq!(post.mesh.points.len(), 12);
         assert_eq!(post.mesh.cells.len(), 2);
@@ -1833,32 +1825,19 @@ mod tests {
         assert_eq!(post.schema.ndof()?, 36); // 12 * 3 (nnode_total * ndim)
 
         // read state
-        let ndim = post.mesh.ndim;
         let state_h = post.read_file(0).unwrap();
         let state_v = post.read_file(1).unwrap();
         let state_s = post.read_file(2).unwrap();
-        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, STRAIN);
+        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, STRAIN);
+        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, STRAIN);
         for id in 0..post.mesh.cells.len() {
-            vec_approx_eq(state_h.gauss[id].solid[0].stress.vector(), stress_h.vector(), 1e-14);
-            vec_approx_eq(state_v.gauss[id].solid[0].stress.vector(), stress_v.vector(), 1e-14);
-            vec_approx_eq(state_s.gauss[id].solid[0].stress.vector(), stress_s.vector(), 1e-14);
-            vec_approx_eq(
-                state_h.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
-                strain_h.vector(),
-                1e-15,
-            );
-            vec_approx_eq(
-                state_v.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
-                strain_v.vector(),
-                1e-15,
-            );
-            vec_approx_eq(
-                state_s.gauss[id].solid[0].strain.as_ref().unwrap().vector(),
-                strain_s.vector(),
-                1e-15,
-            );
+            t2_approx_eq(&state_h.gauss[id].solid[0].stress, &stress_h, 1e-14);
+            t2_approx_eq(&state_v.gauss[id].solid[0].stress, &stress_v, 1e-14);
+            t2_approx_eq(&state_s.gauss[id].solid[0].stress, &stress_s, 1e-14);
+            t2_approx_eq(state_h.gauss[id].solid[0].strain.as_ref().unwrap(), &strain_h, 1e-15);
+            t2_approx_eq(state_v.gauss[id].solid[0].strain.as_ref().unwrap(), &strain_v, 1e-15);
+            t2_approx_eq(state_s.gauss[id].solid[0].strain.as_ref().unwrap(), &strain_s, 1e-15);
         }
 
         // check selected displacements
@@ -1887,8 +1866,8 @@ mod tests {
         let ncp = 6;
         for i in 0..3 {
             for j in 0..ncp {
-                approx_eq(s[i].stress.vector()[j], sig[i].vector()[j], 1e-14);
-                approx_eq(s[i].strain.as_ref().unwrap().vector()[j], eps[i].vector()[j], 1e-14);
+                approx_eq(s[i].stress.get(j), sig[i].get(j), 1e-14);
+                approx_eq(s[i].strain.as_ref().unwrap().get(j), eps[i].get(j), 1e-14);
             }
         }
         Ok(())
@@ -1901,7 +1880,7 @@ mod tests {
         p1.ngauss = Some(1);
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
@@ -1915,7 +1894,8 @@ mod tests {
             all_extrap_mat: HashMap::new(),
         };
         let res = post.gauss_coords(&mut memo, 0).unwrap();
-        assert_eq!(res[0].as_data(), &[0.5, 0.5]);
+        let expected = Tensor1::from(&[0.5, 0.5, 0.0]);
+        t1_approx_eq(&res[0], &expected, 1e-15);
     }
 
     #[test]
@@ -1925,7 +1905,7 @@ mod tests {
         p1.ngauss = Some(8);
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<3>::new(&mesh);
+        let config = Config::<D3>::new(&mesh).unwrap();
         let post = PostProc {
             dir: String::new(),
             fn_stem: String::new(),
@@ -1941,14 +1921,14 @@ mod tests {
         let res = post.gauss_coords(&mut memo, 0).unwrap();
         let a = (1.0 - 1.0 / SQRT_3) / 2.0;
         let b = (1.0 + 1.0 / SQRT_3) / 2.0;
-        vec_approx_eq(&res[0], &[a, a, a], 1e-15);
-        vec_approx_eq(&res[1], &[b, a, a], 1e-15);
-        vec_approx_eq(&res[2], &[a, b, a], 1e-15);
-        vec_approx_eq(&res[3], &[b, b, a], 1e-15);
-        vec_approx_eq(&res[4], &[a, a, b], 1e-15);
-        vec_approx_eq(&res[5], &[b, a, b], 1e-15);
-        vec_approx_eq(&res[6], &[a, b, b], 1e-15);
-        vec_approx_eq(&res[7], &[b, b, b], 1e-15);
+        t1_approx_eq(&res[0], &Tensor1::from(&[a, a, a]), 1e-15);
+        t1_approx_eq(&res[1], &Tensor1::from(&[b, a, a]), 1e-15);
+        t1_approx_eq(&res[2], &Tensor1::from(&[a, b, a]), 1e-15);
+        t1_approx_eq(&res[3], &Tensor1::from(&[b, b, a]), 1e-15);
+        t1_approx_eq(&res[4], &Tensor1::from(&[a, a, b]), 1e-15);
+        t1_approx_eq(&res[5], &Tensor1::from(&[b, a, b]), 1e-15);
+        t1_approx_eq(&res[6], &Tensor1::from(&[a, b, b]), 1e-15);
+        t1_approx_eq(&res[7], &Tensor1::from(&[b, b, b]), 1e-15);
     }
 
     /// Compares 2D coordinates using different data structures
@@ -2007,7 +1987,7 @@ mod tests {
     fn gauss_coords_patch_works_2d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let (xx, yy, _, _, _) = post
             .gauss_coords_patch(&mut memo, &[0, 1, 2], |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
@@ -2031,7 +2011,7 @@ mod tests {
     fn gauss_coords_patch_works_3d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
+        let (post, mut memo) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         let (xx, yy, zz, _, _) = post
             .gauss_coords_patch(&mut memo, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
@@ -2060,7 +2040,7 @@ mod tests {
     fn gauss_fluxes_captures_errors() {
         generate_data_files();
 
-        let (post, _) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d-qua4").unwrap();
+        let (post, _) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d-qua4").unwrap();
         let state = post.read_file(0).unwrap();
         assert_eq!(
             post.gauss_fluxes(&state, 1, Dof::Phi).err(),
@@ -2079,16 +2059,16 @@ mod tests {
         let ndim = 2;
         let ngauss = 3;
         let ncomp = ndim;
-        let (post, _) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let (post, _) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         for cell_id in [0, 1, 2] {
             let w_matrix = post.gauss_fluxes(&state, cell_id, Dof::Phi).unwrap();
             assert_eq!(w_matrix.dims(), (ngauss, ncomp));
             for p in 0..ngauss {
                 for i in 0..ndim {
-                    approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+                    approx_eq(w_matrix.get(p, i), w_correct.get(i), 1e-14);
                 }
             }
         }
@@ -2101,16 +2081,16 @@ mod tests {
         let ndim = 3;
         let ngauss = 8;
         let ncomp = ndim;
-        let (post, _) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
+        let (post, _) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         for cell_id in [0, 1] {
             let w_matrix = post.gauss_fluxes(&state, cell_id, Dof::Phi).unwrap();
             assert_eq!(w_matrix.dims(), (ngauss, ncomp));
             for p in 0..ngauss {
                 for i in 0..ndim {
-                    approx_eq(w_matrix.get(p, i), w_correct[i], 1e-14);
+                    approx_eq(w_matrix.get(p, i), w_correct.get(i), 1e-14);
                 }
             }
         }
@@ -2121,18 +2101,18 @@ mod tests {
         generate_data_files();
 
         let ndim = 2;
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         let ww = post
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         for k in 0..ww.k_to_id.len() {
             assert_eq!(*ww.id_to_k.get(&k).unwrap(), k);
             assert_eq!(ww.k_to_id[k], k);
-            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
-            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            approx_eq(ww.vvx[k], w_correct.get(0), 1e-14);
+            approx_eq(ww.vvy[k], w_correct.get(1), 1e-14);
         }
         compare_coords_2d(
             &ww.xx,
@@ -2155,19 +2135,19 @@ mod tests {
         generate_data_files();
 
         let ndim = 3;
-        let (post, mut memo) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
+        let (post, mut memo) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         let ww = post
             .gauss_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         for k in 0..ww.k_to_id.len() {
             assert_eq!(*ww.id_to_k.get(&k).unwrap(), k);
             assert_eq!(ww.k_to_id[k], k);
-            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
-            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
-            approx_eq(ww.vvz[k], w_correct[2], 1e-14);
+            approx_eq(ww.vvx[k], w_correct.get(0), 1e-14);
+            approx_eq(ww.vvy[k], w_correct.get(1), 1e-14);
+            approx_eq(ww.vvz[k], w_correct.get(2), 1e-14);
         }
         compare_coords_3d(
             &ww.xx,
@@ -2190,16 +2170,14 @@ mod tests {
         );
     }
 
-    fn load_states_and_solutions<const DIM: usize>(post: &PostProc<DIM>) -> [(FemState<DIM>, Tensor2, Tensor2); 3] {
+    fn load_states_and_solutions<const N: usize>(post: &PostProc<N>) -> [(FemState<N>, Tensor2<N>, Tensor2<N>); 3] {
         let state_h = post.read_file(0).unwrap();
         let state_v = post.read_file(1).unwrap();
         let state_s = post.read_file(2).unwrap();
 
-        let ndim = state_h.gauss[0].stress(0).unwrap().vector().dim() / 2;
-
-        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, ndim, STRAIN);
-        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, ndim, STRAIN);
+        let (strain_h, stress_h) = elastic_solution_horizontal_displacement_field(YOUNG, POISSON, STRAIN);
+        let (strain_v, stress_v) = elastic_solution_vertical_displacement_field(YOUNG, POISSON, STRAIN);
+        let (strain_s, stress_s) = elastic_solution_shear_displacement_field(YOUNG, POISSON, STRAIN);
 
         [
             (state_h, stress_h, strain_h),
@@ -2215,7 +2193,7 @@ mod tests {
         let ndim = 2;
         let ngauss = 3;
         let ncomp = ndim * 2;
-        let (post, _) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
+        let (post, _) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         assert!(post.mesh.ndim == ndim);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
@@ -2224,15 +2202,15 @@ mod tests {
             assert_eq!(eps.dims(), (ngauss, ncomp));
             for p in 0..ngauss {
                 // stress
-                approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.get(p, 1), sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.get(p, 2), sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.get(p, 3), sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.get(p, 0), sig_ref.get_std(0, 0), 1e-14);
+                approx_eq(sig.get(p, 1), sig_ref.get_std(1, 1), 1e-14);
+                approx_eq(sig.get(p, 2), sig_ref.get_std(2, 2), 1e-14);
+                approx_eq(sig.get(p, 3), sig_ref.get_std(0, 1), 1e-14);
                 // strain
-                approx_eq(eps.get(p, 0), eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.get(p, 1), eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.get(p, 2), eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.get(p, 3), eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.get(p, 0), eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.get(p, 1), eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.get(p, 2), eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.get(p, 3), eps_ref.get_std(0, 1), 1e-15);
             }
         }
     }
@@ -2244,7 +2222,7 @@ mod tests {
         let ndim = 3;
         let ngauss = 8;
         let ncomp = ndim * 2;
-        let (post, _) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
+        let (post, _) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         assert!(post.mesh.ndim == ndim);
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.gauss_stresses(&state, 0).unwrap();
@@ -2253,19 +2231,19 @@ mod tests {
             assert_eq!(eps.dims(), (ngauss, ncomp));
             for p in 0..ngauss {
                 // stress
-                approx_eq(sig.get(p, 0), sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.get(p, 1), sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.get(p, 2), sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.get(p, 3), sig_ref.get(0, 1), 1e-14);
-                approx_eq(sig.get(p, 4), sig_ref.get(1, 2), 1e-14);
-                approx_eq(sig.get(p, 5), sig_ref.get(2, 0), 1e-14);
+                approx_eq(sig.get(p, 0), sig_ref.get_std(0, 0), 1e-14);
+                approx_eq(sig.get(p, 1), sig_ref.get_std(1, 1), 1e-14);
+                approx_eq(sig.get(p, 2), sig_ref.get_std(2, 2), 1e-14);
+                approx_eq(sig.get(p, 3), sig_ref.get_std(0, 1), 1e-14);
+                approx_eq(sig.get(p, 4), sig_ref.get_std(1, 2), 1e-14);
+                approx_eq(sig.get(p, 5), sig_ref.get_std(2, 0), 1e-14);
                 // strain
-                approx_eq(eps.get(p, 0), eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.get(p, 1), eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.get(p, 2), eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.get(p, 3), eps_ref.get(0, 1), 1e-15);
-                approx_eq(eps.get(p, 4), eps_ref.get(1, 2), 1e-15);
-                approx_eq(eps.get(p, 5), eps_ref.get(2, 0), 1e-15);
+                approx_eq(eps.get(p, 0), eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.get(p, 1), eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.get(p, 2), eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.get(p, 3), eps_ref.get_std(0, 1), 1e-15);
+                approx_eq(eps.get(p, 4), eps_ref.get_std(1, 2), 1e-15);
+                approx_eq(eps.get(p, 5), eps_ref.get_std(2, 0), 1e-15);
             }
         }
     }
@@ -2274,7 +2252,7 @@ mod tests {
     fn gauss_stresses_patch_and_gauss_strains_patch_work_2d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2302,10 +2280,10 @@ mod tests {
             for k in 0..sig.k_to_id.len() {
                 assert_eq!(*sig.id_to_k.get(&k).unwrap(), k);
                 assert_eq!(sig.k_to_id[k], k);
-                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.txx[k], sig_ref.get_std(0, 0), 1e-14);
+                approx_eq(sig.tyy[k], sig_ref.get_std(1, 1), 1e-14);
+                approx_eq(sig.tzz[k], sig_ref.get_std(2, 2), 1e-14);
+                approx_eq(sig.txy[k], sig_ref.get_std(0, 1), 1e-14);
                 if first {
                     sig_xx.push(sig.xx[k]);
                     sig_yy.push(sig.yy[k]);
@@ -2323,10 +2301,10 @@ mod tests {
             for k in 0..eps.k_to_id.len() {
                 assert_eq!(*eps.id_to_k.get(&k).unwrap(), k);
                 assert_eq!(eps.k_to_id[k], k);
-                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.txx[k], eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get_std(0, 1), 1e-15);
                 if first {
                     eps_xx.push(eps.xx[k]);
                     eps_yy.push(eps.yy[k]);
@@ -2384,7 +2362,7 @@ mod tests {
     fn gauss_stresses_patch_and_gauss_strains_patch_work_3d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
+        let (post, mut memo) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2413,12 +2391,12 @@ mod tests {
             for k in 0..sig.k_to_id.len() {
                 assert_eq!(*sig.id_to_k.get(&k).unwrap(), k);
                 assert_eq!(sig.k_to_id[k], k);
-                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
-                approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-14);
-                approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-14);
+                approx_eq(sig.txx[k], sig_ref.get_std(0, 0), 1e-14);
+                approx_eq(sig.tyy[k], sig_ref.get_std(1, 1), 1e-14);
+                approx_eq(sig.tzz[k], sig_ref.get_std(2, 2), 1e-14);
+                approx_eq(sig.txy[k], sig_ref.get_std(0, 1), 1e-14);
+                approx_eq(sig.tyz[k], sig_ref.get_std(1, 2), 1e-14);
+                approx_eq(sig.tzx[k], sig_ref.get_std(2, 0), 1e-14);
                 if first {
                     sig_xx.push(sig.xx[k]);
                     sig_yy.push(sig.yy[k]);
@@ -2436,12 +2414,12 @@ mod tests {
             for k in 0..eps.k_to_id.len() {
                 assert_eq!(*eps.id_to_k.get(&k).unwrap(), k);
                 assert_eq!(eps.k_to_id[k], k);
-                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
-                approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-14);
-                approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-14);
+                approx_eq(eps.txx[k], eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get_std(0, 1), 1e-15);
+                approx_eq(eps.tyz[k], eps_ref.get_std(1, 2), 1e-14);
+                approx_eq(eps.tzx[k], eps_ref.get_std(2, 0), 1e-14);
                 if first {
                     eps_xx.push(eps.xx[k]);
                     eps_yy.push(eps.yy[k]);
@@ -2518,15 +2496,15 @@ mod tests {
         let ndim = 2;
         let nnode = 3;
         let ncomp = ndim;
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         for cell_id in [0, 1, 2] {
             let w_matrix = post.nodal_fluxes(&mut memo, &state, cell_id, Dof::Phi).unwrap();
             assert_eq!(w_matrix.dims(), (nnode, ncomp));
             for m in 0..nnode {
-                approx_eq(w_matrix.get(m, 0), w_correct[0], 1e-14);
-                approx_eq(w_matrix.get(m, 1), w_correct[1], 1e-14);
+                approx_eq(w_matrix.get(m, 0), w_correct.get(0), 1e-14);
+                approx_eq(w_matrix.get(m, 1), w_correct.get(1), 1e-14);
             }
         }
     }
@@ -2538,16 +2516,16 @@ mod tests {
         let ndim = 3;
         let nnode = 8;
         let ncomp = ndim;
-        let (post, mut memo) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
+        let (post, mut memo) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         for cell_id in [0, 1] {
             let w_matrix = post.nodal_fluxes(&mut memo, &state, cell_id, Dof::Phi).unwrap();
             assert_eq!(w_matrix.dims(), (nnode, ncomp));
             for m in 0..nnode {
-                approx_eq(w_matrix.get(m, 0), w_correct[0], 1e-13);
-                approx_eq(w_matrix.get(m, 1), w_correct[1], 1e-13);
-                approx_eq(w_matrix.get(m, 2), w_correct[2], 1e-13);
+                approx_eq(w_matrix.get(m, 0), w_correct.get(0), 1e-13);
+                approx_eq(w_matrix.get(m, 1), w_correct.get(1), 1e-13);
+                approx_eq(w_matrix.get(m, 2), w_correct.get(2), 1e-13);
             }
         }
     }
@@ -2556,16 +2534,15 @@ mod tests {
     fn nodal_fluxes_patch_works_2d() {
         generate_data_files();
 
-        let ndim = 2;
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         let ww = post
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1, 2], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         for k in 0..ww.xx.len() {
-            approx_eq(ww.vvx[k], w_correct[0], 1e-14);
-            approx_eq(ww.vvy[k], w_correct[1], 1e-14);
+            approx_eq(ww.vvx[k], w_correct.get(0), 1e-14);
+            approx_eq(ww.vvy[k], w_correct.get(1), 1e-14);
         }
         assert_eq!(&ww.k_to_id, &[1, 2, 3, 4]);
         ww.k_to_id
@@ -2588,17 +2565,16 @@ mod tests {
     fn nodal_fluxes_patch_works_3d() {
         generate_data_files();
 
-        let ndim = 3;
-        let (post, mut memo) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
+        let (post, mut memo) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-3d").unwrap();
         let state = post.read_file(0).unwrap();
-        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY, ndim);
+        let w_correct = flux_vector_solution_scalar_field_ax_plus_by(A_COEF, B_COEF, KX, KY);
         let ww = post
             .nodal_fluxes_patch(&mut memo, &state, &[0, 1], Dof::Phi, |x, y, _| !(x < 0.5 && y < 0.5))
             .unwrap();
         for k in 0..ww.xx.len() {
-            approx_eq(ww.vvx[k], w_correct[0], 1e-13);
-            approx_eq(ww.vvy[k], w_correct[1], 1e-13);
-            approx_eq(ww.vvz[k], w_correct[2], 1e-13);
+            approx_eq(ww.vvx[k], w_correct.get(0), 1e-13);
+            approx_eq(ww.vvy[k], w_correct.get(1), 1e-13);
+            approx_eq(ww.vvz[k], w_correct.get(2), 1e-13);
         }
         assert_eq!(&ww.k_to_id, &[1, 3, 2, 5, 7, 6, 9, 11, 10]);
         ww.k_to_id
@@ -2627,22 +2603,22 @@ mod tests {
     fn nodal_stresses_and_nodal_strains_work_2d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
             let eps = post.nodal_strains(&mut memo, &state, 0).unwrap();
             let nnode = sig.nrow();
             for m in 0..nnode {
                 // stress
-                approx_eq(sig.get(m, 0), sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.get(m, 1), sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.get(m, 2), sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.get(m, 3), sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.get(m, 0), sig_ref.get_std(0, 0), 1e-14);
+                approx_eq(sig.get(m, 1), sig_ref.get_std(1, 1), 1e-14);
+                approx_eq(sig.get(m, 2), sig_ref.get_std(2, 2), 1e-14);
+                approx_eq(sig.get(m, 3), sig_ref.get_std(0, 1), 1e-14);
                 // strain
-                approx_eq(eps.get(m, 0), eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.get(m, 1), eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.get(m, 2), eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.get(m, 3), eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.get(m, 0), eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.get(m, 1), eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.get(m, 2), eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.get(m, 3), eps_ref.get_std(0, 1), 1e-15);
             }
         }
     }
@@ -2651,26 +2627,26 @@ mod tests {
     fn nodal_stresses_and_nodal_strains_work_3d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
+        let (post, mut memo) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         for (state, sig_ref, eps_ref) in load_states_and_solutions(&post) {
             let sig = post.nodal_stresses(&mut memo, &state, 0).unwrap();
             let eps = post.nodal_strains(&mut memo, &state, 0).unwrap();
             let nnode = sig.nrow();
             for m in 0..nnode {
                 // stress
-                approx_eq(sig.get(m, 0), sig_ref.get(0, 0), 1e-13);
-                approx_eq(sig.get(m, 1), sig_ref.get(1, 1), 1e-13);
-                approx_eq(sig.get(m, 2), sig_ref.get(2, 2), 1e-13);
-                approx_eq(sig.get(m, 3), sig_ref.get(0, 1), 1e-13);
-                approx_eq(sig.get(m, 4), sig_ref.get(1, 2), 1e-13);
-                approx_eq(sig.get(m, 5), sig_ref.get(2, 0), 1e-13);
+                approx_eq(sig.get(m, 0), sig_ref.get_std(0, 0), 1e-13);
+                approx_eq(sig.get(m, 1), sig_ref.get_std(1, 1), 1e-13);
+                approx_eq(sig.get(m, 2), sig_ref.get_std(2, 2), 1e-13);
+                approx_eq(sig.get(m, 3), sig_ref.get_std(0, 1), 1e-13);
+                approx_eq(sig.get(m, 4), sig_ref.get_std(1, 2), 1e-13);
+                approx_eq(sig.get(m, 5), sig_ref.get_std(2, 0), 1e-13);
                 // strain
-                approx_eq(eps.get(m, 0), eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.get(m, 1), eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.get(m, 2), eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.get(m, 3), eps_ref.get(0, 1), 1e-15);
-                approx_eq(eps.get(m, 4), eps_ref.get(1, 2), 1e-15);
-                approx_eq(eps.get(m, 5), eps_ref.get(2, 0), 1e-15);
+                approx_eq(eps.get(m, 0), eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.get(m, 1), eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.get(m, 2), eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.get(m, 3), eps_ref.get_std(0, 1), 1e-15);
+                approx_eq(eps.get(m, 4), eps_ref.get_std(1, 2), 1e-15);
+                approx_eq(eps.get(m, 5), eps_ref.get_std(2, 0), 1e-15);
             }
         }
     }
@@ -2679,7 +2655,7 @@ mod tests {
     fn nodal_stresses_patch_and_nodal_strains_patch_work_2d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2705,10 +2681,10 @@ mod tests {
                 .unwrap();
             assert_eq!(sig.label, "stress");
             for k in 0..sig.xx.len() {
-                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-14);
-                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-14);
-                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-14);
-                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-14);
+                approx_eq(sig.txx[k], sig_ref.get_std(0, 0), 1e-14);
+                approx_eq(sig.tyy[k], sig_ref.get_std(1, 1), 1e-14);
+                approx_eq(sig.tzz[k], sig_ref.get_std(2, 2), 1e-14);
+                approx_eq(sig.txy[k], sig_ref.get_std(0, 1), 1e-14);
                 if first {
                     sig_xx.push(sig.xx[k]);
                     sig_yy.push(sig.yy[k]);
@@ -2729,10 +2705,10 @@ mod tests {
                 .unwrap();
             assert_eq!(eps.label, "strain");
             for k in 0..eps.xx.len() {
-                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
+                approx_eq(eps.txx[k], eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get_std(0, 1), 1e-15);
                 if first {
                     eps_xx.push(eps.xx[k]);
                     eps_yy.push(eps.yy[k]);
@@ -2787,7 +2763,7 @@ mod tests {
     fn nodal_stresses_patch_and_nodal_strains_patch_work_3d() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
+        let (post, mut memo) = PostProc::<D3>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-3d").unwrap();
         let mut curve_sig = Curve::new();
         let mut curve_eps = Curve::new();
         let mut text_sig = Text::new();
@@ -2814,12 +2790,12 @@ mod tests {
                 .nodal_stresses_patch(&mut memo, &state, &[0, 1], |x, y, _| !(x < 0.5 && y < 0.5))
                 .unwrap();
             for k in 0..sig.xx.len() {
-                approx_eq(sig.txx[k], sig_ref.get(0, 0), 1e-13);
-                approx_eq(sig.tyy[k], sig_ref.get(1, 1), 1e-13);
-                approx_eq(sig.tzz[k], sig_ref.get(2, 2), 1e-13);
-                approx_eq(sig.txy[k], sig_ref.get(0, 1), 1e-13);
-                approx_eq(sig.tyz[k], sig_ref.get(1, 2), 1e-13);
-                approx_eq(sig.tzx[k], sig_ref.get(2, 0), 1e-13);
+                approx_eq(sig.txx[k], sig_ref.get_std(0, 0), 1e-13);
+                approx_eq(sig.tyy[k], sig_ref.get_std(1, 1), 1e-13);
+                approx_eq(sig.tzz[k], sig_ref.get_std(2, 2), 1e-13);
+                approx_eq(sig.txy[k], sig_ref.get_std(0, 1), 1e-13);
+                approx_eq(sig.tyz[k], sig_ref.get_std(1, 2), 1e-13);
+                approx_eq(sig.tzx[k], sig_ref.get_std(2, 0), 1e-13);
                 if first {
                     sig_xx.push(sig.xx[k]);
                     sig_yy.push(sig.yy[k]);
@@ -2840,12 +2816,12 @@ mod tests {
                 .nodal_strains_patch(&mut memo, &state, &[0, 1], |_, _, _| true)
                 .unwrap();
             for k in 0..eps.xx.len() {
-                approx_eq(eps.txx[k], eps_ref.get(0, 0), 1e-15);
-                approx_eq(eps.tyy[k], eps_ref.get(1, 1), 1e-15);
-                approx_eq(eps.tzz[k], eps_ref.get(2, 2), 1e-15);
-                approx_eq(eps.txy[k], eps_ref.get(0, 1), 1e-15);
-                approx_eq(eps.tyz[k], eps_ref.get(1, 2), 1e-15);
-                approx_eq(eps.tzx[k], eps_ref.get(2, 0), 1e-15);
+                approx_eq(eps.txx[k], eps_ref.get_std(0, 0), 1e-15);
+                approx_eq(eps.tyy[k], eps_ref.get_std(1, 1), 1e-15);
+                approx_eq(eps.tzz[k], eps_ref.get_std(2, 2), 1e-15);
+                approx_eq(eps.txy[k], eps_ref.get_std(0, 1), 1e-15);
+                approx_eq(eps.tyz[k], eps_ref.get_std(1, 2), 1e-15);
+                approx_eq(eps.tzx[k], eps_ref.get_std(2, 0), 1e-15);
                 if first {
                     eps_xx.push(eps.xx[k]);
                     eps_yy.push(eps.yy[k]);
@@ -2919,7 +2895,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut state = FemState::new(&mesh, &schema, &config).unwrap();
         state.uu[0] = 1.0;
         state.uu[1] = 2.0;
@@ -2959,7 +2935,7 @@ mod tests {
         // 0.0   0-------4-------1------10-------8
         //
         //      0.0     0.5     1.0     1.5     2.0
-        let (post, _) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d-qua8").unwrap();
+        let (post, _) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-elastic-2d-qua8").unwrap();
         let features = Features::new(&post.mesh, false);
         let top = features.search_edges(At::Y(2.0), any_x).unwrap();
 
@@ -3032,7 +3008,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
 
         // generate FEM state with each node having T = 100 + ID
         let mut state = FemState::new(&mesh, &schema, &config).unwrap();
@@ -3129,7 +3105,7 @@ mod tests {
     fn write_vtu_and_pvd_work() {
         generate_data_files();
 
-        let (post, mut memo) = PostProc::<2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
+        let (post, mut memo) = PostProc::<D2>::new(ARTIFICIAL_DATA_FILES_DIR, "artificial-diffusion-2d").unwrap();
         let state = post.read_file(0).unwrap();
 
         fs::create_dir_all("/tmp/pmsim")

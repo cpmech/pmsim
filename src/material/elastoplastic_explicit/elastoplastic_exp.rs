@@ -10,18 +10,18 @@ use russell_ode::{OdeSolver, Output, Params, System};
 use russell_tensor::{t2_ddot_t4_ddot_t2, Tensor2, Tensor4};
 
 /// Implements general elastoplasticity models using explicit stress update
-pub struct ElastoplasticExp<'a, const DIM: usize> {
+pub struct ElastoplasticExp<'a, const N: usize> {
     /// Holds the arguments for the explicit stress update algorithm
-    args: Args<DIM>,
+    args: Args<N>,
 
     /// Holds the solver for finding the yield surface intersection
-    ode_intersection: OdeSolver<'a, Args<DIM>>,
+    ode_intersection: OdeSolver<'a, Args<N>>,
 
     /// Holds the solver for the elastic update
-    ode_elastic: OdeSolver<'a, Args<DIM>>,
+    ode_elastic: OdeSolver<'a, Args<N>>,
 
     /// Holds the solver for the elastoplastic update
-    ode_elastoplastic: OdeSolver<'a, Args<DIM>>,
+    ode_elastoplastic: OdeSolver<'a, Args<N>>,
 
     /// Holds the ODE vector of unknowns for elastic case
     ode_y_e: Vector,
@@ -30,13 +30,13 @@ pub struct ElastoplasticExp<'a, const DIM: usize> {
     ode_y_ep: Vector,
 
     /// Holds the output during the intersection finding
-    out_intersection: Output<'a, Args<DIM>>,
+    out_intersection: Output<'a, Args<N>>,
 
     /// Holds the output during the elastic path
-    out_history_el: Output<'a, Args<DIM>>,
+    out_history_el: Output<'a, Args<N>>,
 
     /// Holds the output during the elastoplastic path
-    out_history_ep: Output<'a, Args<DIM>>,
+    out_history_ep: Output<'a, Args<N>>,
 
     /// Holds the interpolant for finding the yield surface intersection
     interpolant: InterpChebyshev,
@@ -54,9 +54,9 @@ pub struct ElastoplasticExp<'a, const DIM: usize> {
     verbose: bool,
 }
 
-impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
+impl<'a, const N: usize> ElastoplasticExp<'a, N> {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization<DIM>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+    pub fn new(ideal: &Idealization<N>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         // Allocate the interpolant
         let interp_nn_max = settings.gp_interp_nn_max();
         let interpolant = InterpChebyshev::new(interp_nn_max, 0.0, 1.0).unwrap();
@@ -74,8 +74,8 @@ impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
         let args = Args::new(ideal, param, settings, interp_npoint)?;
 
         // Allocate the ODE systems
-        let ode_system_e = System::new(args.ndim_e, callback_ode_e);
-        let ode_system_ep = System::new(args.ndim_ep, callback_ode_ep);
+        let ode_system_e = System::new(N, callback_ode_e);
+        let ode_system_ep = System::new(N + args.nz, callback_ode_ep);
 
         // Allocate the ODE solvers
         let ode_param = Params::new(settings.gp_ode_method());
@@ -107,8 +107,8 @@ impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
         }
 
         // Allocate the ODE vectors of unknowns
-        let ode_y_e = Vector::new(args.ndim_e);
-        let ode_y_ep = Vector::new(args.ndim_ep);
+        let ode_y_e = Vector::new(N);
+        let ode_y_ep = Vector::new(N + args.nz);
         let root_finder = RootFinder::new();
 
         // Allocate the instance
@@ -131,7 +131,7 @@ impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
     }
 
     /// Calculates the yield function f
-    pub fn yield_function(&self, state: &LocalState<DIM>) -> Result<f64, StrError> {
+    pub fn yield_function(&self, state: &LocalState<N>) -> Result<f64, StrError> {
         self.args.model.calc_f(state)
     }
 
@@ -157,7 +157,7 @@ impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
     }
 
     /// Returns true if the trial stress path leads to the inside of the yield surface
-    fn going_inside(&mut self, state: &LocalState<DIM>, delta_strain: &Tensor2) -> Result<bool, StrError> {
+    fn going_inside(&mut self, state: &LocalState<N>, delta_strain: &Tensor2<N>) -> Result<bool, StrError> {
         self.args.model.calc_fs(&mut self.args.fs, state)?;
         self.args.model.calc_dde(&mut self.args.dde, state)?;
         let indicator = t2_ddot_t4_ddot_t2(&self.args.fs, &self.args.dde, delta_strain);
@@ -165,9 +165,11 @@ impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
     }
 
     /// Performs the intersection finding algorithm
-    fn intersection_finding(&mut self, state: &LocalState<DIM>, inside: bool) -> Result<(Option<f64>, f64), StrError> {
+    fn intersection_finding(&mut self, state: &LocalState<N>, inside: bool) -> Result<(Option<f64>, f64), StrError> {
         self.args.state.z_set.set_vector(state.z_set.as_data());
-        self.ode_y_e.set_vector(state.stress.vector().as_data());
+        for m in 0..N {
+            self.ode_y_e[m] = state.stress.get(m);
+        }
         self.ode_intersection.solve(
             &mut self.ode_y_e,
             0.0,
@@ -199,7 +201,7 @@ impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
     }
 
     /// Selects the yield surface crossing case
-    fn select_case(&mut self, state: &LocalState<DIM>, delta_strain: &Tensor2) -> Result<Case, StrError> {
+    fn select_case(&mut self, state: &LocalState<N>, delta_strain: &Tensor2<N>) -> Result<Case, StrError> {
         let yf_initial = self.args.model.calc_f(state)?;
         if yf_initial < 0.0 {
             let (t_intersection, yf_trial) = self.intersection_finding(state, true)?;
@@ -243,7 +245,7 @@ impl<'a, const DIM: usize> ElastoplasticExp<'a, DIM> {
     }
 }
 
-impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> {
+impl<'a, const N: usize> TraitStressStrain<N> for ElastoplasticExp<'a, N> {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         self.args.model.symmetric_stiffness()
@@ -255,15 +257,15 @@ impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> 
     }
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_int_vars(&self, state: &mut LocalState<DIM>) -> Result<(), StrError> {
+    fn initialize_int_vars(&self, state: &mut LocalState<N>) -> Result<(), StrError> {
         self.args.model.initialize_int_vars(state)
     }
 
     /// Returns an error because the stiffness is not available for explicit update
     fn stiffness(
         &mut self,
-        _dd: &mut Tensor4,
-        _state: &LocalState<DIM>,
+        _dd: &mut Tensor4<N>,
+        _state: &LocalState<N>,
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
@@ -273,8 +275,8 @@ impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> 
     /// Updates the stress tensor given the strain increment tensor using the explicit method
     fn update_stress(
         &mut self,
-        state: &mut LocalState<DIM>,
-        delta_strain: &Tensor2,
+        state: &mut LocalState<N>,
+        delta_strain: &Tensor2<N>,
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
@@ -296,11 +298,15 @@ impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> 
 
         match case {
             Case::AE | Case::BE => {
-                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
+                for m in 0..N {
+                    state.stress.set(m, self.ode_y_e[m]);
+                }
                 state.elastic = true;
             }
             Case::AXB(t_int) | Case::BXP(t_int) => {
-                self.ode_y_e.set_vector(state.stress.vector().as_data());
+                for m in 0..N {
+                    self.ode_y_e[m] = state.stress.get(m);
+                }
                 self.ode_elastic.solve(
                     &mut self.ode_y_e,
                     0.0,
@@ -309,9 +315,15 @@ impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> 
                     &mut self.args,
                     Some(&mut self.out_history_el),
                 )?;
-                state.stress.vector_mut().set_vector(self.ode_y_e.as_data());
-                self.ode_y_ep
-                    .join2(state.stress.vector().as_data(), state.z_set.as_data());
+                for m in 0..N {
+                    state.stress.set(m, self.ode_y_e[m]);
+                }
+                for m in 0..N {
+                    self.ode_y_ep[m] = state.stress.get(m);
+                }
+                for i in 0..self.args.nz {
+                    self.ode_y_ep[N + i] = state.z_set[i];
+                }
                 self.ode_elastoplastic.solve(
                     &mut self.ode_y_ep,
                     t_int,
@@ -320,13 +332,21 @@ impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> 
                     &mut self.args,
                     Some(&mut self.out_history_ep),
                 )?;
-                self.ode_y_ep
-                    .split2(state.stress.vector_mut().as_mut_data(), state.z_set.as_mut_data());
+                for m in 0..N {
+                    state.stress.set(m, self.ode_y_ep[m]);
+                }
+                for i in 0..self.args.nz {
+                    state.z_set[i] = self.ode_y_ep[N + i];
+                }
                 state.elastic = false;
             }
             Case::BP => {
-                self.ode_y_ep
-                    .join2(state.stress.vector().as_data(), state.z_set.as_data());
+                for m in 0..N {
+                    self.ode_y_ep[m] = state.stress.get(m);
+                }
+                for i in 0..self.args.nz {
+                    self.ode_y_ep[N + i] = state.z_set[i];
+                }
                 self.ode_elastoplastic.solve(
                     &mut self.ode_y_ep,
                     0.0,
@@ -335,8 +355,12 @@ impl<'a, const DIM: usize> TraitStressStrain<DIM> for ElastoplasticExp<'a, DIM> 
                     &mut self.args,
                     Some(&mut self.out_history_ep),
                 )?;
-                self.ode_y_ep
-                    .split2(state.stress.vector_mut().as_mut_data(), state.z_set.as_mut_data());
+                for m in 0..N {
+                    state.stress.set(m, self.ode_y_ep[m]);
+                }
+                for i in 0..self.args.nz {
+                    state.z_set[i] = self.ode_y_ep[N + i];
+                }
                 state.elastic = false;
             }
         }
@@ -358,9 +382,10 @@ mod tests {
     use crate::base::{Idealization, StressStrain};
     use crate::material::testing::{extract_von_mises_params, extract_von_mises_params_kg};
     use crate::material::{Axis, LocalState, Plotter, PlotterData, Settings, TraitStressStrain};
+    use crate::{D2, D3};
     use plotpy::Text;
     use russell_lab::{approx_eq, math::PI};
-    use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
+    use russell_tensor::{t2_add, t4_ddot_t2, LinElasticity, Tensor2, Tensor4, SET, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2};
     use std::collections::HashMap;
 
     const VERBOSE: bool = true;
@@ -376,47 +401,45 @@ mod tests {
         }
     }
 
-    fn gen_ini_state_von_mises<const DIM: usize>(
-        ideal: &Idealization<DIM>,
-        model: &ElastoplasticExp<DIM>,
+    fn gen_ini_state_von_mises<const N: usize>(
+        model: &ElastoplasticExp<N>,
         p: f64,
         q: f64,
         alpha: f64,
-    ) -> LocalState<DIM> {
+    ) -> LocalState<N> {
         let distance = p * SQRT_3;
         let radius = q * SQRT_2_BY_3;
         let nz = model.nz();
-        let mut state = LocalState::new(ideal.mandel(), nz);
-        state.stress = Tensor2::new_from_octahedral_alpha(distance, radius, alpha, ideal.two_dim).unwrap();
+        let mut state = LocalState::new(nz);
+        state.stress = Tensor2::<N>::new_from_octahedral_alpha(distance, radius, alpha).unwrap();
         model.initialize_int_vars(&mut state).unwrap();
         state.enable_strain();
         state
     }
 
-    fn update_with_von_mises<const DIM: usize>(
+    // returns `(eps_v, eps_d)`, not isomorphic invariants
+    fn update_with_von_mises<const N: usize>(
         param: &StressStrain,
-        model: &mut ElastoplasticExp<DIM>,
-        state: &mut LocalState<DIM>,
+        model: &mut ElastoplasticExp<N>,
+        state: &mut LocalState<N>,
         p_el: f64,
         q_el: f64,
         alpha_el: f64,
     ) -> (f64, f64) {
         let distance = p_el * SQRT_3;
         let radius = q_el * SQRT_2_BY_3;
-        let mandel = state.stress.mandel();
-        let two_dim = mandel.two_dim();
-        let stress_fin = Tensor2::new_from_octahedral_alpha(distance, radius, alpha_el, two_dim).unwrap();
-        let mut dsigma = Tensor2::new(mandel);
+        let stress_fin = Tensor2::<N>::new_from_octahedral_alpha(distance, radius, alpha_el).unwrap();
+        let mut dsigma = Tensor2::new();
         t2_add(&mut dsigma, 1.0, &stress_fin, -1.0, &state.stress);
         let (young, poisson, _, _) = extract_von_mises_params(param);
-        let elast = LinElasticity::new(young, poisson, two_dim, false);
-        let mut cc = Tensor4::new(mandel);
+        let elast = LinElasticity::<N>::new(young, poisson, false).unwrap();
+        let mut cc = Tensor4::new();
         elast.calc_compliance(&mut cc).unwrap();
-        let mut depsilon = Tensor2::new(mandel);
-        t4_ddot_t2(&mut depsilon, 1.0, &cc, &dsigma);
+        let mut depsilon = Tensor2::new();
+        t4_ddot_t2(&mut depsilon, SET, 1.0, &cc, &dsigma);
         model.update_stress(state, &depsilon, 0, 0).unwrap();
         state.strain.as_mut().unwrap().update(1.0, &depsilon);
-        (depsilon.invariant_eps_v(), depsilon.invariant_eps_d())
+        (depsilon.invariant_d() * SQRT_3, depsilon.invariant_r() * SQRT_2_BY_3)
     }
 
     fn get_text_label() -> Text {
@@ -431,9 +454,9 @@ mod tests {
         text
     }
 
-    fn do_plot_a<const DIM: usize>(
+    fn do_plot_a<const N: usize>(
         file_stem: &str,
-        data: &HashMap<i32, Vec<LocalState<DIM>>>,
+        data: &HashMap<i32, Vec<LocalState<N>>>,
         labels_oct: &[(&str, f64, f64)],
         labels_tyf: &[(&str, f64, f64)],
         oct_radius_max: Option<f64>,
@@ -451,7 +474,7 @@ mod tests {
                 let s = &states[i];
                 let f = s.stress.invariant_q() - s.z_set[0];
                 let t = (i as f64) / 2.0;
-                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+                data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t)).unwrap();
             }
             plotter
                 .add_2x2(&data, false, |curve, _, _| {
@@ -492,10 +515,10 @@ mod tests {
         plotter.save(&format!("/tmp/pmsim/material/{}.svg", file_stem)).unwrap();
     }
 
-    fn do_plot_b<const DIM: usize>(
+    fn do_plot_b<const N: usize>(
         file_stem: &str,
-        model: &ElastoplasticExp<DIM>,
-        states: &[LocalState<DIM>],
+        model: &ElastoplasticExp<N>,
+        states: &[LocalState<N>],
         labels_oct: &[(&str, f64, f64)],
         labels_tyf: &[(&str, f64, f64)],
         oct_radius_max: Option<f64>,
@@ -533,7 +556,7 @@ mod tests {
             let s = &states[i];
             let f = model.yield_function(s).unwrap();
             let t = i as f64;
-            data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t));
+            data.push(&s.stress, s.strain.as_ref(), Some(f), Some(t)).unwrap();
         }
         plotter
             .add_2x2(&data, false, |curve, _, _| {
@@ -587,10 +610,10 @@ mod tests {
             if VERBOSE {
                 println!("\nlode = {}, alpha = {}°", lode, alpha_deg);
             }
-            let ideal = Idealization::<2>::new();
+            let ideal = Idealization::<D2>::new();
             let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
             model.verbose = VERBOSE;
-            let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+            let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
             data_2d.insert(lode_int, vec![state.clone()]);
             let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
             let sig_m_1 = state.stress.invariant_p();
@@ -658,10 +681,10 @@ mod tests {
             if VERBOSE {
                 println!("\nlode = {}, alpha = {}°", lode, alpha_deg);
             }
-            let ideal = Idealization::<3>::new();
+            let ideal = Idealization::<D3>::new();
             let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
             model.verbose = VERBOSE;
-            let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+            let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
             let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha);
             let sig_m_1 = state.stress.invariant_p();
             let sig_d_1 = state.stress.invariant_q();
@@ -698,7 +721,7 @@ mod tests {
                 ("P", -1.5, 10.0),
             ];
             let labels_tyf = [("A", 0.0, -7.9), ("E", 0.5, 1.1), ("B", 0.5, -1.1), ("P", 1.0, -1.1)];
-            do_plot_a::<3>(
+            do_plot_a::<D3>(
                 "test_update_stress_von_mises_1",
                 &data_2d,
                 &labels_oct,
@@ -717,10 +740,10 @@ mod tests {
         let (sig_m_1, sig_d_1, alpha_1) = (2.0, kappa_ini + 9.0, PI / 3.0);
         let mut settings = Settings::new();
         settings.set_gp_explicit_update(true).set_gp_save_history(true);
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
-        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+        let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
         let mut states = vec![state.clone()];
         let (deps_v, deps_d) = update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         let sig_m = state.stress.invariant_p();
@@ -763,10 +786,10 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
-        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+        let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
         let mut states = vec![state.clone()];
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         let sig_m = state.stress.invariant_p();
@@ -805,10 +828,10 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
-        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+        let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
         let mut states = vec![state.clone()];
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         let sig_m = state.stress.invariant_p();
@@ -852,10 +875,10 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
-        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+        let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
         let mut states = vec![state.clone()];
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         let sig_m = state.stress.invariant_p();
@@ -899,10 +922,10 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
-        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+        let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
         let mut states = vec![state.clone()];
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         let sig_m = state.stress.invariant_p();
@@ -941,10 +964,10 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
-        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+        let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
         let mut states = vec![state.clone()];
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         states.push(state.clone());
@@ -978,10 +1001,10 @@ mod tests {
             .set_gp_explicit_update(true)
             .set_gp_save_history(true)
             .set_gp_allow_initial_drift(true);
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let mut model = ElastoplasticExp::new(&ideal, &param, &settings).unwrap();
         model.verbose = VERBOSE;
-        let mut state = gen_ini_state_von_mises(&ideal, &model, sig_m_0, sig_d_0, alpha_0);
+        let mut state = gen_ini_state_von_mises(&model, sig_m_0, sig_d_0, alpha_0);
         let mut states = vec![state.clone()];
         update_with_von_mises(&param, &mut model, &mut state, sig_m_1, sig_d_1, alpha_1);
         states.push(state.clone());

@@ -136,8 +136,8 @@ impl<'a> Plotter<'a> {
             tab_3x2_fig_size: (600.0, 800.0),
             tab_leg_index: 3,
             tab_leg_ncol: 3,
-            tab_selected_2x2: (Axis::EpsV(true, false), Axis::SigM(false)),
-            tab_selected_3x2: (Axis::EpsV(true, false), Axis::SigD(false)),
+            tab_selected_2x2: (Axis::EpsMean(true, false), Axis::SigM(false)),
+            tab_selected_3x2: (Axis::EpsMean(true, false), Axis::SigD(false)),
             dark_mode: false,
         }
     }
@@ -302,7 +302,7 @@ impl<'a> Plotter<'a> {
         let (negative, normalized) = if porous_media { (true, true) } else { (false, false) };
         let sig_m = Axis::SigM(negative);
         let sig_d = Axis::SigD(normalized);
-        let eps_d = Axis::EpsD(percent);
+        let eps_d = Axis::EpsDev(percent);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
             vec![(eps_d, sig_d), self.tab_selected_2x2],
@@ -336,8 +336,8 @@ impl<'a> Plotter<'a> {
     {
         let percent = true;
         let (negative, normalized) = if porous_media { (true, true) } else { (false, false) };
-        let eps_v = Axis::EpsV(percent, negative);
-        let eps_d = Axis::EpsD(percent);
+        let eps_v = Axis::EpsMean(percent, negative);
+        let eps_d = Axis::EpsDev(percent);
         let sig_m = Axis::SigM(negative);
         let sig_d = Axis::SigD(normalized);
         let axes = vec![
@@ -523,9 +523,11 @@ mod tests {
     use super::{Axis, Plotter};
     use crate::material::LocalState;
     use crate::material::{testing::generate_states_von_mises, PlotterData};
+    use crate::D2;
     use plotpy::{Curve, SlopeIcon};
     use russell_lab::approx_eq;
-    use russell_tensor::{Mandel, Tensor2};
+    use russell_lab::math::{SQRT_2, SQRT_3};
+    use russell_tensor::Tensor2;
 
     const SAVE_FIGURE: bool = false;
 
@@ -541,13 +543,13 @@ mod tests {
     #[test]
     pub fn add_and_save_work_1() {
         let (bulk, shear) = (1000.0, 600.0);
-        let states_a = generate_states_von_mises::<2>(bulk, shear, 1.0);
-        let states_b = generate_states_von_mises::<2>(1.2 * bulk, 0.8 * shear, -1.0);
-        let data_a = PlotterData::from_states(&states_a);
-        let data_b = PlotterData::from_states(&states_b);
+        let states_a = generate_states_von_mises::<D2>(bulk, shear, 1.0);
+        let states_b = generate_states_von_mises::<D2>(1.2 * bulk, 0.8 * shear, -1.0);
+        let data_a = PlotterData::from_states(&states_a).unwrap();
+        let data_b = PlotterData::from_states(&states_b).unwrap();
         let mut plotter = Plotter::new();
         // pair: eps_v, sig_m
-        let eps_v = Axis::EpsV(true, false);
+        let eps_v = Axis::EpsMean(true, false);
         let sig_m = Axis::SigM(false);
         // configure curves
         let set_curve_a = |curve: &mut Curve| {
@@ -570,22 +572,22 @@ mod tests {
     #[test]
     pub fn add_and_save_work_2() {
         let (bulk, shear) = (1000.0, 600.0);
-        let states_a = generate_states_von_mises::<2>(bulk, shear, 1.0);
-        let states_b = generate_states_von_mises::<2>(1.2 * bulk, 0.8 * shear, -1.0);
-        let data_a = PlotterData::from_states(&states_a);
-        let data_b = PlotterData::from_states(&states_b);
+        let states_a = generate_states_von_mises::<D2>(bulk, shear, 1.0);
+        let states_b = generate_states_von_mises::<D2>(1.2 * bulk, 0.8 * shear, -1.0);
+        let data_a = PlotterData::from_states(&states_a).unwrap();
+        let data_b = PlotterData::from_states(&states_b).unwrap();
         let mut plotter = Plotter::new();
-        // pair: eps_v, sig_m
-        let eps_v = Axis::EpsV(false, false);
+        // pair: eps_mean, sig_m
+        let eps_mean = Axis::EpsMean(false, false);
         let sig_m = Axis::SigM(false);
-        // pair: eps_v_alt, sig_m_alt
-        let eps_v_alt = Axis::EpsV(true, true);
+        // pair: eps_mean_alt, sig_m_alt
+        let eps_mean_alt = Axis::EpsMean(true, true);
         let sig_m_alt = Axis::SigM(true);
-        // pair: eps_d, sig_d
-        let eps_d = Axis::EpsD(false);
+        // pair: eps_dev, sig_d
+        let eps_dev = Axis::EpsDev(false);
         let sig_d = Axis::SigD(false);
-        // pair: eps_d_alt, sig_d_alt
-        let eps_d_alt = Axis::EpsD(true);
+        // pair: eps_dev_alt, sig_d_alt
+        let eps_dev_alt = Axis::EpsDev(true);
         let sig_d_alt = Axis::SigD(true);
         // configure curves
         let set_curve_a = |curve: &mut Curve| {
@@ -594,31 +596,31 @@ mod tests {
         let set_curve_b = |curve: &mut Curve| {
             curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
         };
-        // draw: eps_v, sig_m
-        plotter.add(eps_v, sig_m, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_v, sig_m, &data_b, set_curve_b).unwrap();
-        // draw: eps_v_alt, sig_m_alt
-        plotter.add(eps_v_alt, sig_m_alt, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_v_alt, sig_m_alt, &data_b, set_curve_b).unwrap();
-        // draw: eps_d, sig_d
-        plotter.add(eps_d, sig_d, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_d, sig_d, &data_b, set_curve_b).unwrap();
-        // draw: eps_d_alt, sig_d_alt
-        plotter.add(eps_d_alt, sig_d_alt, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_d_alt, sig_d_alt, &data_b, set_curve_b).unwrap();
+        // draw: eps_mean, sig_m
+        plotter.add(eps_mean, sig_m, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_mean, sig_m, &data_b, set_curve_b).unwrap();
+        // draw: eps_mean_alt, sig_m_alt
+        plotter.add(eps_mean_alt, sig_m_alt, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_mean_alt, sig_m_alt, &data_b, set_curve_b).unwrap();
+        // draw: eps_dev, sig_d
+        plotter.add(eps_dev, sig_d, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_dev, sig_d, &data_b, set_curve_b).unwrap();
+        // draw: eps_dev_alt, sig_d_alt
+        plotter.add(eps_dev_alt, sig_d_alt, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_dev_alt, sig_d_alt, &data_b, set_curve_b).unwrap();
         // calculate slopes
-        let (slope_bulk, x_mid_bulk, y_mid_bulk) = data_a.slope(eps_v, sig_m).unwrap();
-        approx_eq(slope_bulk, bulk, 1e-11);
-        let (slope_shear, x_mid_shear, y_mid_shear) = data_a.slope(eps_d, sig_d).unwrap();
-        approx_eq(slope_shear, 3.0 * shear, 1e-12);
+        let (slope, x_mid_bulk, y_mid_bulk) = data_a.slope(eps_mean, sig_m).unwrap();
+        approx_eq(slope, bulk * SQRT_3, 1e-11);
+        let (slope, x_mid_shear, y_mid_shear) = data_a.slope(eps_dev, sig_d).unwrap();
+        approx_eq(slope, (3.0 * SQRT_2 / SQRT_3) * shear, 1e-12);
         // extra features
-        plotter.set_extra(eps_v, sig_m, move |plot| {
+        plotter.set_extra(eps_mean, sig_m, move |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2);
             icon.draw(bulk, x_mid_bulk, y_mid_bulk);
             plot.set_figure_size_points(550.0, 350.0).add(&icon);
         });
-        plotter.set_extra(eps_d, sig_d, move |plot| {
+        plotter.set_extra(eps_dev, sig_d, move |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2).set_above(true);
             icon.draw(3.0 * shear, x_mid_shear, y_mid_shear + 0.5);
@@ -636,9 +638,8 @@ mod tests {
         // constants
         let distance = 1.0;
         let radius = 2.0;
-        let mandel = Mandel::Symmetric2D;
-        let mut state_a = LocalState::<2>::new(mandel, 0);
-        let mut state_b = LocalState::<2>::new(mandel, 0);
+        let mut state_a = LocalState::<D2>::new(0);
+        let mut state_b = LocalState::<D2>::new(0);
 
         // plotter
         let mut plotter = Plotter::new();
@@ -655,9 +656,9 @@ mod tests {
         // add curves to plotter
         let mut markers = ["*", "o", "^"].iter();
         for lode in &[-1.0, 0.0, 1.0] {
-            state_a.stress = Tensor2::new_from_octahedral(distance, radius, *lode, /*2D*/ true).unwrap();
-            state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, *lode, /*2D*/ true).unwrap();
-            let data = PlotterData::from_states(&[state_a.clone(), state_b.clone()]);
+            state_a.stress = Tensor2::<D2>::new_from_octahedral(distance, radius, *lode).unwrap();
+            state_b.stress = Tensor2::<D2>::new_from_octahedral(distance, 2.0 * radius, *lode).unwrap();
+            let data = PlotterData::from_states(&[state_a.clone(), state_b.clone()]).unwrap();
             plotter
                 .add(Axis::OctX, Axis::OctY, &data, |curve| {
                     curve
@@ -680,16 +681,15 @@ mod tests {
         // constants
         let distance = 1.0;
         let radius = 0.0; // <<< isotropic state
-        let mandel = Mandel::Symmetric2D;
         let lode = 0.0;
-        let mut state_a = LocalState::<2>::new(mandel, 0);
+        let mut state_a = LocalState::<D2>::new(0);
 
         // plotter
         let mut plotter = Plotter::new();
 
         // add curve to plotter
-        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, /*2D*/ true).unwrap();
-        let data = PlotterData::from_states(&[state_a.clone()]);
+        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode).unwrap();
+        let data = PlotterData::from_states(&[state_a.clone()]).unwrap();
         plotter
             .add(Axis::OctX, Axis::OctY, &data, |curve| {
                 curve.set_marker_style("o");
@@ -706,10 +706,10 @@ mod tests {
 
     #[test]
     pub fn add_2x2_works_1() {
-        let states_a = generate_states_von_mises::<2>(1000.0, 600.0, 1.0);
-        let states_b = generate_states_von_mises::<2>(500.0, 200.0, 0.0);
-        let data_a = PlotterData::from_states(&states_a);
-        let data_b = PlotterData::from_states(&states_b);
+        let states_a = generate_states_von_mises::<D2>(1000.0, 600.0, 1.0);
+        let states_b = generate_states_von_mises::<D2>(500.0, 200.0, 0.0);
+        let data_a = PlotterData::from_states(&states_a).unwrap();
+        let data_b = PlotterData::from_states(&states_b).unwrap();
         let mut plotter = Plotter::new();
         let porous_media = false;
         plotter
@@ -736,10 +736,10 @@ mod tests {
 
     #[test]
     pub fn add_3x2_works_1() {
-        let states_a = generate_states_von_mises::<2>(1000.0, 600.0, 1.0);
-        let states_b = generate_states_von_mises::<2>(500.0, 200.0, 0.0);
-        let data_a = PlotterData::from_states(&states_a);
-        let data_b = PlotterData::from_states(&states_b);
+        let states_a = generate_states_von_mises::<D2>(1000.0, 600.0, 1.0);
+        let states_b = generate_states_von_mises::<D2>(500.0, 200.0, 0.0);
+        let data_a = PlotterData::from_states(&states_a).unwrap();
+        let data_b = PlotterData::from_states(&states_b).unwrap();
         let mut plotter = Plotter::new();
         let porous_media = false;
         plotter

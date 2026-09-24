@@ -127,7 +127,7 @@ fn run(
     name += &options.key();
 
     // configuration
-    let mut config = Config::<2>::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .axisymmetric()
         .out_files(DIR, &name)
@@ -222,7 +222,7 @@ fn run(
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::<2>::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<D2>::new(DIR, &name)?;
     let mesh = post.mesh();
     let schema = post.schema();
 

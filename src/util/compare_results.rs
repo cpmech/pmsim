@@ -62,10 +62,13 @@ fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///
 /// **Warning:** This function only works with Solid problems with Ux, Uy, and Uz DOFs.
-pub fn compare_results<const DIM: usize>(
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
+pub fn compare_results<const N: usize>(
     mesh: &Mesh,
     schema: &Schema,
-    config: &Config<DIM>,
+    config: &Config<N>,
     dir: &str,
     fn_stem: &str,
     ref_type: ReferenceDataType,
@@ -105,7 +108,7 @@ pub fn compare_results<const DIM: usize>(
     // compare results
     let mut all_good = true;
     let mut elastic_flags_ok = true;
-    let (pp, _) = PostProc::<DIM>::new(dir, fn_stem)?;
+    let (pp, _) = PostProc::<N>::new(dir, fn_stem)?;
     if pp.nfile() != dat.actual.nstep() + 1 {
         return Err("the number of steps must equal the reference's number of steps + 1");
     }
@@ -114,8 +117,7 @@ pub fn compare_results<const DIM: usize>(
         let step = index - 1;
 
         // load state
-        let fem_state =
-            FemState::<DIM>::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
+        let fem_state = FemState::<N>::read_json(&format!("{}/{}-{}.json", config.out_dir, config.out_fn_stem, index))?;
 
         if verbose > 0 {
             println!(
@@ -157,7 +159,7 @@ pub fn compare_results<const DIM: usize>(
             for ip in 0..ngauss {
                 let local_state = &secondary_values.solid[ip];
                 for i in 0..tensor_vec_dim {
-                    let a = local_state.stress.vector()[i];
+                    let a = local_state.stress.get(i);
                     let b = if i > 2 {
                         dat.actual.stresses(step, e, ip, i) * SQRT_2 // convert to Mandel
                     } else {

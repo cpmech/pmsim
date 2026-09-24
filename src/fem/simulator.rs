@@ -13,14 +13,17 @@ use russell_nonlin::{IniDir, Output as NlOutput, Stop};
 use uuid::Uuid;
 
 /// Performs general (linear or nonlinear) finite element simulations
-pub struct Simulator<'a, const DIM: usize> {
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
+pub struct Simulator<'a, const N: usize> {
     data_uuid: Uuid,
     nl_config: &'a NlConfig,
-    nl_solver: NlSolver<'a, FemData<'a, DIM>>,
-    nl_output: NlOutput<'a, FemData<'a, DIM>>,
+    nl_solver: NlSolver<'a, FemData<'a, N>>,
+    nl_output: NlOutput<'a, FemData<'a, N>>,
 }
 
-impl<'a, const DIM: usize> Simulator<'a, DIM> {
+impl<'a, const N: usize> Simulator<'a, N> {
     /// Allocates a new instance
     ///
     /// Typical usage:
@@ -32,11 +35,11 @@ impl<'a, const DIM: usize> Simulator<'a, DIM> {
     pub fn new(
         mesh: &Mesh,
         schema: &'a Schema,
-        config: &'a Config<DIM>,
+        config: &'a Config<N>,
         ebc: &'a BcEssential,
         nbc: &'a BcNatural,
         nl_config: &'a mut NlConfig,
-    ) -> Result<(Self, FemData<'a, DIM>), StrError> {
+    ) -> Result<(Self, FemData<'a, N>), StrError> {
         // Allocate the data structure
         let data = FemData::new(&mesh, &schema, &config, &ebc, &nbc)?;
 
@@ -91,7 +94,7 @@ impl<'a, const DIM: usize> Simulator<'a, DIM> {
     /// ```
     pub fn steady(
         &mut self,
-        data: &mut FemData<'a, DIM>,
+        data: &mut FemData<'a, N>,
         ini_dir: IniDir,
         stop: Stop,
         dll: DeltaLambda,

@@ -1,5 +1,6 @@
 use super::Idealization;
 use crate::StrError;
+use crate::D2;
 use gemlab::shapes::Scratchpad;
 use russell_lab::Vector;
 use russell_tensor::Tensor2;
@@ -15,10 +16,10 @@ use russell_tensor::Tensor2;
 /// * `ksi` -- The coordinate of the integration point (ξᵖ)
 /// * `pad` -- Scratchpad to calculate interpolation functions
 #[rustfmt::skip]
-pub(crate) fn calculate_strain<const DIM:usize>(
-    eps: &mut Tensor2,
+pub(crate) fn calculate_strain<const N: usize>(
+    eps: &mut Tensor2<N>,
     uu: &Vector,
-    ideal: &Idealization<DIM>,
+    ideal: &Idealization<N>,
     l2g: &[usize],
     ksi: &[f64],
     pad: &mut Scratchpad,
@@ -27,11 +28,11 @@ pub(crate) fn calculate_strain<const DIM:usize>(
     pad.calc_gradient(ksi)?;
     let gg = &pad.gradient;
     eps.clear();
-    if ideal.two_dim {
+    if N==D2 {
         for m in 0..nnode {
-            eps.sym_add(0, 0, 1.0,  uu[l2g[0+2*m]] * gg.get(m,0));
-            eps.sym_add(1, 1, 1.0,  uu[l2g[1+2*m]] * gg.get(m,1));
-            eps.sym_add(0, 1, 1.0, (uu[l2g[0+2*m]] * gg.get(m,1) + uu[l2g[1+2*m]] * gg.get(m,0))/2.0);
+            eps.sym_add_std(0, 0, 1.0,  uu[l2g[0+2*m]] * gg.get(m,0));
+            eps.sym_add_std(1, 1, 1.0,  uu[l2g[1+2*m]] * gg.get(m,1));
+            eps.sym_add_std(0, 1, 1.0, (uu[l2g[0+2*m]] * gg.get(m,1) + uu[l2g[1+2*m]] * gg.get(m,0))/2.0);
         }
         if ideal.axisymmetric {
             // calculate radius
@@ -43,17 +44,17 @@ pub(crate) fn calculate_strain<const DIM:usize>(
             }
             // compute out-of-plane strain increment component
             for m in 0..nnode {
-                eps.sym_add(2, 2, 1.0, uu[l2g[0 + 2 * m]] * nn[m] / r);
+                eps.sym_add_std(2, 2, 1.0, uu[l2g[0 + 2 * m]] * nn[m] / r);
             }
         }
     } else {
         for m in 0..nnode {
-            eps.sym_add(0, 0, 1.0,  uu[l2g[0+3*m]] * gg.get(m,0));
-            eps.sym_add(1, 1, 1.0,  uu[l2g[1+3*m]] * gg.get(m,1));
-            eps.sym_add(2, 2, 1.0,  uu[l2g[2+3*m]] * gg.get(m,2));
-            eps.sym_add(0, 1, 1.0, (uu[l2g[0+3*m]] * gg.get(m,1) + uu[l2g[1+3*m]] * gg.get(m,0))/2.0);
-            eps.sym_add(1, 2, 1.0, (uu[l2g[1+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,1))/2.0);
-            eps.sym_add(0, 2, 1.0, (uu[l2g[0+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,0))/2.0);
+            eps.sym_add_std(0, 0, 1.0,  uu[l2g[0+3*m]] * gg.get(m,0));
+            eps.sym_add_std(1, 1, 1.0,  uu[l2g[1+3*m]] * gg.get(m,1));
+            eps.sym_add_std(2, 2, 1.0,  uu[l2g[2+3*m]] * gg.get(m,2));
+            eps.sym_add_std(0, 1, 1.0, (uu[l2g[0+3*m]] * gg.get(m,1) + uu[l2g[1+3*m]] * gg.get(m,0))/2.0);
+            eps.sym_add_std(1, 2, 1.0, (uu[l2g[1+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,1))/2.0);
+            eps.sym_add_std(0, 2, 1.0, (uu[l2g[0+3*m]] * gg.get(m,2) + uu[l2g[2+3*m]] * gg.get(m,0))/2.0);
         }
     }
     Ok(())
@@ -70,10 +71,10 @@ mod tests {
         generate_shear_displacement_field, generate_vertical_displacement_field,
     };
     use crate::base::{Config, ParamSolid, Schema};
+    use crate::{D2, D3};
     use gemlab::integ::Gauss;
     use gemlab::mesh::Samples;
-    use russell_lab::vec_approx_eq;
-    use russell_tensor::Tensor2;
+    use russell_tensor::{t2_approx_eq, Tensor2};
 
     #[test]
     fn calc_delta_eps_works() {
@@ -97,10 +98,9 @@ mod tests {
             let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
 
             // solution
-            let ndim = mesh.ndim;
-            let (strain_h, _) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, STRAIN);
-            let (strain_v, _) = elastic_solution_vertical_displacement_field(young, poisson, ndim, STRAIN);
-            let (strain_s, _) = elastic_solution_shear_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_h, _) = elastic_solution_horizontal_displacement_field(young, poisson, STRAIN);
+            let (strain_v, _) = elastic_solution_vertical_displacement_field(young, poisson, STRAIN);
+            let (strain_s, _) = elastic_solution_shear_displacement_field(young, poisson, STRAIN);
 
             // check the first cell/element only
             let cell = &mesh.cells[0];
@@ -112,7 +112,7 @@ mod tests {
             let l2g = schema.local_to_global(cell.id).unwrap();
 
             // configuration
-            let config = Config::<2>::new(&mesh);
+            let config = Config::<D2>::new(&mesh).unwrap();
 
             // pad for numerical integration
             let mut pad = mesh.get_pad(cell.id);
@@ -121,20 +121,20 @@ mod tests {
             let gauss = Gauss::new(cell.kind);
 
             // strain increment
-            let mut de = Tensor2::new(config.ideal.mandel());
+            let mut de = Tensor2::new();
 
             // check increment of strains for all integration points
             for p in 0..gauss.npoint() {
                 let iota = gauss.coords(p);
                 // horizontal strain
                 calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, iota, &mut pad).unwrap();
-                vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);
+                t2_approx_eq(&de, &strain_h, 1e-13);
                 // vertical strain
                 calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, iota, &mut pad).unwrap();
-                vec_approx_eq(de.vector(), strain_v.vector(), 1e-14);
+                t2_approx_eq(&de, &strain_v, 1e-14);
                 // shear strain
                 calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, iota, &mut pad).unwrap();
-                vec_approx_eq(de.vector(), strain_s.vector(), 1e-14);
+                t2_approx_eq(&de, &strain_s, 1e-14);
             }
         }
 
@@ -147,10 +147,9 @@ mod tests {
             let duu_s = generate_shear_displacement_field(&mesh, STRAIN);
 
             // solution
-            let ndim = mesh.ndim;
-            let (strain_h, _) = elastic_solution_horizontal_displacement_field(young, poisson, ndim, STRAIN);
-            let (strain_v, _) = elastic_solution_vertical_displacement_field(young, poisson, ndim, STRAIN);
-            let (strain_s, _) = elastic_solution_shear_displacement_field(young, poisson, ndim, STRAIN);
+            let (strain_h, _) = elastic_solution_horizontal_displacement_field(young, poisson, STRAIN);
+            let (strain_v, _) = elastic_solution_vertical_displacement_field(young, poisson, STRAIN);
+            let (strain_s, _) = elastic_solution_shear_displacement_field(young, poisson, STRAIN);
 
             // check the first cell/element only
             let cell = &mesh.cells[0];
@@ -162,7 +161,7 @@ mod tests {
             let l2g = schema.local_to_global(cell.id).unwrap();
 
             // configuration
-            let config = Config::<3>::new(&mesh);
+            let config = Config::<D3>::new(&mesh).unwrap();
 
             // pad for numerical integration
             let mut pad = mesh.get_pad(cell.id);
@@ -171,20 +170,20 @@ mod tests {
             let gauss = Gauss::new(cell.kind);
 
             // strain increment
-            let mut de = Tensor2::new(config.ideal.mandel());
+            let mut de = Tensor2::new();
 
             // check increment of strains for all integration points
             for p in 0..gauss.npoint() {
                 let iota = gauss.coords(p);
                 // horizontal strain
                 calculate_strain(&mut de, &duu_h, &config.ideal, &l2g, iota, &mut pad).unwrap();
-                vec_approx_eq(de.vector(), strain_h.vector(), 1e-13);
+                t2_approx_eq(&de, &strain_h, 1e-13);
                 // vertical strain
                 calculate_strain(&mut de, &duu_v, &config.ideal, &l2g, iota, &mut pad).unwrap();
-                vec_approx_eq(de.vector(), strain_v.vector(), 1e-14);
+                t2_approx_eq(&de, &strain_v, 1e-14);
                 // shear strain
                 calculate_strain(&mut de, &duu_s, &config.ideal, &l2g, iota, &mut pad).unwrap();
-                vec_approx_eq(de.vector(), strain_s.vector(), 1e-14);
+                t2_approx_eq(&de, &strain_s, 1e-14);
             }
         }
     }

@@ -35,20 +35,34 @@ cudss = [
 ]
 
 [dependencies]
-plotpy = "1.23"
-gemlab = "2.4"
-russell_lab = "2.8"
-russell_nonlin = "2.8"
-russell_ode = "2.8"
-russell_pde = "2.8"
-russell_sparse = "2.8"
-russell_stat = "2.8"
-russell_tensor = "2.8"
-tritet = "3.2"
+plotpy = "1.24"
+gemlab = "3.1"
+russell_lab = "3.3"
+russell_nonlin = "3.3"
+russell_ode = "3.3"
+russell_pde = "3.3"
+russell_sparse = "3.3"
+russell_stat = "3.3"
+russell_tensor = "3.3"
+tritet = "3.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 structopt = "0.3"
-uuid = { version = "1.24", features = ["v4"] }
+uuid = { version = "1.26", features = ["v4"] }
 
 [dev-dependencies]
-serial_test = "3.5"
+serial_test = "4.0"
+
+[lints.clippy]
+approx_constant = "allow"        # allow large constants; e.g. for OEIS reference
+bool_assert_comparison = "allow" # allow "assert_eq!(x, true)" for better diagnostics
+collapsible_if = "allow"         # allow nested "if" for readability
+excessive_precision = "allow"    # allow large constants; e.g. for OEIS reference
+identity_op = "allow"            # allow "i + 0" for uniform unrolled loops
+let_unit_value = "allow"         # allow "let _ = CONST;" to force const evaluation
+manual_is_multiple_of = "allow"  # allow "n % k == 0" instead of is_multiple_of()
+manual_range_contains = "allow"  # allow if "a < b && c < d" constructions
+needless_range_loop = "allow"    # allow "for i in a..b" instead of range
+new_without_default = "allow"    # The user is encouraged to call new()
+too_many_arguments = "allow"     # allow functions with many parameters
+type_complexity = "allow"        # allow deeply nested array types (index maps)

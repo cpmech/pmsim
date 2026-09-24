@@ -154,7 +154,7 @@ fn run_test(
     ebc.edges(&top, Dof::Uy, -dy);
 
     // configuration
-    let mut config = Config::<2>::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
@@ -189,7 +189,7 @@ fn run_test(
     }
 
     // check the results
-    let (post, _) = PostProc::<2>::new("/tmp/pmsim/plasticity", &name)?;
+    let (post, _) = PostProc::<D2>::new("/tmp/pmsim/plasticity", &name)?;
     // post.write_paraview(&mut memo, "/tmp/pmsim/plasticity", &name)?;
     let lambdas = post.stations();
     if !options.arclength {
@@ -197,14 +197,14 @@ fn run_test(
             let ey_ref = -lambdas[i] * dy / L0;
             for cell_id in [0, 3] {
                 let ss = post.history_local_state(cell_id).unwrap();
-                let ex = ss[i].strain.as_ref().unwrap().get(0, 0);
-                let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
-                let ez = ss[i].strain.as_ref().unwrap().get(2, 2);
-                let exy = ss[i].strain.as_ref().unwrap().get(0, 1);
-                let sx = ss[i].stress.get(0, 0);
-                let sy = ss[i].stress.get(1, 1);
-                let sz = ss[i].stress.get(2, 2);
-                let sxy = ss[i].stress.get(0, 1);
+                let ex = ss[i].strain.as_ref().unwrap().get_std(0, 0);
+                let ey = ss[i].strain.as_ref().unwrap().get_std(1, 1);
+                let ez = ss[i].strain.as_ref().unwrap().get_std(2, 2);
+                let exy = ss[i].strain.as_ref().unwrap().get_std(0, 1);
+                let sx = ss[i].stress.get_std(0, 0);
+                let sy = ss[i].stress.get_std(1, 1);
+                let sz = ss[i].stress.get_std(2, 2);
+                let sxy = ss[i].stress.get_std(0, 1);
                 approx_eq(ey, ey_ref, 1e-15); // imposed
                 approx_eq(ez, 0.0, 1e-15); // plane strain
                 approx_eq(exy, 0.0, 1e-15); // shear-free
@@ -264,7 +264,7 @@ fn run_test(
 
         // stress-strain data
         let ss = post.history_local_state(0).unwrap();
-        let data = PlotterData::from_states(ss);
+        let data = PlotterData::from_states(ss)?;
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
             zz[i] = ss[i].z_set[0];

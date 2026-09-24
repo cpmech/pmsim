@@ -11,9 +11,9 @@ use russell_sparse::{CooMatrix, Sym};
 use std::sync::Arc;
 
 /// Defines a line or surface element for the calculation of natural boundary conditions
-struct ElemBry<'a, const DIM: usize> {
+struct ElemBry<'a, const N: usize> {
     /// Global configuration
-    config: &'a Config<'a, DIM>,
+    config: &'a Config<'a, N>,
 
     /// Scratchpad to perform numerical integration
     pad: Scratchpad,
@@ -47,19 +47,19 @@ struct ElemBry<'a, const DIM: usize> {
 }
 
 /// Holds a set of boundary elements (line or surface elements) for the calculation of natural boundary conditions
-pub(crate) struct ElementsBoundary<'a, const DIM: usize> {
+pub(crate) struct ElementsBoundary<'a, const N: usize> {
     /// Holds all boundary elements
-    elements: Vec<ElemBry<'a, DIM>>,
+    elements: Vec<ElemBry<'a, N>>,
 }
 
-impl<'a, const DIM: usize> ElemBry<'a, DIM> {
+impl<'a, const N: usize> ElemBry<'a, N> {
     /// Allocates a new instance
     ///
     /// Note: `Qn` is not allowed for 3D edges
     pub fn new(
         mesh: &Mesh,
         schema: &Schema,
-        config: &'a Config<DIM>,
+        config: &'a Config<N>,
         kind: GeoKind,
         points: &[usize],
         nbc: Nbc,
@@ -118,7 +118,7 @@ impl<'a, const DIM: usize> ElemBry<'a, DIM> {
     }
 
     /// Calculates the vector of internal forces Ye
-    pub fn calc_yye(&mut self, state: &FemState<DIM>) -> Result<(), StrError> {
+    pub fn calc_yye(&mut self, state: &FemState<N>) -> Result<(), StrError> {
         match self.nbc {
             //       ⌠
             // Yeₘ = │ Nₘ α T dΩ
@@ -175,7 +175,7 @@ impl<'a, const DIM: usize> ElemBry<'a, DIM> {
             //       Ωₑ
             Nbc::Qn => integ::vec_02_nv_bry(&mut self.ffe, &mut args, |v, _, un, _| {
                 for i in 0..ndim {
-                    v[i] = value * un[i];
+                    v.set(i, value * un.get(i));
                 }
                 Ok(())
             }),
@@ -188,8 +188,9 @@ impl<'a, const DIM: usize> ElemBry<'a, DIM> {
             //       ⌡
             //       Ωₑ
             Nbc::Qx => integ::vec_02_nv(&mut self.ffe, &mut args, |v, _, _| {
-                v.fill(0.0);
-                v[0] = value;
+                v.set(0, value);
+                v.set(1, 0.0);
+                v.set(2, 0.0);
                 Ok(())
             }),
 
@@ -201,8 +202,9 @@ impl<'a, const DIM: usize> ElemBry<'a, DIM> {
             //       ⌡
             //       Ωₑ
             Nbc::Qy => integ::vec_02_nv(&mut self.ffe, &mut args, |v, _, _| {
-                v.fill(0.0);
-                v[1] = value;
+                v.set(0, 0.0);
+                v.set(1, value);
+                v.set(2, 0.0);
                 Ok(())
             }),
 
@@ -214,8 +216,9 @@ impl<'a, const DIM: usize> ElemBry<'a, DIM> {
             //       ⌡
             //       Ωₑ
             Nbc::Qz => integ::vec_02_nv(&mut self.ffe, &mut args, |v, _, _| {
-                v.fill(0.0);
-                v[2] = value;
+                v.set(0, 0.0);
+                v.set(1, 0.0);
+                v.set(2, value);
                 Ok(())
             }),
 
@@ -254,7 +257,7 @@ impl<'a, const DIM: usize> ElemBry<'a, DIM> {
     }
 
     /// Calculates the Ke matrix (local Jacobian matrix; derivative of Ye w.r.t u)
-    pub fn calc_kke(&mut self, _state: &FemState<DIM>) -> Result<(), StrError> {
+    pub fn calc_kke(&mut self, _state: &FemState<N>) -> Result<(), StrError> {
         match self.nbc {
             Nbc::Cv(alpha) => {
                 let kke = self.kke.as_mut().unwrap();
@@ -286,14 +289,9 @@ impl<'a, const DIM: usize> ElemBry<'a, DIM> {
     }
 }
 
-impl<'a, const DIM: usize> ElementsBoundary<'a, DIM> {
+impl<'a, const N: usize> ElementsBoundary<'a, N> {
     // Allocates new instance
-    pub fn new(
-        mesh: &Mesh,
-        schema: &Schema,
-        config: &'a Config<DIM>,
-        natural: &'a BcNatural,
-    ) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &'a Config<N>, natural: &'a BcNatural) -> Result<Self, StrError> {
         let mut all = Vec::with_capacity(natural.on_edges.len() + natural.on_faces.len() + 1);
         for (edge, nbc, f) in &natural.on_edges {
             all.push(ElemBry::new(
@@ -333,7 +331,7 @@ impl<'a, const DIM: usize> ElementsBoundary<'a, DIM> {
     }
 
     /// Checks the symmetry of all local Ke matrices
-    pub fn check_symmetry_kke(&mut self, state: &FemState<DIM>, tol: f64) -> Result<(), StrError> {
+    pub fn check_symmetry_kke(&mut self, state: &FemState<N>, tol: f64) -> Result<(), StrError> {
         self.elements
             .iter_mut()
             .map(|e| {
@@ -348,7 +346,7 @@ impl<'a, const DIM: usize> ElementsBoundary<'a, DIM> {
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
-    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState<DIM>) -> Result<(), StrError> {
+    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState<N>) -> Result<(), StrError> {
         for e in &mut self.elements {
             // calculate local Ye
             e.calc_yye(state)?;
@@ -392,7 +390,7 @@ impl<'a, const DIM: usize> ElementsBoundary<'a, DIM> {
     }
 
     /// Assembles the local K matrix into its global counterpart for the Lagrange Multipliers Method (LMM)
-    pub fn assemble_kk_lmm(&mut self, kk: &mut CooMatrix, state: &FemState<DIM>) -> Result<(), StrError> {
+    pub fn assemble_kk_lmm(&mut self, kk: &mut CooMatrix, state: &FemState<N>) -> Result<(), StrError> {
         for e in &mut self.elements {
             e.calc_kke(state)?;
             if let Some(kke) = e.kke.as_ref() {
@@ -422,7 +420,7 @@ impl<'a, const DIM: usize> ElementsBoundary<'a, DIM> {
         &mut self,
         kk_bar: &mut CooMatrix,
         kk_check: &mut CooMatrix,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         eq_handler: &EquationHandler,
     ) -> Result<(), StrError> {
         for e in &mut self.elements {
@@ -443,6 +441,7 @@ mod tests {
     use crate::base::{BcNatural, Config, Nbc, SampleMeshes, Schema};
     use crate::base::{ParamDiffusion, ParamPorousLiqGas, ParamSolid};
     use crate::fem::FemState;
+    use crate::{D2, D3};
     use gemlab::mesh::{At, Edge, Face, Features, GeoKind, Samples};
     use gemlab::util::any_x;
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
@@ -462,7 +461,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<3>::new(&mesh);
+        let config = Config::<D3>::new(&mesh).unwrap();
 
         let f = Arc::new(|_| -10.0);
         assert_eq!(
@@ -503,7 +502,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
 
         const Q: f64 = 25.0;
         let time = 0.0;
@@ -585,7 +584,7 @@ mod tests {
 
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<3>::new(&mesh);
+        let config = Config::<D3>::new(&mesh).unwrap();
 
         let mut bry = ElemBry::new(&mesh, &schema, &config, top.kind, &top.points, Nbc::Qz, f.clone()).unwrap();
         bry.calc_ffe(time).unwrap();
@@ -602,7 +601,7 @@ mod tests {
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
 
         const Q: f64 = -10.0;
         let time = 0.0;
@@ -630,7 +629,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let state = FemState::new(&mesh, &schema, &config).unwrap();
 
         const Q: f64 = 10.0;
@@ -678,7 +677,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let state = FemState::new(&mesh, &schema, &config).unwrap();
 
         const Q: f64 = -5e6; // inwards heat flux
@@ -745,7 +744,7 @@ mod tests {
         let param = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, param).add_solid(2, param).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let state = FemState::new(&mesh, &schema, &config).unwrap();
 
         const Q: f64 = 25.0;

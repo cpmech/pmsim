@@ -5,24 +5,21 @@ use russell_lab::Vector;
 use russell_tensor::{Tensor2, Tensor4};
 
 /// Collects arguments for functions dealing with the explicit elastoplastic stress update
-pub(super) struct Args<const DIM: usize> {
-    /// Holds the dimension of the elastic ODE system
-    pub(super) ndim_e: usize,
-
-    /// Holds the dimension of the elastoplastic ODE system
-    pub(super) ndim_ep: usize,
+pub(super) struct Args<const N: usize> {
+    /// Holds the number of internal variables
+    pub(super) nz: usize,
 
     /// Holds the current state of the material
-    pub(super) state: LocalState<DIM>,
+    pub(super) state: LocalState<N>,
 
     /// Holds the plasticity model
-    pub(super) model: Box<dyn TraitPlasticity<DIM>>,
+    pub(super) model: Box<dyn TraitPlasticity<N>>,
 
     /// Holds the increment of strain given to the stress-update algorithm
-    pub(super) del_eps: Tensor2,
+    pub(super) del_eps: Tensor2<N>,
 
     /// Holds the rate of stress
-    pub(super) ds_dt: Tensor2,
+    pub(super) ds_dt: Tensor2<N>,
 
     /// Holds the rate of internal variables
     ///
@@ -36,7 +33,7 @@ pub(super) struct Args<const DIM: usize> {
     /// fs := ──
     ///       ∂σ
     /// ```
-    pub(super) fs: Tensor2,
+    pub(super) fs: Tensor2<N>,
 
     /// Holds the gradient of the plastic potential function
     ///
@@ -45,7 +42,7 @@ pub(super) struct Args<const DIM: usize> {
     /// gs := ──
     ///       ∂σ
     /// ```
-    pub(super) gs: Tensor2,
+    pub(super) gs: Tensor2<N>,
 
     /// Holds the derivative of the yield function w.r.t internal variables
     ///
@@ -62,10 +59,10 @@ pub(super) struct Args<const DIM: usize> {
     pub(super) h: Vector,
 
     /// Holds the elastic stiffness tensor: Dₑ
-    pub(super) dde: Tensor4,
+    pub(super) dde: Tensor4<N>,
 
     /// Holds the elastoplastic modulus
-    pub(super) ddep: Tensor4,
+    pub(super) ddep: Tensor4<N>,
 
     /// Holds the number of calls to the dense call back function for the intersection finding
     pub(super) yf_count: usize,
@@ -80,48 +77,47 @@ pub(super) struct Args<const DIM: usize> {
 
     /// Holds the stress-strain history during the elastic and elastoplastic update (e.g., for debugging)
     pub(super) history_eep: Option<PlotterData>,
+
+    /// Workspace Tensor2
+    pub(super) work: Tensor2<N>,
 }
 
-impl<const DIM: usize> Args<DIM> {
+impl<const N: usize> Args<N> {
     /// Allocates a new instance
     pub(super) fn new(
-        ideal: &Idealization<DIM>,
+        ideal: &Idealization<N>,
         param: &StressStrain,
         settings: &Settings,
         interp_npoint: usize,
     ) -> Result<Self, StrError> {
         // Allocate the plasticity model
-        let model: Box<dyn TraitPlasticity<DIM>> = match param {
+        let model: Box<dyn TraitPlasticity<N>> = match param {
             StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
             StressStrain::VonMisesSoft { .. } => Box::new(VonMisesSoft::new(ideal, param, settings)?),
             _ => return Err("selected model cannot be used with general Elastoplastic"),
         };
 
-        // Set some constants
-        let mandel = ideal.mandel();
-        let ncp = mandel.dim(); // number of stress components
-        let nz = model.nz(); // number of internal variables
-        let ndim_e = ncp; // dimension of the elastic ODE system
-        let ndim_ep = ndim_e + nz; // dimension of the elastoplastic ODE system
+        // number of internal variables
+        let nz = model.nz();
 
         Ok(Args {
-            ndim_e,
-            ndim_ep,
-            state: LocalState::new(mandel, nz),
+            nz,
+            state: LocalState::new(nz),
             model,
-            del_eps: Tensor2::new(mandel),
-            ds_dt: Tensor2::new(mandel),
+            del_eps: Tensor2::new(),
+            ds_dt: Tensor2::new(),
             dz_dt: Vector::new(nz),
-            fs: Tensor2::new(mandel),
-            gs: Tensor2::new(mandel),
+            fs: Tensor2::new(),
+            gs: Tensor2::new(),
             fz: Vector::new(nz),
             h: Vector::new(nz),
-            dde: Tensor4::new(mandel),
-            ddep: Tensor4::new(mandel),
+            dde: Tensor4::new(),
+            ddep: Tensor4::new(),
             yf_count: 0,
             yf_values: Vector::new(interp_npoint),
             history_int: None,
             history_eep: None,
+            work: Tensor2::new(),
         })
     }
 }
@@ -133,24 +129,15 @@ mod tests {
     use super::Args;
     use crate::base::{Idealization, StressStrain};
     use crate::material::{von_mises::F_TOL, Settings};
-    use russell_tensor::Mandel;
+    use crate::{D2, D3};
 
     #[test]
     fn new_works_2d() {
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let interp_npoint = 3;
         let args = Args::new(&ideal, &param, &settings, interp_npoint).unwrap();
-        assert_eq!(args.ndim_e, 4);
-        assert_eq!(args.ndim_ep, 4 + 2); // 4 stress components + 2 internal variables
-        assert_eq!(args.state.stress.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.del_eps.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.ds_dt.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.fs.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.gs.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.dde.mandel(), Mandel::Symmetric2D);
-        assert_eq!(args.ddep.mandel(), Mandel::Symmetric2D);
         assert_eq!(args.dz_dt.dim(), 2);
         assert_eq!(args.fz.dim(), 2);
         assert_eq!(args.h.dim(), 2);
@@ -162,20 +149,11 @@ mod tests {
 
     #[test]
     fn new_works_3d() {
-        let ideal = Idealization::<3>::new();
+        let ideal = Idealization::<D3>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let interp_npoint = 5;
         let args = Args::new(&ideal, &param, &settings, interp_npoint).unwrap();
-        assert_eq!(args.ndim_e, 6);
-        assert_eq!(args.ndim_ep, 6 + 2); // 6 stress components + 2 internal variables
-        assert_eq!(args.state.stress.mandel(), Mandel::Symmetric);
-        assert_eq!(args.del_eps.mandel(), Mandel::Symmetric);
-        assert_eq!(args.ds_dt.mandel(), Mandel::Symmetric);
-        assert_eq!(args.fs.mandel(), Mandel::Symmetric);
-        assert_eq!(args.gs.mandel(), Mandel::Symmetric);
-        assert_eq!(args.dde.mandel(), Mandel::Symmetric);
-        assert_eq!(args.ddep.mandel(), Mandel::Symmetric);
         assert_eq!(args.dz_dt.dim(), 2);
         assert_eq!(args.fz.dim(), 2);
         assert_eq!(args.h.dim(), 2);
@@ -187,7 +165,7 @@ mod tests {
 
     #[test]
     fn new_errors_on_unsupported_model() {
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let settings = Settings::new();
 
         let param = StressStrain::LinearElastic {
@@ -215,7 +193,7 @@ mod tests {
 
     #[test]
     fn new_errors_on_zero_z_ini() {
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let param = StressStrain::VonMises {
             young: 1500.0,
             poisson: 0.25,
@@ -228,7 +206,7 @@ mod tests {
 
     #[test]
     fn new_yf_values_sized_by_interp_npoint() {
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         for interp_npoint in [0, 1, 5] {
@@ -239,7 +217,7 @@ mod tests {
 
     #[test]
     fn new_allocates_independent_vectors() {
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<D2>::new();
         let param = StressStrain::sample_von_mises();
         let settings = Settings::new();
         let mut args = Args::new(&ideal, &param, &settings, 3).unwrap();

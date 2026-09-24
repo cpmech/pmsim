@@ -10,9 +10,9 @@ use russell_sparse::{CooMatrix, Sym};
 /// Defines a generic finite element to represent the interior of the domain
 ///
 /// This structure wraps the actual implementation of the element through dynamic dispatching.
-struct ElemInt<'a, const DIM: usize> {
+struct ElemInt<'a, const N: usize> {
     /// Connects to the "actual" implementation of local equations
-    actual: Box<dyn ElementTrait<DIM> + 'a>,
+    actual: Box<dyn ElementTrait<N> + 'a>,
 
     /// Holds the local vector of internal forces (including dynamical forces) Ye
     yye: Vector,
@@ -25,18 +25,18 @@ struct ElemInt<'a, const DIM: usize> {
 }
 
 /// Holds a collection of elements representing the interior of the domain
-pub(crate) struct ElementsInterior<'a, const DIM: usize> {
+pub(crate) struct ElementsInterior<'a, const N: usize> {
     /// Holds all interior (generic) elements
     ///
     /// (ncell)
-    elements: Vec<ElemInt<'a, DIM>>,
+    elements: Vec<ElemInt<'a, N>>,
 }
 
-impl<'a, const DIM: usize> ElemInt<'a, DIM> {
+impl<'a, const N: usize> ElemInt<'a, N> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, schema: &'a Schema, config: &'a Config<DIM>, cell: &Cell) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &'a Schema, config: &'a Config<N>, cell: &Cell) -> Result<Self, StrError> {
         let elem_type = schema.elem_type(cell.marker)?;
-        let actual: Box<dyn ElementTrait<DIM>> = match elem_type {
+        let actual: Box<dyn ElementTrait<N>> = match elem_type {
             ElemType::Diffusion(p) => Box::new(ElementDiffusion::new(mesh, schema, config, p, cell.id)?),
             ElemType::Rod(p) => {
                 if p.gnl.is_some() {
@@ -65,11 +65,11 @@ impl<'a, const DIM: usize> ElemInt<'a, DIM> {
     ///
     /// **Note:** The state may be changed temporarily, but it is restored at the end of the function
     #[allow(dead_code)]
-    pub fn numerical_jacobian(&mut self, state: &mut FemState<DIM>) -> Result<(), StrError> {
+    pub fn numerical_jacobian(&mut self, state: &mut FemState<N>) -> Result<(), StrError> {
         let n = self.yye.dim();
-        struct Args<'a, const DIM: usize> {
+        struct Args<'a, const N: usize> {
             yye: &'a mut Vector,
-            state: &'a mut FemState<DIM>,
+            state: &'a mut FemState<N>,
         }
         let mut args = Args {
             yye: &mut self.yye,
@@ -98,9 +98,9 @@ impl<'a, const DIM: usize> ElemInt<'a, DIM> {
     }
 }
 
-impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
+impl<'a, const N: usize> ElementsInterior<'a, N> {
     /// Allocates a new instance
-    pub fn new(mesh: &Mesh, base: &'a Schema, config: &'a Config<DIM>) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, base: &'a Schema, config: &'a Config<N>) -> Result<Self, StrError> {
         let res: Result<Vec<_>, _> = mesh
             .cells
             .iter()
@@ -123,7 +123,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Checks the symmetry of all local Ke matrices
-    pub fn check_symmetry_kke(&mut self, state: &FemState<DIM>, tol: f64) -> Result<(), StrError> {
+    pub fn check_symmetry_kke(&mut self, state: &FemState<N>, tol: f64) -> Result<(), StrError> {
         self.elements
             .iter_mut()
             .map(|e| {
@@ -134,7 +134,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Calculates all local Ye vectors (internal forces) and assembles them into the global Y vector
-    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState<DIM>) -> Result<(), StrError> {
+    pub fn assemble_yy(&mut self, yy: &mut Vector, state: &FemState<N>) -> Result<(), StrError> {
         for e in &mut self.elements {
             // calculate local Ye
             e.actual.calc_yye(&mut e.yye, state)?;
@@ -176,7 +176,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Assembles the local K matrix into its global counterpart for the Lagrange Multipliers Method (LMM)
-    pub fn assemble_kk_lmm(&mut self, kk: &mut CooMatrix, state: &FemState<DIM>) -> Result<(), StrError> {
+    pub fn assemble_kk_lmm(&mut self, kk: &mut CooMatrix, state: &FemState<N>) -> Result<(), StrError> {
         for e in &mut self.elements {
             e.actual.calc_kke(&mut e.kke, state)?;
             assemble_matrix_lmm(kk, &e.kke, &e.actual.local_to_global())?;
@@ -202,7 +202,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
         &mut self,
         kk_bar: &mut CooMatrix,
         kk_check: &mut CooMatrix,
-        state: &FemState<DIM>,
+        state: &FemState<N>,
         eq_handler: &EquationHandler,
     ) -> Result<(), StrError> {
         for e in &mut self.elements {
@@ -213,7 +213,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Initializes all internal variables
-    pub fn initialize_internal_values(&mut self, state: &mut FemState<DIM>) -> Result<(), StrError> {
+    pub fn initialize_internal_values(&mut self, state: &mut FemState<N>) -> Result<(), StrError> {
         self.elements
             .iter_mut()
             .map(|e| e.actual.initialize_internal_values(state))
@@ -223,7 +223,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     /// Updates secondary values such as stresses and internal variables
     ///
     /// Note that state.u, state.v, and state.a have been updated already
-    pub fn update_secondary_values(&mut self, state: &mut FemState<DIM>) -> Result<(), StrError> {
+    pub fn update_secondary_values(&mut self, state: &mut FemState<N>) -> Result<(), StrError> {
         self.elements
             .iter_mut()
             .map(|e| e.actual.update_secondary_values(state))
@@ -231,7 +231,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Creates a copy of the secondary values (e.g., stress, int_vars)
-    pub fn backup_secondary_values(&mut self, state: &FemState<DIM>, alternative: bool) {
+    pub fn backup_secondary_values(&mut self, state: &FemState<N>, alternative: bool) {
         self.elements
             .iter_mut()
             .map(|e| e.actual.backup_secondary_values(state, alternative))
@@ -239,7 +239,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Restores the secondary values (e.g., stress, int_vars) from the backup
-    pub fn restore_secondary_values(&self, state: &mut FemState<DIM>, alternative: bool) {
+    pub fn restore_secondary_values(&self, state: &mut FemState<N>, alternative: bool) {
         self.elements
             .iter()
             .map(|e| e.actual.restore_secondary_values(state, alternative))
@@ -247,7 +247,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Resets algorithmic variables such as Λ at the beginning of implicit iterations
-    pub fn reset_algorithmic_variables(&self, state: &mut FemState<DIM>) {
+    pub fn reset_algorithmic_variables(&self, state: &mut FemState<N>) {
         self.elements
             .iter()
             .map(|e| e.actual.reset_algorithmic_variables(state))
@@ -255,7 +255,7 @@ impl<'a, const DIM: usize> ElementsInterior<'a, DIM> {
     }
 
     /// Returns the number of Gauss points at elastoplastic state
-    pub fn count_elastoplastic_gauss_points(&self, state: &FemState<DIM>) -> usize {
+    pub fn count_elastoplastic_gauss_points(&self, state: &FemState<N>) -> usize {
         let mut n_elastoplastic = 0;
         self.elements.iter().for_each(|e| {
             n_elastoplastic += e.actual.count_elastoplastic_gauss_points(state);
@@ -272,17 +272,18 @@ mod tests {
     use crate::base::{Conductivity, Config, ParamBeam, ParamPorousLiqGas, StressStrain};
     use crate::base::{ParamDiffusion, ParamPorousLiq, ParamPorousSldLiq, ParamPorousSldLiqGas, ParamSolid, Schema};
     use crate::fem::FemState;
+    use crate::D2;
     use gemlab::integ;
     use gemlab::mesh::{Mesh, Samples};
     use russell_lab::{mat_approx_eq, vec_add, vec_approx_eq, Matrix, Vector};
     use russell_pde::EquationHandler;
     use russell_sparse::{CooMatrix, Sym};
-    use russell_tensor::{Mandel, Tensor2};
+    use russell_tensor::Tensor2;
 
     #[test]
     fn new_handles_errors() {
         let mesh = Samples::one_tri3();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
 
         let mut p1 = ParamSolid::sample_linear_elastic();
         p1.ngauss = Some(123); // wrong
@@ -317,13 +318,13 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         let elements = ElementsInterior::new(&mesh, &schema, &config).unwrap();
@@ -337,7 +338,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
@@ -362,7 +363,7 @@ mod tests {
         let p1 = ParamDiffusion::sample();
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let mut config = Config::<2>::new(&mesh);
+        let mut config = Config::<D2>::new(&mesh).unwrap();
         config.transient();
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
@@ -391,7 +392,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_diffusion(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // set heat flow from the top to bottom and right to left
@@ -418,7 +419,7 @@ mod tests {
         let p1 = ParamSolid::sample_linear_elastic();
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut ele = ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
 
         // linear displacement field
@@ -454,7 +455,7 @@ mod tests {
         let p1 = ParamBeam::sample();
         let mut schema = Schema::new();
         schema.add_beam(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -465,7 +466,7 @@ mod tests {
         let p1 = ParamPorousLiq::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -476,7 +477,7 @@ mod tests {
         let p1 = ParamPorousLiqGas::sample_brooks_corey_constant();
         let mut schema = Schema::new();
         schema.add_porous_liq_gas(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -487,7 +488,7 @@ mod tests {
         let p1 = ParamPorousSldLiq::sample_brooks_corey_constant_elastic();
         let mut schema = Schema::new();
         schema.add_porous_sld_liq(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -498,7 +499,7 @@ mod tests {
         let p1 = ParamPorousSldLiqGas::sample_brooks_corey_constant_elastic();
         let mut schema = Schema::new();
         schema.add_porous_sld_liq_gas(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         ElemInt::new(&mesh, &schema, &config, &mesh.cells[0]).unwrap();
     }
 
@@ -525,7 +526,7 @@ mod tests {
         };
         let mut schema = Schema::new();
         schema.add_solid(1, p1).build(&mesh).unwrap();
-        let config = Config::<2>::new(&mesh);
+        let config = Config::<D2>::new(&mesh).unwrap();
         let mut state = FemState::new(&mesh, &schema, &config).unwrap();
 
         // calculate solution (c vectors = contributions to R) and set state
@@ -535,14 +536,11 @@ mod tests {
         let l2g = [[0, 1, 2, 3, 8, 9], [2, 3, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7]];
         for e in 0..3 {
             let delta = (e + 1) as f64;
-            let sigma = Tensor2::from_matrix(
-                &[
-                    [1.0 + delta, 3.0 + delta, 0.0],
-                    [3.0 + delta, 2.0 + delta, 0.0],
-                    [0.0, 0.0, delta],
-                ],
-                Mandel::Symmetric2D,
-            )
+            let sigma = Tensor2::from_std_matrix(&[
+                [1.0 + delta, 3.0 + delta, 0.0], //
+                [3.0 + delta, 2.0 + delta, 0.0], //
+                [0.0, 0.0, delta],               //
+            ])
             .unwrap();
             for state in &mut state.gauss[e].solid {
                 state.stress.set_tensor(1.0, &sigma);

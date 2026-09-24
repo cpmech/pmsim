@@ -3,14 +3,14 @@ use gemlab::util::any_x;
 use plotpy::{Curve, Legend, Plot};
 use pmsim::base::Dof;
 use pmsim::fem::PostProc;
-use pmsim::StrError;
+use pmsim::{StrError, D2};
 use russell_lab::math::SQRT_3;
 use russell_lab::read_data;
 
 const NAME: &str = "spo_754_footing_nat_sps_bord_mumps";
 
 pub fn main() -> Result<(), StrError> {
-    let (post, mut memo) = PostProc::<2>::new("/tmp/pmsim/spo_754", NAME)?;
+    let (post, mut memo) = PostProc::<D2>::new("/tmp/pmsim/spo_754", NAME)?;
     post.write_paraview(&mut memo, "/tmp/pmsim/spo_754", NAME, false)?;
 
     let (min, max) = post.mesh().get_limits();

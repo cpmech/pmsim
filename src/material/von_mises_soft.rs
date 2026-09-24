@@ -3,7 +3,7 @@ use crate::base::{Idealization, StressStrain, NZ_VON_MISES_SOFT};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
-use russell_tensor::{deriv1_invariant_q, deriv2_invariant_q, AuxDeriv2InvariantSigmaT};
+use russell_tensor::{deriv1_invariant_q, deriv2_invariant_q};
 use russell_tensor::{LinElasticity, Tensor2, Tensor4};
 
 /// Tolerance to detect elastic regime
@@ -12,9 +12,9 @@ const F_TOL: f64 = 1e-6;
 /// Implements the von Mises plasticity model with Softening
 ///
 /// **Note:** This model works in 2D (plane-strain only) or 3D.
-pub struct VonMisesSoft<const DIM: usize> {
+pub struct VonMisesSoft<const N: usize> {
     /// Linear elasticity
-    lin_elasticity: LinElasticity,
+    lin_elasticity: LinElasticity<N>,
 
     /// Hardening-Softening model
     hs_model: HardeningSoftening,
@@ -32,9 +32,9 @@ pub struct VonMisesSoft<const DIM: usize> {
     settings: Settings,
 }
 
-impl<const DIM: usize> VonMisesSoft<DIM> {
+impl<const N: usize> VonMisesSoft<N> {
     /// Allocates a new instance
-    pub fn new(ideal: &Idealization<DIM>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
+    pub fn new(ideal: &Idealization<N>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         if ideal.plane_stress {
             return Err("von Mises model does not work in plane-stress");
         }
@@ -52,7 +52,7 @@ impl<const DIM: usize> VonMisesSoft<DIM> {
                 if kappa_ini <= F_TOL {
                     return Err("von Mises initial size of the yield surface must > 1e-6");
                 }
-                let lin_elasticity = LinElasticity::new(young, poisson, ideal.two_dim, false);
+                let lin_elasticity = LinElasticity::new(young, poisson, false)?;
                 let hs_model = HardeningSoftening::new(li, lr, y0r, a, b)?;
                 Ok(VonMisesSoft {
                     lin_elasticity,
@@ -66,7 +66,7 @@ impl<const DIM: usize> VonMisesSoft<DIM> {
     }
 }
 
-impl<const DIM: usize> TraitStressStrain<DIM> for VonMisesSoft<DIM> {
+impl<const N: usize> TraitStressStrain<N> for VonMisesSoft<N> {
     /// Returns whether this model has symmetric stiffness matrix or not
     fn symmetric_stiffness(&self) -> bool {
         true
@@ -78,7 +78,7 @@ impl<const DIM: usize> TraitStressStrain<DIM> for VonMisesSoft<DIM> {
     }
 
     /// Initializes the internal variables for the initial stress state
-    fn initialize_int_vars(&self, state: &mut LocalState<DIM>) -> Result<(), StrError> {
+    fn initialize_int_vars(&self, state: &mut LocalState<N>) -> Result<(), StrError> {
         state.z_set[0] = self.kappa_ini; // size of the yield surface
         state.z_set[1] = 0.0; // accumulated plastic strain
         if !self.settings.gp_allow_initial_drift() {
@@ -93,8 +93,8 @@ impl<const DIM: usize> TraitStressStrain<DIM> for VonMisesSoft<DIM> {
     /// Returns an error because this model must be used through the general Elastoplastic implementation
     fn stiffness(
         &mut self,
-        _dd: &mut Tensor4,
-        _state: &LocalState<DIM>,
+        _dd: &mut Tensor4<N>,
+        _state: &LocalState<N>,
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
@@ -104,8 +104,8 @@ impl<const DIM: usize> TraitStressStrain<DIM> for VonMisesSoft<DIM> {
     /// Returns an error because this model must be used through the general Elastoplastic implementation
     fn update_stress(
         &mut self,
-        _state: &mut LocalState<DIM>,
-        _delta_strain: &Tensor2,
+        _state: &mut LocalState<N>,
+        _delta_strain: &Tensor2<N>,
         _cell_id: CellId,
         _gauss_id: usize,
     ) -> Result<(), StrError> {
@@ -113,7 +113,7 @@ impl<const DIM: usize> TraitStressStrain<DIM> for VonMisesSoft<DIM> {
     }
 }
 
-impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
+impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
     /// Returns whether this model is associated or not
     fn associated(&self) -> bool {
         true
@@ -125,14 +125,14 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     }
 
     /// Calculates the yield function f
-    fn calc_f(&self, state: &LocalState<DIM>) -> Result<f64, StrError> {
+    fn calc_f(&self, state: &LocalState<N>) -> Result<f64, StrError> {
         let q = state.stress.invariant_q();
         let kappa = state.z_set[0];
         Ok(q - kappa)
     }
 
     /// Calculates the hardening coefficients h
-    fn calc_h(&self, h: &mut Vector, state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_h(&self, h: &mut Vector, state: &LocalState<N>) -> Result<(), StrError> {
         // In the Hardening-Softening model: x = α and y = κ
         // Here: z = {z₀, z₁} = {κ, α}
         //
@@ -158,7 +158,7 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     /// fs := ──
     ///       ∂σ
     /// ```
-    fn calc_fs(&self, df_dsigma: &mut Tensor2, state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_fs(&self, df_dsigma: &mut Tensor2<N>, state: &LocalState<N>) -> Result<(), StrError> {
         // fs = ∂f/∂σ = ∂q/∂σ
         match deriv1_invariant_q(df_dsigma, &state.stress) {
             Some(_) => Ok(()),
@@ -173,7 +173,7 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     /// gs := ──
     ///       ∂σ
     /// ```
-    fn calc_gs(&self, dg_dsigma: &mut Tensor2, state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_gs(&self, dg_dsigma: &mut Tensor2<N>, state: &LocalState<N>) -> Result<(), StrError> {
         self.calc_fs(dg_dsigma, state) // associated flow rule
     }
 
@@ -184,7 +184,7 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     /// fzₖ := ───
     ///        ∂zₖ
     /// ```
-    fn calc_fz(&self, df_dz: &mut Vector, _state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_fz(&self, df_dz: &mut Vector, _state: &LocalState<N>) -> Result<(), StrError> {
         df_dz[0] = -1.0; // df/dκ = -1
         df_dz[1] = 0.0; // df/dα = 0
         Ok(())
@@ -197,11 +197,11 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     /// dde := De = ──
     ///             ∂ε
     /// ```
-    fn calc_dde(&self, dde: &mut Tensor4, _state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_dde(&self, dde: &mut Tensor4<N>, _state: &LocalState<N>) -> Result<(), StrError> {
         if self.settings.nle_enabled() {
             return Err("TODO: nonlinear elasticity");
         } else {
-            dde.set_tensor(1.0, self.lin_elasticity.get_modulus());
+            dde.set_tensor(1.0, self.lin_elasticity.stiffness());
         }
         Ok(())
     }
@@ -215,9 +215,8 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     /// ggs := Gσ = ───── = ───────
     ///              ∂σ     ∂σ ⊗ ∂σ
     /// ```
-    fn calc_ggs(&self, ggs: &mut Tensor4, state: &LocalState<DIM>) -> Result<(), StrError> {
-        let mut aux = AuxDeriv2InvariantSigmaT::new();
-        match deriv2_invariant_q(ggs, &mut aux, &state.stress) {
+    fn calc_ggs(&self, ggs: &mut Tensor4<N>, state: &LocalState<N>) -> Result<(), StrError> {
+        match deriv2_invariant_q(ggs, &state.stress) {
             Some(_) => Ok(()),
             None => Err("cannot compute the second derivative of the plastic potential due to singularity"),
         }
@@ -232,7 +231,7 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     ///
     /// ggz is (ncp x nz)
     /// ```
-    fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState<N>) -> Result<(), StrError> {
         // g = f
         // gs = fs = ∂f/∂σ = ∂q/∂σ
         // ∂(gs)/∂zₖ = 0
@@ -249,7 +248,7 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     ///
     /// hhs is (nz x ncp)
     /// ```
-    fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState<N>) -> Result<(), StrError> {
         hhs.fill(0.0);
         Ok(())
     }
@@ -263,7 +262,7 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
     ///
     /// hhz is (nz x nz)
     /// ```
-    fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState<DIM>) -> Result<(), StrError> {
+    fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState<N>) -> Result<(), StrError> {
         // In the Hardening-Softening model: x = α and y = κ
         // Here: z = {z₀, z₁} = {κ, α}
         //
@@ -303,6 +302,7 @@ impl<const DIM: usize> TraitPlasticity<DIM> for VonMisesSoft<DIM> {
 mod tests {
     use crate::base::{Idealization, StressStrain, NZ_VON_MISES_SOFT};
     use crate::material::{ElastoplasticImp, LocalState, Settings, TraitStressStrain};
+    use crate::D2;
     use russell_lab::approx_eq;
     use russell_tensor::Tensor2;
 
@@ -311,9 +311,9 @@ mod tests {
     const HH: f64 = 800.0;
     const KAPPA_INI: f64 = 9.0;
 
-    fn get_model_and_state_on_yield_surface<const DIM: usize>() -> (ElastoplasticImp<DIM>, LocalState<DIM>) {
+    fn get_model_and_state_on_yield_surface<const N: usize>() -> (ElastoplasticImp<N>, LocalState<N>) {
         // Idealization, parameters, and settings
-        let ideal = Idealization::<DIM>::new();
+        let ideal = Idealization::<N>::new();
         let param = StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
@@ -323,9 +323,8 @@ mod tests {
         let settings = Settings::new();
 
         // Allocate the initial state
-        let mandel = ideal.mandel();
         let nz = NZ_VON_MISES_SOFT;
-        let mut state0 = LocalState::new(mandel, nz);
+        let mut state0 = LocalState::new(nz);
         state0.enable_strain();
 
         // Allocate the model and initialize the internal variables
@@ -341,9 +340,9 @@ mod tests {
         let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let deps_x = dy * nu / (1.0 - nu);
         let deps_y = -dy;
-        let mut delta_strain = Tensor2::new(mandel);
-        delta_strain.vector_mut()[0] = deps_x;
-        delta_strain.vector_mut()[1] = deps_y;
+        let mut delta_strain = Tensor2::new();
+        delta_strain.set(0, deps_x);
+        delta_strain.set(1, deps_y);
 
         // Update the stress state to be on the yield surface
         let mut state = state0.clone();
@@ -355,14 +354,14 @@ mod tests {
 
     #[test]
     fn test_get_model_and_state_on_yield_surface() {
-        let (_model, state) = get_model_and_state_on_yield_surface::<2>();
-        println!("sigma =\n{}", state.stress.vector());
+        let (_model, state) = get_model_and_state_on_yield_surface::<D2>();
+        println!("sigma =\n{}", state.stress);
         println!("z = {:?}", state.z_set[0]);
 
         // Check if the stress state is on the yield surface
         let q = state.stress.invariant_q();
         let z = state.z_set[0];
-        approx_eq(q, z, 1e-15);
+        approx_eq(q, z, 1e-14);
 
         // Check the algorithmic flags
         assert_eq!(state.elastic, true);

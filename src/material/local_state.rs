@@ -1,12 +1,15 @@
 use russell_lab::{vec_copy, Vector};
-use russell_tensor::{Mandel, Tensor2};
+use russell_tensor::Tensor2;
 use serde::{Deserialize, Serialize};
 
 /// Holds local state data for FEM simulations of porous materials
 ///
 /// This data structure is associated with a Gauss (integration) point
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct LocalState<const DIM: usize> {
+pub struct LocalState<const N: usize> {
     /// Holds the elastic (vs elastoplastic) flag
     pub elastic: bool,
 
@@ -14,27 +17,27 @@ pub struct LocalState<const DIM: usize> {
     pub lambda_alg: f64,
 
     /// Holds the stress tensor σ
-    pub stress: Tensor2,
+    pub stress: Tensor2<N>,
 
     /// Holds the set of internal variables
     pub z_set: Vector,
 
     /// (optional) Holds the strain tensor ε
-    pub strain: Option<Tensor2>,
+    pub strain: Option<Tensor2<N>>,
 }
 
-impl<const DIM: usize> LocalState<DIM> {
+impl<const N: usize> LocalState<N> {
     /// Allocates a new instance
     ///
     /// # Arguments
     ///
     /// * `mandel` - Mandel notation
     /// * `nz` - number of internal variables
-    pub fn new(mandel: Mandel, nz: usize) -> Self {
+    pub fn new(nz: usize) -> Self {
         LocalState {
             elastic: true,
             lambda_alg: 0.0,
-            stress: Tensor2::new(mandel),
+            stress: Tensor2::new(),
             z_set: Vector::new(nz),
             strain: None,
         }
@@ -42,11 +45,11 @@ impl<const DIM: usize> LocalState<DIM> {
 
     /// Enables the recording of strain
     pub fn enable_strain(&mut self) {
-        self.strain = Some(Tensor2::new(self.stress.mandel()));
+        self.strain = Some(Tensor2::new());
     }
 
     /// Copy data from another state into this state (except strain)
-    pub fn mirror(&mut self, other: &LocalState<DIM>) {
+    pub fn mirror(&mut self, other: &LocalState<N>) {
         self.elastic = other.elastic;
         self.lambda_alg = other.lambda_alg;
         self.stress.set_tensor(1.0, &other.stress);

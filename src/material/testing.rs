@@ -4,7 +4,7 @@ use russell_lab::Vector;
 
 /// Generates an array of LocalState according to a linear elastic model for the VonMises model
 #[allow(dead_code)]
-pub(super) fn generate_states_von_mises<const DIM: usize>(bulk: f64, shear: f64, lode: f64) -> Vec<LocalState<DIM>> {
+pub(super) fn generate_states_von_mises<const N: usize>(bulk: f64, shear: f64, lode: f64) -> Vec<LocalState<N>> {
     let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
     let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
     let kappa = 9.0; // size of the von Mises yield surface
@@ -13,7 +13,7 @@ pub(super) fn generate_states_von_mises<const DIM: usize>(bulk: f64, shear: f64,
     let sigma_d_0 = 0.0;
     let dsigma_m = 1.0;
     let dsigma_d = kappa;
-    let path = LoadingPath::<DIM>::new_linear_oct(
+    let path = LoadingPath::<N>::new_linear_oct(
         young,
         poisson,
         n_increments,

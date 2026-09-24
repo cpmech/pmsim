@@ -105,7 +105,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
 
     // update configuration
     // configuration
-    let mut config = Config::<2>::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
@@ -129,19 +129,19 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
     sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.3), ddl)?;
 
     // check the results
-    let (post, _) = PostProc::<2>::new("/tmp/pmsim/plasticity", NAME)?;
+    let (post, _) = PostProc::<D2>::new("/tmp/pmsim/plasticity", NAME)?;
     let lambdas = post.stations();
     let ss = post.history_local_state(0).unwrap();
     for i in 0..lambdas.len() {
         let ey_ref = -lambdas[i] * dy / L0;
-        let ex = ss[i].strain.as_ref().unwrap().get(0, 0);
-        let ey = ss[i].strain.as_ref().unwrap().get(1, 1);
-        let ez = ss[i].strain.as_ref().unwrap().get(2, 2);
-        let exy = ss[i].strain.as_ref().unwrap().get(0, 1);
-        let sx = ss[i].stress.get(0, 0);
-        let sy = ss[i].stress.get(1, 1);
-        let sz = ss[i].stress.get(2, 2);
-        let sxy = ss[i].stress.get(0, 1);
+        let ex = ss[i].strain.as_ref().unwrap().get_std(0, 0);
+        let ey = ss[i].strain.as_ref().unwrap().get_std(1, 1);
+        let ez = ss[i].strain.as_ref().unwrap().get_std(2, 2);
+        let exy = ss[i].strain.as_ref().unwrap().get_std(0, 1);
+        let sx = ss[i].stress.get_std(0, 0);
+        let sy = ss[i].stress.get_std(1, 1);
+        let sz = ss[i].stress.get_std(2, 2);
+        let sxy = ss[i].stress.get_std(0, 1);
         // println!("lambda = {:.5}, ey_ref = {:.5}, ey = {:.5}", lambda, ey_ref, ey);
         approx_eq(ey, ey_ref, 1e-13); // imposed
         approx_eq(ez, 0.0, 1e-13); // plane strain
@@ -200,7 +200,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
 
         // stress-strain data
         let ss = post.history_local_state(0).unwrap();
-        let data = PlotterData::from_states(ss);
+        let data = PlotterData::from_states(ss)?;
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
             zz[i] = ss[i].z_set[0];

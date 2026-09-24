@@ -117,7 +117,7 @@ fn main() -> Result<(), StrError> {
 
     // configuration
     let selected_cell_id = if GENERATE_MESH { 9 } else { 6 };
-    let mut config = Config::<2>::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .axisymmetric()
         .out_files(DIR, &name)
@@ -212,7 +212,7 @@ fn main() -> Result<(), StrError> {
     //
 
     // load summary and associated files
-    let (post, mut memo) = PostProc::<2>::new(DIR, &name)?;
+    let (post, mut memo) = PostProc::<D2>::new(DIR, &name)?;
 
     // boundaries
     let iy = schema.dof_number(center, Dof::Uy)?;

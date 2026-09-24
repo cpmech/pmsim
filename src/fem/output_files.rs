@@ -4,6 +4,7 @@ use crate::material::LocalState;
 use crate::StrError;
 use gemlab::mesh::{CellId, Mesh, PointId};
 use russell_lab::Vector;
+use russell_tensor::Tensor1;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -13,7 +14,7 @@ use std::path::Path;
 
 /// Assists in generating output files
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub(crate) struct OutputFiles<const DIM: usize> {
+pub(crate) struct OutputFiles<const N: usize> {
     /// Number of files written
     counter: usize,
 
@@ -41,17 +42,17 @@ pub(crate) struct OutputFiles<const DIM: usize> {
     /// History (time or lambda) of flux vectors at selected integration points
     ///
     /// Note: Only the results at the first integration point are saved.
-    history_local_flux: HashMap<CellId, Vec<Vector>>,
+    history_local_flux: HashMap<CellId, Vec<Tensor1>>,
 
     /// History (time or lambda) of LocalState at selected integration points
     ///
     /// Note: Only the results at the first integration point are saved.
-    history_local_state: HashMap<CellId, Vec<LocalState<DIM>>>,
+    history_local_state: HashMap<CellId, Vec<LocalState<N>>>,
 }
 
-impl<const DIM: usize> OutputFiles<DIM> {
+impl<const N: usize> OutputFiles<N> {
     /// Allocates a new instance with deactivated generation of files
-    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config<DIM>, np: usize) -> Result<Self, StrError> {
+    pub fn new(mesh: &Mesh, schema: &Schema, config: &Config<N>, np: usize) -> Result<Self, StrError> {
         if config.out_files {
             // create directory
             fs::create_dir_all(&config.out_dir).map_err(|_| "cannot create output directory")?;
@@ -113,12 +114,12 @@ impl<const DIM: usize> OutputFiles<DIM> {
     }
 
     /// Returns the history (time or lambda) of flux vectors at selected integration points
-    pub fn history_local_flux(&self, cell_id: CellId) -> Option<&Vec<Vector>> {
+    pub fn history_local_flux(&self, cell_id: CellId) -> Option<&Vec<Tensor1>> {
         self.history_local_flux.get(&cell_id)
     }
 
     /// Returns the history (time or lambda) of LocalState at selected integration points
-    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState<DIM>>> {
+    pub fn history_local_state(&self, cell_id: CellId) -> Option<&Vec<LocalState<N>>> {
         self.history_local_state.get(&cell_id)
     }
 
@@ -157,8 +158,8 @@ impl<const DIM: usize> OutputFiles<DIM> {
     pub(crate) fn execute(
         &mut self,
         schema: &Schema,
-        config: &Config<DIM>,
-        state: &FemState<DIM>,
+        config: &Config<N>,
+        state: &FemState<N>,
         yy: &Vector,
     ) -> Result<(), StrError> {
         if config.out_files || config.out_history {
@@ -217,7 +218,7 @@ impl<const DIM: usize> OutputFiles<DIM> {
     }
 
     /// Stops the output
-    pub(crate) fn stop(&self, config: &Config<DIM>) -> Result<(), StrError> {
+    pub(crate) fn stop(&self, config: &Config<N>) -> Result<(), StrError> {
         if config.out_files {
             self.write_json(&format!("{}/{}.json", config.out_dir, config.out_fn_stem))?;
         }

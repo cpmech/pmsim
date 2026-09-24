@@ -1,16 +1,14 @@
-use russell_tensor::Mandel;
-
 /// Defines the geometry idealization (axisymmetric, plane-strain, plane-stress, none)
 ///
 /// # Default values
 ///
 /// * The default thickness value is **1.0** for all cases
 /// * In 2D, the default choice is **plane-strain**
+///
+/// `N` specifies the space dimension and must be [crate::D2] or [crate::D3].
+/// It is actually `2*ndim` because it defines the tensor representation.
 #[derive(Clone, Copy, Debug)]
-pub struct Idealization<const DIM: usize> {
-    /// Indicates 2D instead of 3D
-    pub two_dim: bool,
-
+pub struct Idealization<const N: usize> {
     /// Indicates an axisymmetry idealization in 2D
     pub axisymmetric: bool,
 
@@ -21,36 +19,16 @@ pub struct Idealization<const DIM: usize> {
     pub thickness: f64,
 }
 
-impl<const DIM: usize> Idealization<DIM> {
-    const CHECK: () = assert!(DIM == 2 || DIM == 3, "DIM must be 2 or 3");
+impl<const N: usize> Idealization<N> {
+    const VALIDATE_N: () = assert!(N == 4 || N == 6, "N must be 4 or 6 (=2*NDIM)");
 
     /// Allocates a new instance
-    ///
-    /// # Default values
-    ///
-    /// * `2D`: plane-strain with thickness = 1.0
-    /// * `3D`: no idealization with thickness = 1.0
     pub fn new() -> Self {
-        let _ = Self::CHECK;
+        let _ = Self::VALIDATE_N;
         Idealization {
-            two_dim: DIM == 2,
             axisymmetric: false,
             plane_stress: false,
             thickness: 1.0,
-        }
-    }
-
-    /// Returns the symmetric Mandel representation associated with the idealization
-    ///
-    /// # Results
-    ///
-    /// * `2D`: [Mandel::Symmetric2D]
-    /// * `3D`: [Mandel::Symmetric]
-    pub fn mandel(&self) -> Mandel {
-        if self.two_dim {
-            Mandel::Symmetric2D
-        } else {
-            Mandel::Symmetric
         }
     }
 }
@@ -60,30 +38,20 @@ impl<const DIM: usize> Idealization<DIM> {
 #[cfg(test)]
 mod tests {
     use super::Idealization;
-    use russell_tensor::Mandel;
 
     #[test]
     fn derive_works() {
-        let ideal = Idealization::<2>::new();
+        let ideal = Idealization::<4>::new();
         let mut clone = ideal.clone();
         assert_eq!(
             format!("{:?}", ideal),
-            "Idealization { two_dim: true, axisymmetric: false, plane_stress: false, thickness: 1.0 }"
+            "Idealization { axisymmetric: false, plane_stress: false, thickness: 1.0 }"
         );
         clone.plane_stress = true;
         clone.thickness = 0.5;
         assert_eq!(
             format!("{:?}", clone),
-            "Idealization { two_dim: true, axisymmetric: false, plane_stress: true, thickness: 0.5 }"
+            "Idealization { axisymmetric: false, plane_stress: true, thickness: 0.5 }"
         );
-    }
-
-    #[test]
-    fn mandel_works() {
-        let ideal = Idealization::<2>::new();
-        assert_eq!(ideal.mandel(), Mandel::Symmetric2D);
-
-        let ideal = Idealization::<3>::new();
-        assert_eq!(ideal.mandel(), Mandel::Symmetric);
     }
 }

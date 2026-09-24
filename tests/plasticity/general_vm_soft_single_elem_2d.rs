@@ -96,7 +96,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     ebc.edges(&top, Dof::Uy, -dy);
 
     // configuration
-    let mut config = Config::<2>::new(&mesh);
+    let mut config = Config::<D2>::new(&mesh)?;
     config
         .out_history_uu_comp(corner, Dof::Uy)
         .out_history_yy_comp(corner, Dof::Uy)
@@ -119,7 +119,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
     sim.steady(&mut data, IniDir::Pos, Stop::MaxCompU(idx, 0.06), ddl)?;
 
     // load the results
-    let (post, _) = PostProc::<2>::new("/tmp/pmsim/plasticity", NAME)?;
+    let (post, _) = PostProc::<D2>::new("/tmp/pmsim/plasticity", NAME)?;
     let lambdas = post.stations();
 
     // figure
@@ -149,7 +149,7 @@ fn general_vm_soft_single_elem_2d() -> Result<(), StrError> {
 
         // stress-strain data
         let ss = post.history_local_state(0).unwrap();
-        let data = PlotterData::from_states(ss);
+        let data = PlotterData::from_states(ss)?;
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
             zz[i] = ss[i].z_set[0];

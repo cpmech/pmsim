@@ -1,7 +1,7 @@
 use crate::StrError;
 use gemlab::mesh::Mesh;
 use russell_lab::{Matrix, Vector};
-use russell_tensor::{Mandel, Tensor2};
+use russell_tensor::{Tensor1, Tensor2};
 
 /// Checks the symmetry of a square matrix
 pub(crate) fn check_symmetry(mat: &Matrix, tol: f64) -> Result<(), StrError> {
@@ -128,12 +128,8 @@ pub(crate) fn generate_shear_displacement_field(mesh: &Mesh, eps_xy: f64) -> Vec
 /// Thus, the gradient is: ∇φ = [a, b]ᵀ in 2D and ∇φ = [a, b, 0]ᵀ in 3D.
 /// The flux is given by: q = -[[kx, 0, 0], [0, ky, 0], [0, 0, kz]] ∇φ = [-kx a, -ky b, 0]ᵀ in 3D.
 #[allow(dead_code)]
-pub(crate) fn flux_vector_solution_scalar_field_ax_plus_by(a: f64, b: f64, kx: f64, ky: f64, ndim: usize) -> Vector {
-    if ndim == 2 {
-        Vector::from(&[-kx * a, -ky * b])
-    } else {
-        Vector::from(&[-kx * a, -ky * b, 0.0])
-    }
+pub(crate) fn flux_vector_solution_scalar_field_ax_plus_by(a: f64, b: f64, kx: f64, ky: f64) -> Tensor1 {
+    Tensor1::from(&[-kx * a, -ky * b, 0.0])
 }
 
 /// Returns the elastic solution (plane-strain or 3D) corresponding to a horizontal stretching
@@ -144,46 +140,21 @@ pub(crate) fn flux_vector_solution_scalar_field_ax_plus_by(a: f64, b: f64, kx: f
 ///
 /// * `young` -- Young's modulus
 /// * `poisson` -- Poisson's coefficient
-/// * `ndim` -- the space dimension
 /// * `eps_xx` -- the horizontal component of strain ε_xx
 #[allow(dead_code)]
-pub(crate) fn elastic_solution_horizontal_displacement_field(
+pub(crate) fn elastic_solution_horizontal_displacement_field<const N: usize>(
     young: f64,
     poisson: f64,
-    ndim: usize,
     eps_xx: f64,
-) -> (Tensor2, Tensor2) {
-    // Mandel representation
-    let mandel = if ndim == 2 {
-        Mandel::Symmetric2D
-    } else {
-        Mandel::Symmetric
-    };
+) -> (Tensor2<N>, Tensor2<N>) {
     // strain tensor
-    let ______ = 0.0;
-    let strain = Tensor2::from_matrix(
-        &[
-            [eps_xx, ______, ______],
-            [______, ______, ______],
-            [______, ______, ______],
-        ],
-        mandel,
-    )
-    .unwrap();
+    let strain = Tensor2::from_std_matrix(&[[eps_xx, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]).unwrap();
     // stress tensor
     let c = young / ((1.0 + poisson) * (1.0 - 2.0 * poisson));
     let sig_xx = c * eps_xx * (1.0 - poisson);
     let sig_yy = c * eps_xx * poisson;
     let sig_zz = c * eps_xx * poisson;
-    let stress = Tensor2::from_matrix(
-        &[
-            [sig_xx, ______, ______],
-            [______, sig_yy, ______],
-            [______, ______, sig_zz],
-        ],
-        mandel,
-    )
-    .unwrap();
+    let stress = Tensor2::from_std_matrix(&[[sig_xx, 0.0, 0.0], [0.0, sig_yy, 0.0], [0.0, 0.0, sig_zz]]).unwrap();
     (strain, stress)
 }
 
@@ -195,46 +166,21 @@ pub(crate) fn elastic_solution_horizontal_displacement_field(
 ///
 /// * `young` -- Young's modulus
 /// * `poisson` -- Poisson's coefficient
-/// * `ndim` -- the space dimension
 /// * `eps_yy` -- the vertical component of strain ε_yy
 #[allow(dead_code)]
-pub(crate) fn elastic_solution_vertical_displacement_field(
+pub(crate) fn elastic_solution_vertical_displacement_field<const N: usize>(
     young: f64,
     poisson: f64,
-    ndim: usize,
     eps_yy: f64,
-) -> (Tensor2, Tensor2) {
-    // Mandel representation
-    let mandel = if ndim == 2 {
-        Mandel::Symmetric2D
-    } else {
-        Mandel::Symmetric
-    };
+) -> (Tensor2<N>, Tensor2<N>) {
     // strain tensor
-    let ______ = 0.0;
-    let strain = Tensor2::from_matrix(
-        &[
-            [______, ______, ______],
-            [______, eps_yy, ______],
-            [______, ______, ______],
-        ],
-        mandel,
-    )
-    .unwrap();
+    let strain = Tensor2::from_std_matrix(&[[0.0, 0.0, 0.0], [0.0, eps_yy, 0.0], [0.0, 0.0, 0.0]]).unwrap();
     // stress tensor
     let c = young / ((1.0 + poisson) * (1.0 - 2.0 * poisson));
     let sig_xx = c * eps_yy * poisson;
     let sig_yy = c * eps_yy * (1.0 - poisson);
     let sig_zz = c * eps_yy * poisson;
-    let stress = Tensor2::from_matrix(
-        &[
-            [sig_xx, ______, ______],
-            [______, sig_yy, ______],
-            [______, ______, sig_zz],
-        ],
-        mandel,
-    )
-    .unwrap();
+    let stress = Tensor2::from_std_matrix(&[[sig_xx, 0.0, 0.0], [0.0, sig_yy, 0.0], [0.0, 0.0, sig_zz]]).unwrap();
     (strain, stress)
 }
 
@@ -246,43 +192,18 @@ pub(crate) fn elastic_solution_vertical_displacement_field(
 ///
 /// * `young` -- Young's modulus
 /// * `poisson` -- Poisson's coefficient
-/// * `ndim` -- the space dimension
 /// * `eps_xy` -- the shear component of strain ε_xy
 #[allow(dead_code)]
-pub(crate) fn elastic_solution_shear_displacement_field(
+pub(crate) fn elastic_solution_shear_displacement_field<const N: usize>(
     young: f64,
     poisson: f64,
-    ndim: usize,
     eps_xy: f64,
-) -> (Tensor2, Tensor2) {
-    // Mandel representation
-    let mandel = if ndim == 2 {
-        Mandel::Symmetric2D
-    } else {
-        Mandel::Symmetric
-    };
+) -> (Tensor2<N>, Tensor2<N>) {
     // strain tensor
-    let ______ = 0.0;
-    let strain = Tensor2::from_matrix(
-        &[
-            [______, eps_xy, ______],
-            [eps_xy, ______, ______],
-            [______, ______, ______],
-        ],
-        mandel,
-    )
-    .unwrap();
+    let strain = Tensor2::from_std_matrix(&[[0.0, eps_xy, 0.0], [eps_xy, 0.0, 0.0], [0.0, 0.0, 0.0]]).unwrap();
     // stress tensor
     let c = young / ((1.0 + poisson) * (1.0 - 2.0 * poisson));
     let sig_xy = c * (1.0 - 2.0 * poisson) * eps_xy;
-    let stress = Tensor2::from_matrix(
-        &[
-            [______, sig_xy, ______],
-            [sig_xy, ______, ______],
-            [______, ______, ______],
-        ],
-        mandel,
-    )
-    .unwrap();
+    let stress = Tensor2::from_std_matrix(&[[0.0, sig_xy, 0.0], [sig_xy, 0.0, 0.0], [0.0, 0.0, 0.0]]).unwrap();
     (strain, stress)
 }

@@ -1,5 +1,5 @@
 use pmsim::fem::PostProc;
-use pmsim::StrError;
+use pmsim::{StrError, D2};
 use structopt::StructOpt;
 
 /// Command line options
@@ -22,7 +22,7 @@ fn main() -> Result<(), StrError> {
     let options = Options::from_args();
 
     // load data
-    let (post, mut memo) = PostProc::<2>::new(&options.out_dir, &options.fn_stem)?;
+    let (post, mut memo) = PostProc::<D2>::new(&options.out_dir, &options.fn_stem)?;
 
     // write VTU files
     for index in 0..post.nfile() {

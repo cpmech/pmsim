@@ -1,7 +1,7 @@
 use super::{Axis, LocalState};
 use crate::StrError;
 use russell_lab::linear_fitting;
-use russell_tensor::{Spectral2, Tensor2};
+use russell_tensor::{eigen_octahedral, EigenValuesT2, Tensor2};
 
 /// Holds a stress-strain entry for Plotter
 #[derive(Clone, Copy)]
@@ -21,17 +21,23 @@ pub struct PlotterEntry {
     /// Holds the y coordinate on the octahedral plane associated with the stress tensor
     pub oct_y: f64,
 
-    /// Holds the volumetric strain invariant
-    pub eps_v: Option<f64>,
+    /// Holds the isomorphic mean strain invariant
+    pub eps_mean: Option<f64>,
 
-    /// Holds the deviatoric strain invariant
-    pub eps_d: Option<f64>,
+    /// Holds the isomorphic deviatoric strain invariant
+    pub eps_dev: Option<f64>,
 
     /// Holds the result of an yield function evaluation (plasticity models only)
     pub yield_value: Option<f64>,
 
     /// Holds the pseudo-time computed by the stress-update algorithm
     pub pseudo_time: Option<f64>,
+
+    /// Principal stresses (eigenvalues)
+    pub sig_princ: [f64; 3],
+
+    /// Principal strains (eigenvalues)
+    pub eps_princ: Option<[f64; 3]>,
 }
 
 /// Holds a series of stress-strain points for Plotter
@@ -47,17 +53,39 @@ impl PlotterData {
     }
 
     /// Appends a stress-state to the back of the collection
-    pub fn push(
+    pub fn push<const N: usize>(
         &mut self,
-        stress: &Tensor2,
-        strain: Option<&Tensor2>,
+        stress: &Tensor2<N>,
+        strain: Option<&Tensor2<N>>,
         yield_value: Option<f64>,
         pseudo_time: Option<f64>,
-    ) {
-        let mandel = stress.mandel();
-        let mut spectral = Spectral2::new(mandel.two_dim());
-        spectral.decompose(stress).unwrap();
-        let (oct_y, _, oct_x) = spectral.octahedral_basis();
+    ) -> Result<(), StrError> {
+        // eigenvalues calculator
+        let mut eig = EigenValuesT2::new();
+        let mut work = Tensor2::<6>::new();
+
+        // calculate principal stresses (eigenvalues)
+        for m in 0..N {
+            work.set(m, stress.get(m));
+        }
+        let mut sig_princ = [0.0; 3];
+        eig.calculate(&mut sig_princ, &work)?;
+
+        // calculate principal strains (eigenvalues)
+        let eps_princ = if let Some(eps) = strain {
+            for m in 0..N {
+                work.set(m, eps.get(m));
+            }
+            let mut ll = [0.0; 3];
+            eig.calculate(&mut ll, &work)?;
+            Some(ll)
+        } else {
+            None
+        };
+
+        // calculate coordinates on octahedral plane
+        let (oct_y, _, oct_x) = eigen_octahedral(&sig_princ);
+
         self.all.push(PlotterEntry {
             sig_m: stress.invariant_p(),
             sig_d: stress.invariant_q(),
@@ -67,60 +95,34 @@ impl PlotterData {
             },
             oct_x,
             oct_y,
-            eps_v: match strain.as_ref() {
-                Some(e) => Some(e.invariant_eps_v()),
+            eps_mean: match strain.as_ref() {
+                Some(e) => Some(e.invariant_d()),
                 None => None,
             },
-            eps_d: match strain.as_ref() {
-                Some(e) => Some(e.invariant_eps_d()),
+            eps_dev: match strain.as_ref() {
+                Some(e) => Some(e.invariant_r()),
                 None => None,
             },
             yield_value,
             pseudo_time,
+            sig_princ,
+            eps_princ,
         });
+        Ok(())
+    }
+
+    /// Allocates a new instance given an array of LocalState
+    pub fn from_states<const N: usize>(states: &[LocalState<N>]) -> Result<Self, StrError> {
+        let mut data = PlotterData::new();
+        for state in states {
+            data.push(&state.stress, state.strain.as_ref(), None, None)?;
+        }
+        Ok(data)
     }
 
     /// Returns the number of data points
     pub fn len(&self) -> usize {
         self.all.len()
-    }
-
-    /// Allocates a new instance given an array of LocalState
-    pub fn from_states<const DIM: usize>(states: &[LocalState<DIM>]) -> Self {
-        if states.len() < 1 {
-            return PlotterData { all: Vec::new() };
-        }
-        let mandel = states[0].stress.mandel();
-        let mut spectral = Spectral2::new(mandel.two_dim());
-        PlotterData {
-            all: states
-                .iter()
-                .map(|s| {
-                    spectral.decompose(&s.stress).unwrap();
-                    let (oct_y, _, oct_x) = spectral.octahedral_basis();
-                    PlotterEntry {
-                        sig_m: s.stress.invariant_p(),
-                        sig_d: s.stress.invariant_q(),
-                        lode: match s.stress.invariant_lode() {
-                            Some(l) => l,
-                            None => f64::NAN,
-                        },
-                        oct_x,
-                        oct_y,
-                        eps_v: match s.strain.as_ref() {
-                            Some(e) => Some(e.invariant_eps_v()),
-                            None => None,
-                        },
-                        eps_d: match s.strain.as_ref() {
-                            Some(e) => Some(e.invariant_eps_d()),
-                            None => None,
-                        },
-                        yield_value: None,
-                        pseudo_time: None,
-                    }
-                })
-                .collect(),
-        }
     }
 
     /// Sets all pseudo time and yield values
@@ -157,22 +159,22 @@ impl PlotterData {
             Axis::Lode => self.all.iter().map(|s| Ok(s.lode)).collect(),
             Axis::OctX => self.all.iter().map(|s| Ok(s.oct_x)).collect(),
             Axis::OctY => self.all.iter().map(|s| Ok(s.oct_y)).collect(),
-            Axis::EpsV(percent, negative) => {
+            Axis::EpsMean(percent, negative) => {
                 let n = if negative { -1.0 } else { 1.0 };
                 let p = if percent { 100.0 * n } else { 1.0 * n };
                 self.all
                     .iter()
-                    .map(|s| match s.eps_v {
+                    .map(|s| match s.eps_mean {
                         Some(x) => Ok(p * x),
                         None => Err("volumetric strain is not available"),
                     })
                     .collect()
             }
-            Axis::EpsD(percent) => {
+            Axis::EpsDev(percent) => {
                 let p = if percent { 100.0 } else { 1.0 };
                 self.all
                     .iter()
-                    .map(|s| match s.eps_d {
+                    .map(|s| match s.eps_dev {
                         Some(x) => Ok(p * x),
                         None => Err("deviatoric strain is not available"),
                     })
@@ -230,30 +232,31 @@ mod tests {
     use super::PlotterData;
     use crate::material::testing::generate_states_von_mises;
     use crate::material::{Axis, LocalState};
-    use russell_lab::{approx_eq, array_approx_eq, assert_alike, math::PI};
-    use russell_tensor::{Mandel, Tensor2, SQRT_2_BY_3, SQRT_3};
+    use crate::D2;
+    use russell_lab::math::SQRT_2;
+    use russell_lab::{approx_eq, array_approx_eq, assert_alike};
+    use russell_tensor::{Tensor2, SQRT_3};
 
     #[test]
     fn push_works() {
         let mut data = PlotterData::new();
-        let mandel = Mandel::Symmetric2D;
-        let stress = Tensor2::from_matrix(&[[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]], mandel).unwrap();
-        let strain = Tensor2::from_matrix(&[[0.0, 0.0, 0.0], [0.0, -0.5, 0.0], [0.0, 0.0, 0.5]], mandel).unwrap();
-        data.push(&stress, Some(&strain), Some(-9.0), Some(0.5));
+        let stress = Tensor2::<D2>::from_std_matrix(&[[1.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]]).unwrap();
+        let strain = Tensor2::<D2>::from_std_matrix(&[[0.0, 0.0, 0.0], [0.0, -0.5, 0.0], [0.0, 0.0, 0.5]]).unwrap();
+        data.push(&stress, Some(&strain), Some(-9.0), Some(0.5)).unwrap();
         assert_eq!(data.all.len(), 1);
         let sig_m = 2.0 / 3.0;
         let sig_d = 1.0;
-        let r = sig_d * SQRT_2_BY_3;
+        // let r = sig_d * SQRT_2_BY_3;
         let lode = -1.0;
-        let theta = f64::acos(lode) / 3.0;
-        let alpha = PI / 2.0 - theta;
+        // let theta = f64::acos(lode) / 3.0;
+        // let alpha = PI / 2.0 - theta;
         approx_eq(data.all[0].sig_m, sig_m, 1e-15);
         approx_eq(data.all[0].sig_d, sig_d, 1e-15);
         approx_eq(data.all[0].lode, lode, 1e-15);
-        approx_eq(data.all[0].oct_x, r * f64::cos(alpha), 1e-15);
-        approx_eq(data.all[0].oct_y, r * f64::sin(alpha), 1e-15);
-        approx_eq(data.all[0].eps_v.unwrap(), 0.0, 1e-15);
-        approx_eq(data.all[0].eps_d.unwrap(), 1.0 / SQRT_3, 1e-15);
+        // approx_eq(data.all[0].oct_x, r * f64::cos(alpha), 1e-15); // cannot check this because the eigenvalues have been sorted
+        // approx_eq(data.all[0].oct_y, r * f64::sin(alpha), 1e-15); // cannot check this because the eigenvalues have been sorted
+        approx_eq(data.all[0].eps_mean.unwrap(), 0.0, 1e-15);
+        approx_eq(data.all[0].eps_dev.unwrap(), 1.0 / SQRT_2, 1e-15);
         approx_eq(data.all[0].yield_value.unwrap(), -9.0, 1e-15);
         approx_eq(data.all[0].pseudo_time.unwrap(), 0.5, 1e-15);
     }
@@ -261,8 +264,8 @@ mod tests {
     #[test]
     fn from_states_and_array_work() {
         let lode = 1.0;
-        let states = generate_states_von_mises::<2>(1000.0, 600.0, lode);
-        let mut data = PlotterData::from_states(&states);
+        let states = generate_states_von_mises::<D2>(1000.0, 600.0, lode);
+        let mut data = PlotterData::from_states(&states).unwrap();
 
         // stress
 
@@ -290,25 +293,25 @@ mod tests {
 
         // strain
 
-        let axis = Axis::EpsV(false, false);
-        let epsv = data.array(axis).unwrap();
-        array_approx_eq(&epsv, &[0.0, 0.001, 0.002], 1e-15);
+        let axis = Axis::EpsMean(false, false);
+        let eps_mean = data.array(axis).unwrap();
+        array_approx_eq(&eps_mean, &[0.0, 0.001 / SQRT_3, 0.002 / SQRT_3], 1e-15);
 
-        let axis = Axis::EpsV(true, false);
-        let epsv = data.array(axis).unwrap();
-        array_approx_eq(&epsv, &[0.0, 0.1, 0.2], 1e-15);
+        let axis = Axis::EpsMean(true, false);
+        let eps_mean = data.array(axis).unwrap();
+        array_approx_eq(&eps_mean, &[0.0, 0.1 / SQRT_3, 0.2 / SQRT_3], 1e-15);
 
-        let axis = Axis::EpsV(true, true);
-        let epsv = data.array(axis).unwrap();
-        array_approx_eq(&epsv, &[0.0, -0.1, -0.2], 1e-15);
+        let axis = Axis::EpsMean(true, true);
+        let eps_mean = data.array(axis).unwrap();
+        array_approx_eq(&eps_mean, &[0.0, -0.1 / SQRT_3, -0.2 / SQRT_3], 1e-15);
 
-        let axis = Axis::EpsD(false);
-        let epsd = data.array(axis).unwrap();
-        array_approx_eq(&epsd, &[0.0, 0.005, 0.01], 1e-15);
+        let axis = Axis::EpsDev(false);
+        let eps_dev = data.array(axis).unwrap();
+        array_approx_eq(&eps_dev, &[0.0, 0.005 * SQRT_3 / SQRT_2, 0.01 * SQRT_3 / SQRT_2], 1e-15);
 
-        let axis = Axis::EpsD(true);
-        let epsd = data.array(axis).unwrap();
-        array_approx_eq(&epsd, &[0.0, 0.5, 1.0], 1e-15);
+        let axis = Axis::EpsDev(true);
+        let eps_dev = data.array(axis).unwrap();
+        array_approx_eq(&eps_dev, &[0.0, 0.5 * SQRT_3 / SQRT_2, 1.0 * SQRT_3 / SQRT_2], 1e-15);
 
         // none
 
@@ -333,18 +336,17 @@ mod tests {
     fn calc_oct_radius_max_works() {
         // generate states
         let lode = 0.0;
-        let theta = f64::acos(lode) / 3.0;
-        let alpha = PI / 2.0 - theta;
+        // let theta = f64::acos(lode) / 3.0;
+        // let alpha = PI / 2.0 - theta;
         let distance = 1.0;
         let radius = 2.0;
-        let mandel = Mandel::Symmetric;
-        let mut state_a = LocalState::<2>::new(mandel, 0);
-        let mut state_b = LocalState::<2>::new(mandel, 0);
-        state_a.stress = Tensor2::new_from_octahedral(distance, radius, lode, /*2D*/ true).unwrap();
-        state_b.stress = Tensor2::new_from_octahedral(distance, 2.0 * radius, lode, /*2D*/ true).unwrap();
+        let mut state_a = LocalState::<D2>::new(0);
+        let mut state_b = LocalState::<D2>::new(0);
+        state_a.stress = Tensor2::<D2>::new_from_octahedral(distance, radius, lode).unwrap();
+        state_b.stress = Tensor2::<D2>::new_from_octahedral(distance, 2.0 * radius, lode).unwrap();
 
         // calculate projection
-        let data = PlotterData::from_states(&[state_a, state_b]);
+        let data = PlotterData::from_states(&[state_a, state_b]).unwrap();
         let r_max = data.calc_oct_radius_max();
         approx_eq(r_max, 2.0 * radius, 1e-15);
         for i in 0..data.all.len() {
@@ -352,8 +354,8 @@ mod tests {
             let r = f64::sqrt(x * x + y * y);
             let m = (i + 1) as f64;
             approx_eq(r, m * radius, 1e-15);
-            approx_eq(x, m * radius * f64::cos(alpha), 1e-15);
-            approx_eq(y, m * radius * f64::sin(alpha), 1e-14);
+            // approx_eq(x, m * radius * f64::cos(alpha), 1e-15); // TODO: cannot check this because eigenvalues have been sorted
+            // approx_eq(y, m * radius * f64::sin(alpha), 1e-14); // TODO: cannot check this because eigenvalues have been sorted
         }
     }
 }

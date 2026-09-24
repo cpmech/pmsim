@@ -2,10 +2,9 @@ use pmsim::base::{Idealization, StressStrain};
 use pmsim::material::{Axis, Plotter, PlotterData, Settings, TraitStressStrain, VonMises};
 use pmsim::material::{ElastoplasticExp, LinearElastic, LocalState};
 use pmsim::util::elastic_increments_oct;
-use pmsim::StrError;
+use pmsim::{StrError, D2};
 use russell_lab::math::PI;
-use russell_lab::vec_approx_eq;
-use russell_tensor::{Mandel, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2};
+use russell_tensor::{t2_approx_eq, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2};
 
 ///////////////////////////////////////////////////////////////////////
 //                                                                   //
@@ -34,19 +33,18 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     };
 
     // models
-    let ideal = Idealization::<2>::new();
+    let ideal = Idealization::<D2>::new();
     let mut settings = Settings::new();
     settings.set_gp_explicit_update(true).set_gp_save_history(true);
     let elast = LinearElastic::new(&ideal, &param_el, &settings)?;
     let direct = VonMises::new(&ideal, &param_vm, &settings)?;
     let general = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
     let mut general_full = ElastoplasticExp::new(&ideal, &param_vm, &settings)?;
-    let mut box_elast: Box<dyn TraitStressStrain<2>> = Box::new(elast);
-    let mut box_direct: Box<dyn TraitStressStrain<2>> = Box::new(direct);
-    let mut box_general: Box<dyn TraitStressStrain<2>> = Box::new(general);
+    let mut box_elast: Box<dyn TraitStressStrain<D2>> = Box::new(elast);
+    let mut box_direct: Box<dyn TraitStressStrain<D2>> = Box::new(direct);
+    let mut box_general: Box<dyn TraitStressStrain<D2>> = Box::new(general);
 
     // constants
-    let mandel = ideal.mandel();
     let nz = box_direct.nz();
     assert_eq!(box_general.nz(), nz);
 
@@ -58,7 +56,7 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     // run test
     for i in 0..stresses.len() {
         // initial state
-        let mut state_elast = LocalState::new(mandel, nz);
+        let mut state_elast = LocalState::new(nz);
         state_elast.stress.set_tensor(1.0, &stresses[i]);
         state_elast.enable_strain();
         let mut state_direct = state_elast.clone();
@@ -78,7 +76,7 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
             Some(state_general_full.strain.as_ref().unwrap()),
             Some(general_full.yield_function(&state_general_full)?),
             Some(0.0),
-        );
+        )?;
         general_full.initialize_int_vars(&mut state_general_full)?;
         general_full.update_stress(&mut state_general_full, &depsilon, 0, 0)?;
         data_general_full.push(
@@ -86,13 +84,13 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
             Some(state_general_full.strain.as_ref().unwrap()),
             Some(general_full.yield_function(&state_general_full)?),
             Some(1.0),
-        );
+        )?;
 
         // check
         for j in 0..N_STEP {
-            let correct_stress = states_elast[j].stress.vector();
-            vec_approx_eq(states_direct[j].stress.vector(), correct_stress, 1e-15);
-            vec_approx_eq(states_general[j].stress.vector(), correct_stress, 1e-14);
+            let correct_stress = &states_elast[j].stress;
+            t2_approx_eq(&states_direct[j].stress, correct_stress, 1e-15);
+            t2_approx_eq(&states_general[j].stress, correct_stress, 1e-14);
         }
 
         // plot
@@ -105,11 +103,11 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
 
 // Updates stresses and strains using (sub)steps
 fn update_with_steps(
-    state: &mut LocalState<2>,
-    model: &mut Box<dyn TraitStressStrain<2>>,
-    depsilon_total: &Tensor2,
+    state: &mut LocalState<D2>,
+    model: &mut Box<dyn TraitStressStrain<D2>>,
+    depsilon_total: &Tensor2<D2>,
     n_step: usize,
-) -> Result<Vec<LocalState<2>>, StrError> {
+) -> Result<Vec<LocalState<D2>>, StrError> {
     // check
     if n_step < 1 {
         return Err("n_step must be ≥ 1");
@@ -120,7 +118,7 @@ fn update_with_steps(
     let mut states = vec![state.clone()];
 
     // update stress and strain
-    let mut depsilon = Tensor2::new(state.stress.mandel());
+    let mut depsilon = Tensor2::new();
     depsilon.update(1.0 / (n_step as f64), &depsilon_total);
     for _ in 0..n_step {
         model.update_stress(state, &depsilon, 0, 0)?;
@@ -132,10 +130,10 @@ fn update_with_steps(
 
 fn do_plot(
     index: usize,
-    states_elast: &Vec<LocalState<2>>,
-    states_direct: &Vec<LocalState<2>>,
-    states_general: &Vec<LocalState<2>>,
-    general_full: &ElastoplasticExp<2>,
+    states_elast: &Vec<LocalState<D2>>,
+    states_direct: &Vec<LocalState<D2>>,
+    states_general: &Vec<LocalState<D2>>,
+    general_full: &ElastoplasticExp<D2>,
 ) -> Result<(), StrError> {
     // constants
     let n = states_elast.len();
@@ -144,9 +142,9 @@ fn do_plot(
     let z_fin = states_general[l].z_set[0];
 
     // plotting data
-    let mut data_elast = PlotterData::from_states(&states_elast);
-    let mut data_direct = PlotterData::from_states(&states_direct);
-    let mut data_general = PlotterData::from_states(&states_general);
+    let mut data_elast = PlotterData::from_states(&states_elast)?;
+    let mut data_direct = PlotterData::from_states(&states_direct)?;
+    let mut data_general = PlotterData::from_states(&states_general)?;
     let tf = |i| (i as f64) / (l as f64);
     data_elast.set_time_and_yield(|i| Ok((tf(i), 0.0)))?;
     data_direct.set_time_and_yield(|i| Ok((tf(i), general_full.yield_function(&states_direct[i])?)))?;
@@ -206,10 +204,10 @@ fn do_plot(
     plotter.set_extra(Axis::SigM(false), Axis::SigD(false), |plot| {
         plot.set_xrange(0.0, 2.0);
     });
-    plotter.set_extra(Axis::EpsD(true), Axis::EpsV(true, false), |plot| {
+    plotter.set_extra(Axis::EpsDev(true), Axis::EpsMean(true, false), |plot| {
         plot.set_yrange(-1.0, 1.0);
     });
-    plotter.set_extra(Axis::SigM(false), Axis::EpsV(true, false), |plot| {
+    plotter.set_extra(Axis::SigM(false), Axis::EpsMean(true, false), |plot| {
         plot.set_xrange(0.0, 2.0);
         plot.set_yrange(-1.0, 1.0);
     });
@@ -224,11 +222,10 @@ fn walk_on_oct_plane(
     kappa_ini: f64,
     sig_m_0: f64,
     alpha_0: f64,
-) -> (Vec<Tensor2>, Vec<Tensor2>) {
+) -> (Vec<Tensor2<D2>>, Vec<Tensor2<D2>>) {
     let r = kappa_ini * SQRT_2_BY_3;
     let rc = r * f64::cos(alpha_0);
     let rs = r * f64::sin(alpha_0);
-    let mandel = Mandel::Symmetric2D;
     let mut initial_stresses = Vec::new();
     let mut strain_increments = Vec::new();
     for (oct_x_1, oct_y_1) in [
@@ -239,9 +236,8 @@ fn walk_on_oct_plane(
         let alpha_1 = f64::atan2(oct_y_1, oct_x_1);
         let radius_1 = f64::sqrt(oct_x_1 * oct_x_1 + oct_y_1 * oct_y_1);
         let sig_d_1 = radius_1 * SQRT_3_BY_2;
-        let (stress_0, _, _, d_strain) = elastic_increments_oct(
-            young, poisson, sig_m_0, kappa_ini, alpha_0, sig_m_0, sig_d_1, alpha_1, mandel,
-        );
+        let (stress_0, _, _, d_strain) =
+            elastic_increments_oct(young, poisson, sig_m_0, kappa_ini, alpha_0, sig_m_0, sig_d_1, alpha_1);
         initial_stresses.push(stress_0);
         strain_increments.push(d_strain);
     }
