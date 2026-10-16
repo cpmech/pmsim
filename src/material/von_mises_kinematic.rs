@@ -35,6 +35,11 @@ const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 /// `D = 0` recovers linear (Prager) kinematic hardening in the same code path. The state is
 /// `z = {a, b, c}`, i.e., `NZ = 2 + ncp` internal variables.
 ///
+/// The book (chapter 3:6) uses the linear isotropic law, i.e., `hb = H`. The saturating term
+/// `Q β exp(-β a)` is a documented extension of this implementation: the general form required by
+/// published parameter sets (e.g., Puso/SPCEN) is `hb(a) = H + Σᵢ Qᵢ βᵢ exp(-βᵢ a)`; the single
+/// `(Q, β)` pair implemented here covers those sets and `Q = 0` recovers the book's linear law.
+///
 /// **Note:** This model must be used through the general elastoplastic implementation
 /// ([crate::material::ElastoplasticImp]), which solves the residual system of book chapter 3:2
 /// with the four callbacks implemented below; the AF law has no closed-form return mapping.

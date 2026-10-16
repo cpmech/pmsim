@@ -5,7 +5,7 @@ use pmsim::material::{ElastoplasticImp, LocalState, ModelStressStrain, Settings,
 use pmsim::prelude::*;
 use pmsim::{StrError, D2, D3};
 use russell_lab::approx_eq;
-use russell_tensor::{Tensor2, Tensor4, SQRT_2_BY_3};
+use russell_tensor::{Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 
 ///////////////////////////////////////////////////////////////////////
 //                                                                   //
@@ -78,6 +78,9 @@ struct Point {
     /// Uniaxial back stress: B_axial = uax(c)
     b_ax: f64,
 
+    /// Tensor norm of the back stress: ‖c‖
+    c_norm: f64,
+
     /// Size of the yield surface: b
     b: f64,
 
@@ -91,10 +94,15 @@ struct Point {
 impl Point {
     fn from_state(state: &LocalState<D3>) -> Self {
         let c = &state.z_set.as_data()[2..];
+        let mut norm = 0.0;
+        for value in c {
+            norm += value * value;
+        }
         Point {
             sig_ax: uax(&state.stress),
             eps_p: SQRT_2_BY_3 * state.z_set[0],
             b_ax: uax_v(c[0], c[1], c[2]),
+            c_norm: f64::sqrt(norm),
             b: state.z_set[1],
             elastic: state.elastic,
             lambda: state.lambda_alg,
@@ -380,35 +388,72 @@ fn armstrong_frederick_one_step_integration_error() {
 
 #[test]
 fn puso_saturation() {
-    // (a) kinematic-only set: at the backward-Euler fixed point ||c|| = C/D exactly, so the
+    // isomorphic parameters of the Puso set
+    let c_iso = TWO_BY_3 * PUSO_C;
+    let d_iso = SQRT_2_BY_3 * PUSO_D;
+    let q_iso = SQRT_2_BY_3 * PUSO_Q;
+    let beta_iso = SQRT_2_BY_3 * PUSO_BETA;
+    let b_0 = SQRT_2_BY_3 * PUSO_YIELD;
+
+    // (a) kinematic-only set: at the backward-Euler fixed point ‖c‖ = C/D exactly, so the
     //     uniaxial back stress settles at C/D = 56.9712 MPa (a kinematic state identity)
     let param_kin = puso(false);
     let hist = integrate(&param_kin, &vec![2e-3; 400]);
     let last = hist[hist.len() - 1];
     println!(
-        "kinematic-only saturation: σ = {:.4} MPa, B = {:.4} MPa (reference 56.9712)",
-        last.sig_ax, last.b_ax
+        "kinematic-only saturation: σ = {:.4} MPa, B = {:.4} MPa, ‖c‖ = {:.9} (C/D = {:.9})",
+        last.sig_ax,
+        last.b_ax,
+        last.c_norm,
+        c_iso / d_iso
     );
-    // the exact backward-Euler fixed point is C/D = 56.9711538 (the 4-decimal reference is 56.9712)
+    // the exact identities: ‖c‖ = C/D (no step-size error) and B_axial = √(3/2) C/D, whose
+    // 4-decimal reference is 56.9712
+    approx_eq(last.c_norm, c_iso / d_iso, 1e-9);
     approx_eq(last.b_ax, PUSO_C / PUSO_D, 1e-9);
     approx_eq(last.b_ax, 56.9712, 1e-3);
     approx_eq(last.sig_ax, PUSO_YIELD + PUSO_C / PUSO_D, 1e-8);
     approx_eq(last.sig_ax, 164.9712, 1e-3);
     // the yield surface is untouched (no isotropic hardening in this set)
-    approx_eq(last.b, SQRT_2_BY_3 * PUSO_YIELD, 1e-12);
+    approx_eq(last.b, b_0, 1e-12);
 
     // (b) full set: the saturated stress (Richardson extrapolation of two step sizes)
     let param = puso(true);
     let mut values = Vec::new();
+    let mut finals = Vec::new();
     for n in [2000, 10000] {
         let hist = integrate(&param, &vec![0.8 / (n as f64); n]);
         let last = hist[hist.len() - 1];
-        println!("saturation with {:6} steps: σ = {:.6} MPa", n, last.sig_ax);
+        println!(
+            "saturation with {:6} steps: σ = {:.6} MPa, ‖c‖ = {:.9}, b = {:.9}",
+            n, last.sig_ax, last.c_norm, last.b
+        );
         values.push(last.sig_ax);
+        finals.push(last);
     }
     let rich = values[1] + (values[1] - values[0]) / 4.0;
     println!("saturation (Richardson) = {:.6} MPa (target 202.6712)", rich);
     approx_eq(rich, 202.6712, 202.6712 * 1e-4);
+
+    // the kinematic identity is exact at the backward-Euler fixed point in this set too
+    approx_eq(finals[0].c_norm, c_iso / d_iso, 1e-9);
+    approx_eq(finals[1].c_norm, c_iso / d_iso, 1e-9);
+    // the isotropic part instead settles short of b_0 + Q by the permanent O(β Δa) amount
+    // (Ada's pitfall 2), so its shortfall is asserted against the first-order bound Q β Δa
+    let da = SQRT_3_BY_2 * finals[1].eps_p / 10000.0; // Δa used in the 10,000-step run
+    let shortfall = b_0 + q_iso - finals[1].b;
+    println!(
+        "isotropic fixed point: b = {:.9}, b_0 + Q = {:.9}, shortfall = {:.6e} (< Q β Δa = {:.6e})",
+        finals[1].b,
+        b_0 + q_iso,
+        shortfall,
+        q_iso * beta_iso * da
+    );
+    assert!(
+        shortfall > 0.0 && shortfall < q_iso * beta_iso * da,
+        "shortfall = {:.6e}",
+        shortfall
+    );
 
     // (c) the saturating isotropic law keeps a permanent O(Δε) offset, so the comparison with the
     //     exact solution must be made at the same εp with a sufficient number of increments
