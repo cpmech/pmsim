@@ -81,27 +81,22 @@ fn test_von_mises_single_element_2d() -> Result<(), StrError> {
     let corner = features.search_point_ids(At::XY(max[0], max[1]), any_x)?[0];
 
     // parameters
+    // published (classic/uniaxial) values: kappa_ini = 9 and hh = 800; converted to the
+    // isomorphic invariants of book chapter 1:5 by the boundary constructor
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            // isomorphic parameters, converted once from the published (classic) values:
-            // b0 = sqrt(2/3) kappa_ini and H = (2/3) hh
-            b_0: SQRT_2_BY_3 * KAPPA_INI,
-            h: TWO_BY_3 * 800.0,
-        },
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, KAPPA_INI),
         ngauss: Some(NGAUSS),
     };
     let mut schema = Schema::new();
     schema.add_solid(1, p1).build(&mesh)?;
 
-    // CONVERSION OF THE PUBLISHED PARAMETERS (asserted here: this is the test that consumes
-    // the published parameter set and reference data of Ref #1, which are in the classic
-    // (uniaxial) normalisation, whereas the model uses the isomorphic invariants of book
-    // chapter 1:5 — see the conversion table in StressStrain::von_mises_from_published):
+    // CONVERSION OF THE PUBLISHED PARAMETERS: the factor table lives in the doc of
+    // StressStrain::von_mises_from_published and is asserted in src/base/parameters.rs
+    // (see also StressStrain::von_mises_from_published). The parameters the model actually
+    // received are checked here:
     //
-    //     b0 = sqrt(2/3) kappa_ini        H = (2/3) hh        a = sqrt(3/2) eps_bar_p
+    //     b0 = sqrt(2/3) kappa_ini        H = (2/3) hh
     //
     // The factor sqrt(3/2) is the one passed to compare_results below (the reference dump
     // reports eps_bar_p, while the model stores a); the 1e-9 tolerance of that comparison

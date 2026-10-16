@@ -4,7 +4,7 @@ use pmsim::material::{ElastoplasticExp, LinearElastic, LocalState};
 use pmsim::util::elastic_increments_oct;
 use pmsim::{StrError, D2};
 use russell_lab::math::PI;
-use russell_tensor::{t2_approx_eq, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
+use russell_tensor::{t2_approx_eq, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2};
 
 ///////////////////////////////////////////////////////////////////////
 //                                                                   //
@@ -25,13 +25,8 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     let hh = 800.0; // published (classic normalisation) hardening modulus
     let kappa_ini = 9.0; // published (classic normalisation) initial yield stress
     let param_el = StressStrain::LinearElastic { young, poisson };
-    // isomorphic parameters, converted once: b0 = sqrt(2/3) kappa_ini and H = (2/3) hh
-    let param_vm = StressStrain::VonMises {
-        young,
-        poisson,
-        h: TWO_BY_3 * hh,
-        b_0: SQRT_2_BY_3 * kappa_ini,
-    };
+    // converted to the isomorphic invariants by the boundary constructor
+    let param_vm = StressStrain::von_mises_from_published(young, poisson, hh, kappa_ini);
 
     // models
     let ideal = Idealization::<D2>::new();

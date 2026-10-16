@@ -1,6 +1,6 @@
 use super::GnlStrain;
 use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_SOFT};
-use russell_tensor::{SQRT_2_BY_3, TWO_BY_3};
+use russell_tensor::{SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 use serde::{Deserialize, Serialize};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
@@ -52,10 +52,9 @@ pub enum StressStrain {
 
     /// von Mises plasticity model with softening
     ///
-    /// **Note:** `b_0` is in the *isomorphic* invariants convention of book chapter 1:5, while
-    /// the hardening-softening curve parameters (`y0r`, `li`, `lr`, `a`, `b`) are the published
-    /// quantities of the classic (uniaxial) normalisation. The curve is converted to the
-    /// isomorphic convention by [crate::material::VonMisesSoft::new], once.
+    /// **Note:** All the parameters below are in the *isomorphic* invariants convention of book
+    /// chapter 1:5 (as for the plain von Mises model). Published (classic/uniaxial) parameter
+    /// sets must be converted with [StressStrain::von_mises_soft_from_published].
     VonMisesSoft {
         /// Young's modulus
         young: f64,
@@ -63,26 +62,25 @@ pub enum StressStrain {
         /// Poisson's coefficient
         poisson: f64,
 
-        /// Reference ordinate (yr(0)); stress at zero strain (x=0)
+        /// Reference ordinate `yr(0)`, in the isomorphic normalisation
         y0r: f64,
 
-        /// Initial slope (λi)
+        /// Initial slope `λi`, in the isomorphic normalisation
         li: f64,
 
-        /// Reference slope (λr); second slope, after peak, going down
+        /// Reference slope `λr`; second slope, after peak, going down (isomorphic normalisation)
         lr: f64,
 
-        /// Smoothing parameter (α); when going from λi to λr
+        /// Smoothing parameter `α`; when going from `λi` to `λr` (isomorphic normalisation)
         a: f64,
 
-        /// Smoothing parameter (β); when going from λr to 0
+        /// Smoothing parameter `β`; when going from `λr` to 0 (isomorphic normalisation)
         b: f64,
 
         /// Initial size of the yield surface `b₀`
         ///
-        /// **Note:** `b₀ = √(2/3) κ_ini` where `κ_ini` is the initial yield stress in the
-        /// classic (uniaxial) normalisation. This value corresponds to the isomorphic
-        /// deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)`:
+        /// This value corresponds to the isomorphic deviatoric invariant
+        /// `σt = ‖dev(σ)‖ = √(2 J2)`:
         ///
         /// ```text
         /// f = σt - b
@@ -456,15 +454,74 @@ impl StressStrain {
 
     /// Returns VonMises sample parameters
     ///
-    /// The published parameters (`hh = 800`, `κ_ini = 9`) are converted once to the isomorphic
-    /// convention (see `StressStrain::von_mises_from_published`): `H = (2/3) hh` and `b₀ = √(2/3) κ_ini`.
+    /// The published parameters (`hh = 800`, `κ_ini = 9`) are converted once by
+    /// [StressStrain::von_mises_from_published].
     pub fn sample_von_mises() -> Self {
-        let hh = 800.0; // published (classic normalisation) hardening modulus
-        let kappa_ini = 9.0; // published (classic normalisation) initial yield stress
+        Self::von_mises_from_published(1500.0, 0.25, 800.0, 9.0)
+    }
+
+    /// Returns von Mises parameters converted from the published (classic/uniaxial)
+    /// normalisation to the isomorphic invariants of book chapter 1:5
+    ///
+    /// This is the boundary where published parameter sets enter the code; the conversion
+    /// identities are asserted by the unit tests of this module. Table (the same as in
+    /// `StressStrain::von_mises_from_published`, where `q = √(3/2) σt` and `κ = √(3/2) b`):
+    ///
+    /// ```text
+    /// H   = (2/3) hh
+    /// b_0 = √(2/3) kappa_ini
+    /// ```
+    ///
+    /// # Input
+    ///
+    /// * `hh` -- published isotropic hardening modulus (uniaxial plastic modulus = hh)
+    /// * `kappa_ini` -- published initial size of the yield surface (uniaxial yield stress)
+    pub fn von_mises_from_published(young: f64, poisson: f64, hh: f64, kappa_ini: f64) -> Self {
         Self::VonMises {
-            young: 1500.0,
-            poisson: 0.25,
+            young,
+            poisson,
             h: TWO_BY_3 * hh,
+            b_0: SQRT_2_BY_3 * kappa_ini,
+        }
+    }
+
+    /// Returns von Mises (with softening) parameters converted from the published
+    /// (classic/uniaxial) normalisation to the isomorphic invariants of book chapter 1:5
+    ///
+    /// The published hardening-softening curve is `κ(α)`, with `Ĥ = dκ/dα`. The isomorphic curve
+    /// used by the model is `b(a) = √(2/3) κ(√(2/3) a)`, which is the same parametric curve when
+    ///
+    /// ```text
+    /// li ← (2/3) li        lr ← (2/3) lr        y0r ← √(2/3) y0r
+    /// a  ← √(3/2) a        b  ← √(3/2) b        b_0 ← √(2/3) kappa_ini
+    /// ```
+    ///
+    /// (the two smoothing parameters multiply a stress ordinate difference `yr - y`, hence the
+    /// `√(3/2)`). With these factors `H(a,b) = (2/3) Ĥ(x,y)` holds exactly, including the
+    /// derivatives; see the unit test of [crate::material::VonMisesSoft].
+    ///
+    /// # Input
+    ///
+    /// * `y0r`, `li`, `lr`, `a`, `b` -- published hardening-softening curve parameters
+    /// * `kappa_ini` -- published initial size of the yield surface
+    pub fn von_mises_soft_from_published(
+        young: f64,
+        poisson: f64,
+        y0r: f64,
+        li: f64,
+        lr: f64,
+        a: f64,
+        b: f64,
+        kappa_ini: f64,
+    ) -> Self {
+        Self::VonMisesSoft {
+            young,
+            poisson,
+            y0r: SQRT_2_BY_3 * y0r,
+            li: TWO_BY_3 * li,
+            lr: TWO_BY_3 * lr,
+            a: SQRT_3_BY_2 * a,
+            b: SQRT_3_BY_2 * b,
             b_0: SQRT_2_BY_3 * kappa_ini,
         }
     }
@@ -705,6 +762,7 @@ impl ParamPorousSldLiqGas {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use russell_lab::approx_eq;
 
     #[test]
     fn param_stress_strain_works() {
@@ -718,6 +776,60 @@ mod tests {
         let correct = "VonMises { young: 1500.0, poisson: 0.25, h: 533.3333333333333, b_0: 7.3484692283495345 }";
         assert_eq!(format!("{:?}", p), correct);
         assert_eq!(p.nz(), 2);
+    }
+
+    #[test]
+    fn param_von_mises_from_published_works() {
+        // published (classic normalisation) parameters: hh and kappa_ini
+        let p = StressStrain::von_mises_from_published(1500.0, 0.25, 800.0, 9.0);
+        match p {
+            StressStrain::VonMises { young, poisson, h, b_0 } => {
+                assert_eq!(young, 1500.0);
+                assert_eq!(poisson, 0.25);
+                approx_eq(h, TWO_BY_3 * 800.0, 1e-15); // H   = (2/3) hh
+                approx_eq(b_0, SQRT_2_BY_3 * 9.0, 1e-15); // b_0 = sqrt(2/3) kappa_ini
+                approx_eq(h / TWO_BY_3, 800.0, 1e-12); // hh  = (3/2) H
+                approx_eq(b_0 / SQRT_2_BY_3, 9.0, 1e-12); // kappa_ini = sqrt(3/2) b_0
+            }
+            _ => panic!("VonMises parameters expected"),
+        }
+        // the sample parameters use the same conversion
+        assert_eq!(format!("{:?}", p), format!("{:?}", StressStrain::sample_von_mises()));
+    }
+
+    #[test]
+    fn param_von_mises_soft_from_published_works() {
+        // published (classic normalisation) parameters of the hardening-softening curve
+        let (y0r, li, lr, a, b, kappa_ini) = (20.0, 800.0, 200.0, 0.1, 2.0, 9.0);
+        let p = StressStrain::von_mises_soft_from_published(1500.0, 0.25, y0r, li, lr, a, b, kappa_ini);
+        match p {
+            StressStrain::VonMisesSoft {
+                young,
+                poisson,
+                y0r: y0r_iso,
+                li: li_iso,
+                lr: lr_iso,
+                a: a_iso,
+                b: b_iso,
+                b_0,
+            } => {
+                assert_eq!(young, 1500.0);
+                assert_eq!(poisson, 0.25);
+                approx_eq(li_iso, TWO_BY_3 * li, 1e-15); // li  = (2/3) li
+                approx_eq(lr_iso, TWO_BY_3 * lr, 1e-15); // lr  = (2/3) lr
+                approx_eq(y0r_iso, SQRT_2_BY_3 * y0r, 1e-15); // y0r = sqrt(2/3) y0r
+                approx_eq(a_iso, SQRT_3_BY_2 * a, 1e-15); // a   = sqrt(3/2) a
+                approx_eq(b_iso, SQRT_3_BY_2 * b, 1e-15); // b   = sqrt(3/2) b
+                approx_eq(b_0, SQRT_2_BY_3 * kappa_ini, 1e-15); // b_0 = sqrt(2/3) kappa_ini
+                approx_eq(li_iso / TWO_BY_3, li, 1e-12); // li  = (3/2) li_iso
+                approx_eq(lr_iso / TWO_BY_3, lr, 1e-12); // lr  = (3/2) lr_iso
+                approx_eq(y0r_iso / SQRT_2_BY_3, y0r, 1e-12); // y0r = sqrt(3/2) y0r_iso
+                approx_eq(a_iso / SQRT_3_BY_2, a, 1e-12); // a   = sqrt(2/3) a_iso
+                approx_eq(b_iso / SQRT_3_BY_2, b, 1e-12); // b   = sqrt(2/3) b_iso
+                approx_eq(b_0 / SQRT_2_BY_3, kappa_ini, 1e-12); // kappa_ini = sqrt(3/2) b_0
+            }
+            _ => panic!("VonMisesSoft parameters expected"),
+        }
     }
 
     #[test]

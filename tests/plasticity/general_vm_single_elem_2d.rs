@@ -5,7 +5,7 @@ use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::approx_eq;
-use russell_tensor::{SQRT_2_BY_3, TWO_BY_3};
+use russell_tensor::SQRT_2_BY_3;
 
 // von Mises plasticity with a single-element (Using the general ElastoplasticExp model)
 //
@@ -82,14 +82,9 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            // isomorphic parameters, converted once from the published (classic) values:
-            // b0 = sqrt(2/3) kappa_ini and H = (2/3) hh
-            b_0: SQRT_2_BY_3 * KAPPA_INI,
-            h: TWO_BY_3 * 800.0,
-        },
+        // published (classic/uniaxial) values: kappa_ini = 9 and hh = 800; converted to the
+        // isomorphic invariants by the boundary constructor
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, KAPPA_INI),
         ngauss: Some(NGAUSS),
     };
     let mut schema = Schema::new();

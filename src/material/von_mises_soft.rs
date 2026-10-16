@@ -4,7 +4,7 @@ use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{deriv1_invariant_r, deriv2_invariant_r};
-use russell_tensor::{LinElasticity, Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
+use russell_tensor::{LinElasticity, Tensor2, Tensor4};
 
 /// Tolerance to detect elastic regime
 const F_TOL: f64 = 1e-6;
@@ -19,8 +19,9 @@ const F_TOL: f64 = 1e-6;
 /// ```
 ///
 /// where `a` is the accumulated plastic strain (given by `ȧ = λ`) and the hardening-softening
-/// curve `b(a)` is given in the classic (uniaxial) normalisation and converted to the
-/// isomorphic one on allocation (see below).
+/// curve `b(a)` is in the isomorphic normalisation, i.e., it is the curve of the model itself.
+/// Published (classic/uniaxial) curve parameters must be converted with
+/// [StressStrain::von_mises_soft_from_published] before they are given to this model.
 ///
 /// **Note:** This model works in 2D (plane-strain only) or 3D.
 pub struct VonMisesSoft<const N: usize> {
@@ -46,20 +47,10 @@ pub struct VonMisesSoft<const N: usize> {
 impl<const N: usize> VonMisesSoft<N> {
     /// Allocates a new instance
     ///
-    /// # Conversion of the hardening-softening curve
-    ///
-    /// The published curve `κ(α)` (with `Ĥ = dκ/dα`) is expressed in the classic (uniaxial)
-    /// normalisation, where `α = ε̄ᵖ` and `κ = √(3/2) b`. The isomorphic curve used here is
-    /// `b(a) = √(2/3) κ(√(2/3) a)`, which is the same parametric curve when
-    ///
-    /// ```text
-    /// li ← (2/3) li    lr ← (2/3) lr    y0r ← √(2/3) y0r    a ← √(3/2) a    b ← √(3/2) b
-    /// ```
-    ///
-    /// (the smoothing parameters multiply a stress difference `yr - y`, thus they scale with
-    /// `√(3/2)`). With these factors, `H(a,b) = (2/3) Ĥ(x,y)` holds exactly, including the
-    /// derivatives, so the softening response of the model is unchanged; only the normalisation
-    /// of the state `z = {a, b}` and of the plastic multiplier differs.
+    /// The parameters must be in the isomorphic normalisation (book chapter 1:5); the hardening-
+    /// softening curve is used as given. Use [StressStrain::von_mises_soft_from_published] to
+    /// convert a published parameter set (the conversion is exact for the curve and its
+    /// derivatives; see the unit test at the end of this file).
     pub fn new(ideal: &Idealization<N>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         if ideal.plane_stress {
             return Err("von Mises model does not work in plane-stress");
@@ -79,13 +70,7 @@ impl<const N: usize> VonMisesSoft<N> {
                     return Err("von Mises initial size of the yield surface must > 1e-6");
                 }
                 let lin_elasticity = LinElasticity::new(young, poisson, false)?;
-                let hs_model = HardeningSoftening::new(
-                    TWO_BY_3 * li,     // λi
-                    TWO_BY_3 * lr,     // λr
-                    SQRT_2_BY_3 * y0r, // yr(0)
-                    SQRT_3_BY_2 * a,   // α
-                    SQRT_3_BY_2 * b,   // β
-                )?;
+                let hs_model = HardeningSoftening::new(li, lr, y0r, a, b)?;
                 Ok(VonMisesSoft {
                     lin_elasticity,
                     hs_model,
@@ -337,12 +322,15 @@ mod tests {
     fn get_model_and_state_on_yield_surface<const N: usize>() -> (ElastoplasticImp<N>, LocalState<N>) {
         // Idealization, parameters, and settings
         let ideal = Idealization::<N>::new();
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            h: H,
-            b_0: B_0,
-        };
+        // isomorphic parameters, converted from the published pair (hh = 800, kappa_ini = 9)
+        let param = StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, KAPPA_INI);
+        match param {
+            StressStrain::VonMises { h, b_0, .. } => {
+                approx_eq(h, H, 1e-15);
+                approx_eq(b_0, B_0, 1e-15);
+            }
+            _ => panic!("VonMises parameters required"),
+        }
         let settings = Settings::new();
 
         // Allocate the initial state
@@ -396,18 +384,15 @@ mod tests {
         use super::HardeningSoftening;
 
         // published (classic normalisation) parameters of the hardening-softening curve
-        let (li, lr, y0r, alpha, beta) = (800.0, 200.0, 20.0, 0.1, 2.0);
+        let (y0r, li, lr, alpha, beta, kappa_ini) = (20.0, 800.0, 200.0, 0.1, 2.0, 9.0);
         let classic = HardeningSoftening::new(li, lr, y0r, alpha, beta).unwrap();
 
-        // the same curve converted to the isomorphic normalisation (see VonMisesSoft::new)
-        let iso = HardeningSoftening::new(
-            TWO_BY_3 * li,
-            TWO_BY_3 * lr,
-            SQRT_2_BY_3 * y0r,
-            SQRT_3_BY_2 * alpha,
-            SQRT_3_BY_2 * beta,
-        )
-        .unwrap();
+        // the same curve, after the published -> isomorphic boundary conversion
+        let param = StressStrain::von_mises_soft_from_published(1500.0, 0.25, y0r, li, lr, alpha, beta, kappa_ini);
+        let iso = match param {
+            StressStrain::VonMisesSoft { y0r, li, lr, a, b, .. } => HardeningSoftening::new(li, lr, y0r, a, b).unwrap(),
+            _ => panic!("VonMisesSoft parameters required"),
+        };
 
         // check  H(a,b) = (2/3) Ĥ(x,y),  ∂H/∂a = (2/3) √(2/3) ∂Ĥ/∂x  and  ∂H/∂b = √(2/3) ∂Ĥ/∂y
         // with a = √(3/2) x and b = √(2/3) y  (x = α and y = κ in the classic normalisation)

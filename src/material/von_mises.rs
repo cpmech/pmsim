@@ -371,6 +371,12 @@ mod tests {
     const H: f64 = TWO_BY_3 * 800.0; // isotropic hardening modulus (H = (2/3) hh)
     const B_0: f64 = SQRT_2_BY_3 * 9.0; // initial size of the yield surface (b₀ = √(2/3) κ_ini)
 
+    // Isomorphic parameters used by these tests, converted from the published pair
+    // (hh = 800, kappa_ini = 9) by the boundary constructor
+    fn params() -> StressStrain {
+        StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, KAPPA_INI)
+    }
+
     // Generates a state reaching the yield surface
     fn update_to_yield_surface<const N: usize>(model: &mut VonMises<N>, lode: f64) -> LocalState<N> {
         // elastic parameters
@@ -397,13 +403,17 @@ mod tests {
 
     #[test]
     fn initialize_internal_values_works() {
+        // the isomorphic parameters must be the conversion of the published pair (hh = 800,
+        // kappa_ini = 9); the factor table is in StressStrain::von_mises_from_published
+        match params() {
+            StressStrain::VonMises { h, b_0, .. } => {
+                approx_eq(h, H, 1e-15); // H   = (2/3) hh
+                approx_eq(b_0, B_0, 1e-15); // b0  = sqrt(2/3) kappa_ini
+            }
+            _ => panic!("VonMises parameters required"),
+        }
         let ideal = Idealization::<D2>::new();
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            h: H,
-            b_0: B_0,
-        };
+        let param = params();
         let settings = Settings::new();
         let model = VonMises::new(&ideal, &param, &settings).unwrap();
         let nz = model.nz();
@@ -414,12 +424,7 @@ mod tests {
 
     #[test]
     fn update_stress_works_elastic() {
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            h: H,
-            b_0: B_0,
-        };
+        let param = params();
         let settings = Settings::new();
 
         // 2D
@@ -461,12 +466,7 @@ mod tests {
         let d_distance = deps_v / SQRT_3;
         let d_radius = deps_r;
         let lode = 1.0;
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            h: H,
-            b_0: B_0,
-        };
+        let param = params();
         let settings = Settings::new();
 
         // 2D
@@ -536,12 +536,7 @@ mod tests {
     fn stiffness_works_elastoplastic_2d() {
         // model
         let ideal = Idealization::<D2>::new();
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            h: H,
-            b_0: B_0,
-        };
+        let param = params();
         let settings = Settings::new();
         let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
 

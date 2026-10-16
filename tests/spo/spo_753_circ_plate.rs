@@ -6,7 +6,7 @@ use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::base::read_data;
 use russell_lab::Vector;
-use russell_tensor::{SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
+use russell_tensor::SQRT_3_BY_2;
 
 const DIR: &str = "/tmp/pmsim/spo/spo_753";
 const NAME: &str = "spo_753_circ_plate";
@@ -48,14 +48,8 @@ fn spo_753_circ_plate() -> Result<(), StrError> {
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            // isomorphic parameters, converted once from the published (classic) values:
-            // H = (2/3) hh and b0 = sqrt(2/3) kappa_ini
-            h: TWO_BY_3 * H,
-            b_0: SQRT_2_BY_3 * KAPPA_INI,
-        },
+        // published (classic/uniaxial) values: hh = H and kappa_ini = KAPPA_INI
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, H, KAPPA_INI),
         ngauss: Some(NGAUSS),
     };
 

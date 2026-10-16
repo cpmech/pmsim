@@ -7,7 +7,7 @@ use pmsim::StrError;
 use russell_lab::math::PI;
 use russell_lab::{approx_eq, read_data, Vector};
 use russell_sparse::Genie;
-use russell_tensor::{SQRT_2_BY_3, SQRT_3_BY_2};
+use russell_tensor::SQRT_3_BY_2;
 use structopt::StructOpt;
 
 // This test runs the Example 7.5.2 (aka 752) on page 247 of Ref #1 (aka SPO's book)
@@ -101,14 +101,8 @@ fn main() -> Result<(), StrError> {
     // parameters
     let param1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            // isomorphic parameters, converted once from the published (classic) values:
-            // H = (2/3) hh and b0 = sqrt(2/3) kappa_ini
-            h: 0.0,
-            b_0: SQRT_2_BY_3 * 0.24,
-        },
+        // published (classic/uniaxial) values: hh = 0.0 and kappa_ini = 0.24
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, 0.0, 0.24),
         ngauss: Some(NGAUSS),
     };
 

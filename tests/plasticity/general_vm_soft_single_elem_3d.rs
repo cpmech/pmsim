@@ -72,19 +72,12 @@ fn general_vm_soft_single_elem_3d() -> Result<(), StrError> {
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMisesSoft {
-            young: YOUNG,
-            poisson: POISSON,
-            // published hardening-softening curve (classic normalisation; converted
-            // internally by VonMisesSoft::new)
-            y0r: 20.0,
-            li: 800.0,
-            lr: 200.0,
-            a: 0.1,
-            b: 2.0,
-            // isomorphic parameter: b0 = sqrt(2/3) kappa_ini
-            b_0: SQRT_2_BY_3 * KAPPA_INI,
-        },
+        // published (classic/uniaxial) curve parameters y0r = 20, li = 800, lr = 200, a = 0.1,
+        // b = 2.0 and kappa_ini = 9; converted to the isomorphic invariants by the boundary
+        // constructor (all fields of VonMisesSoft are isomorphic)
+        stress_strain: StressStrain::von_mises_soft_from_published(
+            YOUNG, POISSON, 20.0, 800.0, 200.0, 0.1, 2.0, KAPPA_INI,
+        ),
         ngauss: None,
     };
     let mut schema = Schema::new();

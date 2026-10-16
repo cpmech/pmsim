@@ -225,6 +225,7 @@ mod tests {
     #[test]
     fn new_errors_on_zero_z_ini() {
         let ideal = Idealization::<D2>::new();
+        // note: the values are in the isomorphic normalisation (as the model requires)
         let param = StressStrain::VonMises {
             young: 1500.0,
             poisson: 0.25,

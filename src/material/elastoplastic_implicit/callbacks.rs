@@ -171,12 +171,15 @@ mod tests {
         state.z_set[1] = B_0;
 
         // Allocate the arguments and model
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            h: H,
-            b_0: B_0,
-        };
+        // isomorphic parameters, converted from the published pair (hh = 800, kappa_ini = 9)
+        let param = StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, 9.0);
+        match param {
+            StressStrain::VonMises { h, b_0, .. } => {
+                approx_eq(h, H, 1e-15);
+                approx_eq(b_0, B_0, 1e-15);
+            }
+            _ => panic!("VonMises parameters required"),
+        }
         let settings = Settings::new();
         let mut args = Args::new(&ideal, &param, &settings).unwrap();
 
