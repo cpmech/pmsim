@@ -5,7 +5,7 @@ use pmsim::material::{ElastoplasticImp, LocalState, ModelStressStrain, Settings,
 use pmsim::prelude::*;
 use pmsim::{StrError, D2, D3};
 use russell_lab::approx_eq;
-use russell_tensor::{Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
+use russell_tensor::{t4_ddot_t2, LinElasticity, Tensor2, Tensor4, SET, SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 
 ///////////////////////////////////////////////////////////////////////
 //                                                                   //
@@ -675,7 +675,152 @@ fn pure_isotropic_limit_matches_the_classic_von_mises() {
 
 ///////////////////////////////////////////////////////////////////////
 //                                                                   //
-// 9. Interface: plane stress and the explicit update are rejected    //
+// 10. 2D plane strain with C ≠ 0: dimension-independent closed forms //
+//     and one AF step against the Newton residual system             //
+//                                                                   //
+///////////////////////////////////////////////////////////////////////
+
+#[test]
+fn plane_strain_2d_kinematic_hardening() -> Result<(), StrError> {
+    // The closed forms λ = f_trial / (2G + C + H), c_1 = c_0 + C λ ξ̂ and b_1 = b_0 + H λ are
+    // dimension-independent, so this exercises the 2D back-stress plumbing (the 4-component
+    // deviatoric slice and get_back_stress) without needing a published 2D reference.
+    let (young, poisson) = elastic();
+    let (hh, kappa, c_classic) = (800.0, 170.0, 41080.0);
+    let h = TWO_BY_3 * hh;
+    let c_hard = TWO_BY_3 * c_classic;
+    let b_0 = SQRT_2_BY_3 * kappa;
+    let param = StressStrain::von_mises_kinematic_from_published(young, poisson, hh, kappa, c_classic, 0.0, 0.0, 0.0);
+    let ideal = Idealization::<D2>::new();
+    let settings = Settings::new();
+    let mut model = ElastoplasticImp::<D2>::new(&ideal, &param, &settings)?;
+    let mut state = LocalState::new(model.nz());
+    model.initialize_int_vars(&mut state)?;
+    assert_eq!(model.nz(), 6); // 2 + ncp with ncp = 4
+
+    // 2D plane-strain increment: in-plane strains only, εzz = 0 (plane strain), no shear
+    let mut delta = Tensor2::<D2>::new();
+    delta.set(0, 3.0e-3);
+    delta.set(1, -1.0e-3);
+
+    // independent closed forms for the first step (σ_0 = 0, c_0 = 0, D = 0)
+    let lin = LinElasticity::<D2>::new(young, poisson, false)?; // plane strain
+    let mut sig_tr = Tensor2::<D2>::new();
+    t4_ddot_t2(&mut sig_tr, SET, 1.0, lin.stiffness(), &delta);
+    let mut xi_tr = Tensor2::<D2>::new();
+    sig_tr.deviator(&mut xi_tr);
+    let xi_tr_norm = xi_tr.norm();
+    let f_tr = xi_tr_norm - b_0;
+    assert!(f_tr > 0.0, "the step must be plastic");
+    let lambda = f_tr / (2.0 * G + c_hard + h);
+    let mut xi_hat = xi_tr.clone();
+    for i in 0..4 {
+        xi_hat.set(i, xi_hat.get(i) / xi_tr_norm);
+    }
+    let b_1 = b_0 + h * lambda;
+
+    // compare with the model
+    model.update_stress(&mut state, &delta, 0, 0)?;
+    assert!(!state.elastic, "the step must be plastic");
+    println!(
+        "2D: f_trial = {:.6}, λ = {:.9e}, b_1 = {:.9}",
+        f_tr, state.lambda_alg, state.z_set[1]
+    );
+    approx_eq(state.lambda_alg, lambda, 1e-12 * lambda);
+    approx_eq(state.z_set[0], lambda, 1e-12 * lambda);
+    approx_eq(state.z_set[1], b_1, 1e-12 * b_1);
+    for i in 0..4 {
+        // σ_1 = σ_tr - 2G λ ξ̂ (the mean stress is unchanged: the plastic flow is isochoric)
+        approx_eq(
+            state.stress.get(i),
+            sig_tr.get(i) - 2.0 * G * lambda * xi_hat.get(i),
+            1e-9 * sig_tr.norm(),
+        );
+        // c_1 = C λ ξ̂
+        approx_eq(
+            state.z_set[2 + i],
+            c_hard * lambda * xi_hat.get(i),
+            1e-9 * c_hard * lambda,
+        );
+    }
+
+    // One Armstrong-Frederick step in 2D: the converged state must satisfy the discrete update
+    // equations, i.e., the residual system r = {r_σ, r_z, r_f}
+    let param_af = puso(true);
+    let mut m = ElastoplasticImp::<D2>::new(&ideal, &param_af, &settings)?;
+    let mut s = LocalState::new(m.nz());
+    m.initialize_int_vars(&mut s)?;
+    let mut delta2 = Tensor2::<D2>::new();
+    delta2.set(0, 3.0e-3);
+    delta2.set(1, -1.0e-3);
+    m.update_stress(&mut s, &delta2, 0, 0)?;
+    assert!(!s.elastic, "the step must be plastic");
+
+    let lambda = s.lambda_alg;
+    let b = s.z_set[1];
+    let mut c = Tensor2::<D2>::new();
+    for i in 0..4 {
+        c.set(i, s.z_set[2 + i]);
+    }
+    let mut xi = Tensor2::<D2>::new();
+    s.stress.deviator(&mut xi);
+    for i in 0..4 {
+        xi.set(i, xi.get(i) - c.get(i));
+    }
+    let xi_norm = xi.norm();
+    let mut xi_hat = xi.clone();
+    for i in 0..4 {
+        xi_hat.set(i, xi_hat.get(i) / xi_norm);
+    }
+    let c_norm = c.norm();
+    println!(
+        "2D AF step: λ = {:.9e}, f = ‖ξ‖ - b = {:.3e}, ‖c‖ = {:.9}, b = {:.9}",
+        lambda,
+        xi_norm - b,
+        c_norm,
+        b
+    );
+
+    // r_f: f = ‖ξ‖ - b = 0
+    approx_eq(xi_norm, b, 1e-9 * b);
+
+    // r_a: a = λ
+    approx_eq(s.z_set[0], lambda, 1e-12 * lambda);
+
+    // r_b: b = b_0 + λ hb(a),  hb(a) = H + Q β exp(-β a)  (H = 0 in the Puso set)
+    let q_iso = SQRT_2_BY_3 * PUSO_Q;
+    let beta_iso = SQRT_2_BY_3 * PUSO_BETA;
+    let b_0_puso = SQRT_2_BY_3 * PUSO_YIELD;
+    let hb = q_iso * beta_iso * f64::exp(-beta_iso * s.z_set[0]);
+    approx_eq(b, b_0_puso + lambda * hb, 1e-9 * b);
+
+    // r_c: c = c_0 + λ (C ξ̂ - D c), with c_0 = 0  ⇒  c (1 + D λ) = C λ ξ̂
+    let c_puso = TWO_BY_3 * PUSO_C;
+    let d_puso = SQRT_2_BY_3 * PUSO_D;
+    for i in 0..4 {
+        approx_eq(
+            c.get(i) * (1.0 + d_puso * lambda),
+            c_puso * lambda * xi_hat.get(i),
+            1e-9 * c_norm,
+        );
+    }
+
+    // r_σ: σ = σ_tr - 2G λ ξ̂,  with σ_tr = D_e : Δε and σ_0 = 0
+    let mut sig_tr2 = Tensor2::<D2>::new();
+    t4_ddot_t2(&mut sig_tr2, SET, 1.0, lin.stiffness(), &delta2);
+    for i in 0..4 {
+        approx_eq(
+            s.stress.get(i),
+            sig_tr2.get(i) - 2.0 * G * lambda * xi_hat.get(i),
+            1e-9 * sig_tr2.norm(),
+        );
+    }
+    Ok(())
+}
+
+///////////////////////////////////////////////////////////////////////
+//                                                                   //
+// 11. Interface: plane stress and the explicit update are rejected   //
 //                                                                   //
 ///////////////////////////////////////////////////////////////////////
 
@@ -704,6 +849,19 @@ fn plane_stress_and_explicit_update_are_rejected() {
     let _model = ModelStressStrain::<D3>::new(&ideal, &param, &settings).unwrap();
     assert_eq!(param.nz(6), 8);
     assert_eq!(param.nz(4), 6);
+
+    // the nz guard rejects anything else: a caller passing the space dimension (3 or 2 instead of
+    // the number of stress components) must trip instead of silently mis-sizing z
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {})); // keep the expected panics out of the test output
+    for bad in [2, 3, 5, 0, 9] {
+        let tripped = std::panic::catch_unwind(|| param.nz(bad)).is_err();
+        println!("nz({}) tripped: {}", bad, tripped);
+        assert!(tripped, "expected the nz guard to trip for ncp = {}", bad);
+    }
+    std::panic::set_hook(hook);
+    assert_eq!(param.nz(4), 6);
+    assert_eq!(param.nz(6), 8);
     // the degenerate cases are rejected too
     let bad = StressStrain::von_mises_kinematic_from_published(1000.0, 0.3, 0.0, 0.0, 1000.0, 0.0, 0.0, 0.0);
     let err = expect_err(pmsim::material::VonMisesKinematic::<D3>::new(&ideal, &bad, &settings));
@@ -778,6 +936,7 @@ fn fem_single_hex8_matches_material_point() -> Result<(), StrError> {
     // configuration
     let mut config = Config::<D3>::new(&mesh)?;
     config
+        .verbose(false)
         .out_files("/tmp/pmsim/plasticity", name)
         .out_history_local_state(0)
         .update_model_settings(1);

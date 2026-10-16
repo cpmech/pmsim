@@ -492,13 +492,26 @@ impl StressStrain {
     ///
     /// * `ncp` -- number of stress components, i.e., the `N` of the tensor representation
     ///   (4 for 2D, 6 for 3D). Only models whose state holds one or more tensors (e.g.,
-    ///   [StressStrain::VonMisesKinematic]) use this argument.
+    ///   [StressStrain::VonMisesKinematic]) use this argument; the others ignore it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `ncp` is not 4 or 6 and the model is [StressStrain::VonMisesKinematic], which is
+    /// the only model that uses `ncp`. This guard catches a caller passing the *space* dimension
+    /// (2 or 3) instead of the number of stress components, which would silently mis-size `z`.
     pub fn nz(&self, ncp: usize) -> usize {
         match self {
             Self::LinearElastic { .. } => NZ_LINEAR_ELASTIC,
             Self::VonMises { .. } => NZ_VON_MISES,
             Self::VonMisesSoft { .. } => NZ_VON_MISES_SOFT,
-            Self::VonMisesKinematic { .. } => NZ_VON_MISES_KINEMATIC_EXTRA + ncp,
+            Self::VonMisesKinematic { .. } => {
+                assert!(
+                    ncp == 4 || ncp == 6,
+                    "nz requires ncp = 4 (2D) or 6 (3D) for the VonMisesKinematic model; got {} (note: ncp is the number of stress components, not the space dimension)",
+                    ncp
+                );
+                NZ_VON_MISES_KINEMATIC_EXTRA + ncp
+            }
             Self::DruckerPrager { .. } => NZ_DRUCKER_PRAGER,
             Self::CamClay { .. } => NZ_CAM_CLAY,
         }
