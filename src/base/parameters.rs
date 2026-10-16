@@ -1,5 +1,6 @@
 use super::GnlStrain;
 use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_SOFT};
+use russell_tensor::{SQRT_2_BY_3, TWO_BY_3};
 use serde::{Deserialize, Serialize};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
@@ -18,6 +19,9 @@ pub enum StressStrain {
     },
 
     /// von Mises plasticity model
+    ///
+    /// **Note:** The parameters below are in the *isomorphic* invariants convention of
+    /// book chapter 1:5; see the conversion table in the doc of `StressStrain::von_mises_from_published`.
     VonMises {
         /// Young's modulus
         young: f64,
@@ -25,20 +29,33 @@ pub enum StressStrain {
         /// Poisson's coefficient
         poisson: f64,
 
-        /// Hardening coefficient
-        hh: f64,
-
-        /// Initial size of the yield surface
+        /// Isotropic hardening modulus `H`
         ///
-        /// This value corresponds to the von Mises stress:
+        /// **Note:** `H = (2/3) hh` where `hh` is the hardening modulus in the classic
+        /// (uniaxial) normalisation, i.e., the uniaxial plastic modulus is `(3/2) H`.
+        ///
+        /// The size of the yield surface is `b = b₀ + H a` where `a` is the accumulated
+        /// plastic strain (given by `ȧ = λ`).
+        h: f64,
+
+        /// Initial size of the yield surface `b₀`
+        ///
+        /// **Note:** `b₀ = √(2/3) κ_ini` where `κ_ini` is the initial yield stress in the
+        /// classic (uniaxial) normalisation. This value corresponds to the isomorphic
+        /// deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)`:
         ///
         /// ```text
-        /// f = σd - κ
+        /// f = σt - b
         /// ```
-        kappa_ini: f64,
+        b_0: f64,
     },
 
     /// von Mises plasticity model with softening
+    ///
+    /// **Note:** `b_0` is in the *isomorphic* invariants convention of book chapter 1:5, while
+    /// the hardening-softening curve parameters (`y0r`, `li`, `lr`, `a`, `b`) are the published
+    /// quantities of the classic (uniaxial) normalisation. The curve is converted to the
+    /// isomorphic convention by [crate::material::VonMisesSoft::new], once.
     VonMisesSoft {
         /// Young's modulus
         young: f64,
@@ -61,14 +78,16 @@ pub enum StressStrain {
         /// Smoothing parameter (β); when going from λr to 0
         b: f64,
 
-        /// Initial size of the yield surface
+        /// Initial size of the yield surface `b₀`
         ///
-        /// This value corresponds to the von Mises stress:
+        /// **Note:** `b₀ = √(2/3) κ_ini` where `κ_ini` is the initial yield stress in the
+        /// classic (uniaxial) normalisation. This value corresponds to the isomorphic
+        /// deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)`:
         ///
         /// ```text
-        /// f = σd - κ
+        /// f = σt - b
         /// ```
-        kappa_ini: f64,
+        b_0: f64,
     },
 
     /// Drucker-Prager plasticity model
@@ -436,12 +455,17 @@ impl StressStrain {
     }
 
     /// Returns VonMises sample parameters
+    ///
+    /// The published parameters (`hh = 800`, `κ_ini = 9`) are converted once to the isomorphic
+    /// convention (see `StressStrain::von_mises_from_published`): `H = (2/3) hh` and `b₀ = √(2/3) κ_ini`.
     pub fn sample_von_mises() -> Self {
+        let hh = 800.0; // published (classic normalisation) hardening modulus
+        let kappa_ini = 9.0; // published (classic normalisation) initial yield stress
         Self::VonMises {
             young: 1500.0,
             poisson: 0.25,
-            hh: 800.0,
-            kappa_ini: 9.0,
+            h: TWO_BY_3 * hh,
+            b_0: SQRT_2_BY_3 * kappa_ini,
         }
     }
 }
@@ -691,7 +715,7 @@ mod tests {
         assert_eq!(p.nz(), 0);
 
         let p = StressStrain::sample_von_mises();
-        let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, kappa_ini: 9.0 }";
+        let correct = "VonMises { young: 1500.0, poisson: 0.25, h: 533.3333333333333, b_0: 7.3484692283495345 }";
         assert_eq!(format!("{:?}", p), correct);
         assert_eq!(p.nz(), 2);
     }
@@ -783,7 +807,7 @@ mod tests {
         assert_eq!(format!("{:?}", q), correct);
 
         let p = ParamSolid::sample_von_mises();
-        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, kappa_ini: 9.0 }, ngauss: None }";
+        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, h: 533.3333333333333, b_0: 7.3484692283495345 }, ngauss: None }";
         assert_eq!(format!("{:?}", p), correct);
     }
 

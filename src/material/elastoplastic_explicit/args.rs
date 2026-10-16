@@ -197,8 +197,8 @@ mod tests {
         let param = StressStrain::VonMises {
             young: 1500.0,
             poisson: 0.25,
-            hh: 800.0,
-            kappa_ini: F_TOL,
+            h: 800.0,
+            b_0: F_TOL,
         };
         let settings = Settings::new();
         assert!(Args::new(&ideal, &param, &settings, 3).is_err());
