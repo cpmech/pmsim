@@ -1,5 +1,7 @@
 use super::GnlStrain;
-use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_SOFT};
+use super::{
+    NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_KINEMATIC_EXTRA, NZ_VON_MISES_SOFT,
+};
 use russell_tensor::{SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 use serde::{Deserialize, Serialize};
 
@@ -86,6 +88,57 @@ pub enum StressStrain {
         /// f = σt - b
         /// ```
         b_0: f64,
+    },
+
+    /// von Mises plasticity model with isotropic **and** kinematic (Armstrong-Frederick) hardening
+    ///
+    /// **Note:** All the parameters below are in the *isomorphic* invariants convention of book
+    /// chapter 1:5, whose yield function is
+    ///
+    /// ```text
+    /// f = ξt - b,     ξ = dev(σ) - c,     ξt = ‖ξ‖
+    /// ```
+    ///
+    /// with the hardening laws
+    ///
+    /// ```text
+    /// ḃ = λ hb(a),    hb(a) = H + Q β exp(-β a)        (isotropic)
+    /// ċ = λ (C ξ̂ - D c),   ξ̂ = ξ / ‖ξ‖                (Armstrong-Frederick; D = 0 → Prager)
+    /// ```
+    ///
+    /// Published (classic/uniaxial) parameter sets must be converted with
+    /// [StressStrain::von_mises_kinematic_from_published].
+    VonMisesKinematic {
+        /// Young's modulus
+        young: f64,
+
+        /// Poisson's coefficient
+        poisson: f64,
+
+        /// Isotropic hardening modulus `H`
+        h: f64,
+
+        /// Saturating isotropic hardening: `Q` (use 0.0 for a linear isotropic law)
+        q_sat: f64,
+
+        /// Saturating isotropic hardening: `β` (ignored when `Q` is zero)
+        beta_sat: f64,
+
+        /// Initial size of the yield surface `b₀`
+        ///
+        /// This value corresponds to the isomorphic deviatoric invariant
+        /// `σt = ‖dev(σ)‖ = √(2 J2)`:
+        ///
+        /// ```text
+        /// f = ξt - b
+        /// ```
+        b_0: f64,
+
+        /// Kinematic (Armstrong-Frederick) hardening modulus `C`
+        c_hard: f64,
+
+        /// Armstrong-Frederick recall parameter `D` (`D = 0` recovers linear/Prager kinematics)
+        d_hard: f64,
     },
 
     /// Drucker-Prager plasticity model
@@ -434,11 +487,18 @@ pub struct ParamPorousSldLiqGas {
 
 impl StressStrain {
     /// Returns the number of internal variables used by the model
-    pub fn nz(&self) -> usize {
+    ///
+    /// # Input
+    ///
+    /// * `ncp` -- number of stress components, i.e., the `N` of the tensor representation
+    ///   (4 for 2D, 6 for 3D). Only models whose state holds one or more tensors (e.g.,
+    ///   [StressStrain::VonMisesKinematic]) use this argument.
+    pub fn nz(&self, ncp: usize) -> usize {
         match self {
             Self::LinearElastic { .. } => NZ_LINEAR_ELASTIC,
             Self::VonMises { .. } => NZ_VON_MISES,
             Self::VonMisesSoft { .. } => NZ_VON_MISES_SOFT,
+            Self::VonMisesKinematic { .. } => NZ_VON_MISES_KINEMATIC_EXTRA + ncp,
             Self::DruckerPrager { .. } => NZ_DRUCKER_PRAGER,
             Self::CamClay { .. } => NZ_CAM_CLAY,
         }
@@ -523,6 +583,50 @@ impl StressStrain {
             a: SQRT_3_BY_2 * a,
             b: SQRT_3_BY_2 * b,
             b_0: SQRT_2_BY_3 * kappa_ini,
+        }
+    }
+
+    /// Returns von Mises (isotropic **and** kinematic hardening) parameters converted from the
+    /// published (classic/uniaxial) normalisation to the isomorphic invariants of book chapter 1:5
+    ///
+    /// Table (the same as in `StressStrain::von_mises_from_published`):
+    ///
+    /// ```text
+    /// H   = (2/3) hh               (uniaxial plastic modulus = hh)
+    /// b_0 = √(2/3) kappa_ini
+    /// C   = (2/3) C_classic        (uniaxial kinematic modulus = C_classic)
+    /// D   = √(2/3) D_classic       (uniaxial saturated back stress = C_classic/D_classic)
+    /// Q   = √(2/3) Q_classic       (uniaxial saturating isotropic stress = Q_classic)
+    /// β   = √(2/3) β_classic
+    /// ```
+    ///
+    /// # Input
+    ///
+    /// * `hh` -- published isotropic hardening modulus
+    /// * `kappa_ini` -- published initial size of the yield surface (uniaxial yield stress)
+    /// * `c_classic` -- published kinematic (Armstrong-Frederick) modulus `C`
+    /// * `d_classic` -- published Armstrong-Frederick recall parameter `D` (0.0 for Prager)
+    /// * `q_classic` -- published saturating isotropic stress `Q` (0.0 for a linear law)
+    /// * `beta_classic` -- published saturation exponent `β` (ignored when `q_classic` is zero)
+    pub fn von_mises_kinematic_from_published(
+        young: f64,
+        poisson: f64,
+        hh: f64,
+        kappa_ini: f64,
+        c_classic: f64,
+        d_classic: f64,
+        q_classic: f64,
+        beta_classic: f64,
+    ) -> Self {
+        Self::VonMisesKinematic {
+            young,
+            poisson,
+            h: TWO_BY_3 * hh,
+            q_sat: SQRT_2_BY_3 * q_classic,
+            beta_sat: SQRT_2_BY_3 * beta_classic,
+            b_0: SQRT_2_BY_3 * kappa_ini,
+            c_hard: TWO_BY_3 * c_classic,
+            d_hard: SQRT_2_BY_3 * d_classic,
         }
     }
 }
@@ -664,8 +768,10 @@ impl ParamBeam {
 
 impl ParamSolid {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn nz(&self) -> usize {
-        self.stress_strain.nz()
+    ///
+    /// See [StressStrain::nz] for the meaning of `ncp`.
+    pub fn nz(&self, ncp: usize) -> usize {
+        self.stress_strain.nz(ncp)
     }
 
     /// Returns a sample of parameters for the linear elastic model
@@ -714,8 +820,10 @@ impl ParamPorousLiqGas {
 
 impl ParamPorousSldLiq {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn nz(&self) -> usize {
-        self.stress_strain.nz()
+    ///
+    /// See [StressStrain::nz] for the meaning of `ncp`.
+    pub fn nz(&self, ncp: usize) -> usize {
+        self.stress_strain.nz(ncp)
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic
@@ -736,8 +844,10 @@ impl ParamPorousSldLiq {
 
 impl ParamPorousSldLiqGas {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn nz(&self) -> usize {
-        self.stress_strain.nz()
+    ///
+    /// See [StressStrain::nz] for the meaning of `ncp`.
+    pub fn nz(&self, ncp: usize) -> usize {
+        self.stress_strain.nz(ncp)
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic
@@ -770,12 +880,12 @@ mod tests {
         let q = p.clone();
         let correct = "LinearElastic { young: 1500.0, poisson: 0.25 }";
         assert_eq!(format!("{:?}", q), correct);
-        assert_eq!(p.nz(), 0);
+        assert_eq!(p.nz(4), 0);
 
         let p = StressStrain::sample_von_mises();
         let correct = "VonMises { young: 1500.0, poisson: 0.25, h: 533.3333333333333, b_0: 7.3484692283495345 }";
         assert_eq!(format!("{:?}", p), correct);
-        assert_eq!(p.nz(), 2);
+        assert_eq!(p.nz(4), 2);
     }
 
     #[test]

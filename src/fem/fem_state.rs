@@ -143,7 +143,7 @@ impl<const N: usize> FemState<N> {
                 }
                 ElemType::Solid(param) => {
                     has_solid = true;
-                    let nz = param.nz();
+                    let nz = param.nz(N);
                     gauss[cell.id].allocate_solid(ngauss, nz);
                 }
                 ElemType::PorousLiq(..) => {
@@ -156,12 +156,12 @@ impl<const N: usize> FemState<N> {
                 }
                 ElemType::PorousSldLiq(param) => {
                     has_porous_solid = true;
-                    let nz = param.nz();
+                    let nz = param.nz(N);
                     gauss[cell.id].allocate_porous_sld_liq(ngauss, nz);
                 }
                 ElemType::PorousSldLiqGas(param) => {
                     has_porous_solid = true;
-                    let nz = param.nz();
+                    let nz = param.nz(N);
                     gauss[cell.id].allocate_porous_sld_liq_gas(ngauss, nz);
                 }
             };

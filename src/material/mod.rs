@@ -18,6 +18,7 @@ mod testing;
 mod trait_plasticity;
 mod trait_stress_strain;
 mod von_mises;
+mod von_mises_kinematic;
 mod von_mises_soft;
 
 pub use axis::*;
@@ -37,4 +38,5 @@ pub use settings::*;
 pub use trait_plasticity::*;
 pub use trait_stress_strain::*;
 pub use von_mises::*;
+pub use von_mises_kinematic::*;
 pub use von_mises_soft::*;
