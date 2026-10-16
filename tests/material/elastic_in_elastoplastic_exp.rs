@@ -4,7 +4,7 @@ use pmsim::material::{ElastoplasticExp, LinearElastic, LocalState};
 use pmsim::util::elastic_increments_oct;
 use pmsim::{StrError, D2};
 use russell_lab::math::PI;
-use russell_tensor::{t2_approx_eq, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2};
+use russell_tensor::{t2_approx_eq, Tensor2, SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 
 ///////////////////////////////////////////////////////////////////////
 //                                                                   //
@@ -22,14 +22,15 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     // parameters
     let young = 1500.0;
     let poisson = 0.25;
-    let hh = 800.0;
-    let kappa_ini = 9.0;
+    let hh = 800.0; // published (classic normalisation) hardening modulus
+    let kappa_ini = 9.0; // published (classic normalisation) initial yield stress
     let param_el = StressStrain::LinearElastic { young, poisson };
+    // isomorphic parameters, converted once: b0 = sqrt(2/3) kappa_ini and H = (2/3) hh
     let param_vm = StressStrain::VonMises {
         young,
         poisson,
-        hh,
-        kappa_ini,
+        h: TWO_BY_3 * hh,
+        b_0: SQRT_2_BY_3 * kappa_ini,
     };
 
     // models
@@ -138,8 +139,8 @@ fn do_plot(
     // constants
     let n = states_elast.len();
     let l = n - 1;
-    let kappa_ini = states_general[0].z_set[0];
-    let z_fin = states_general[l].z_set[0];
+    let b_0 = states_general[0].z_set[1]; // b0 = ||dev(sigma)|| at the initial state
+    let b_fin = states_general[l].z_set[1];
 
     // plotting data
     let mut data_elast = PlotterData::from_states(&states_elast)?;
@@ -195,8 +196,8 @@ fn do_plot(
             curve.set_label("general").set_marker_style("s").set_marker_void(true);
         })
         .unwrap();
-    let radius_0 = kappa_ini * SQRT_2_BY_3;
-    let radius_1 = z_fin * SQRT_2_BY_3;
+    let radius_0 = b_0;
+    let radius_1 = b_fin;
     plotter.set_oct_circle(radius_0, |_| {});
     plotter.set_oct_circle(radius_1, |canvas| {
         canvas.set_line_style("-");

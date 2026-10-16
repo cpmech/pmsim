@@ -5,6 +5,7 @@ use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Norm, Vector};
+use russell_tensor::{SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 
 const DIR: &str = "/tmp/pmsim/spo/spo_755";
 const MESH_NAME: &str = "spo_755_tensile";
@@ -70,8 +71,10 @@ fn spo_755_tensile() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            kappa_ini: KAPPA_INI,
-            hh: H,
+            // isomorphic parameters, converted once from the published (classic) values:
+            // H = (2/3) hh and b0 = sqrt(2/3) kappa_ini
+            h: TWO_BY_3 * H,
+            b_0: SQRT_2_BY_3 * KAPPA_INI,
         },
         ngauss: Some(NGAUSS),
     };
@@ -284,7 +287,8 @@ fn run(
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((1, 1.0, 1e-6)),
+            // the reference data of Ref #1 uses the classic normalisation: a = sqrt(3/2) eps_bar_p
+            Some((0, SQRT_3_BY_2, 1e-6)),
         )?;
         assert!(all_good);
     }

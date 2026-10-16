@@ -4,7 +4,7 @@ use plotpy::{Canvas, Curve, DarkMode, Plot};
 use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::StrError;
-use russell_lab::math::SQRT_2_BY_3;
+use russell_tensor::SQRT_2_BY_3;
 
 // von Mises (with softening) plasticity with a single-element
 //
@@ -40,7 +40,9 @@ use russell_lab::math::SQRT_2_BY_3;
 //
 // * Static non-linear plane-strain simulation
 // * Young: E = 1500, Poisson: ν = 0.25
-// * Hardening: H = 800, Initial yield stress: z0 = 9.0
+// * The published parameters are converted once to the isomorphic invariants of
+//   book chapter 1:5: b0 = √(2/3) kappa_ini (= 9.0); the hardening-softening curve is
+//   converted internally by the model
 
 const NAME: &str = "general_vm_soft_single_elem_3d";
 const SAVE_FIGURE: bool = false;
@@ -73,12 +75,15 @@ fn general_vm_soft_single_elem_3d() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMisesSoft {
             young: YOUNG,
             poisson: POISSON,
+            // published hardening-softening curve (classic normalisation; converted
+            // internally by VonMisesSoft::new)
             y0r: 20.0,
             li: 800.0,
             lr: 200.0,
             a: 0.1,
             b: 2.0,
-            kappa_ini: KAPPA_INI,
+            // isomorphic parameter: b0 = sqrt(2/3) kappa_ini
+            b_0: SQRT_2_BY_3 * KAPPA_INI,
         },
         ngauss: None,
     };
@@ -156,7 +161,8 @@ fn general_vm_soft_single_elem_3d() -> Result<(), StrError> {
         let data = PlotterData::from_states(ss)?;
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].z_set[0];
+            // b = ||dev(sigma)|| (the octahedral plane radius)
+            zz[i] = ss[i].z_set[1];
             // println!("elastic = {}", ss[i].elastic);
         }
         let mut plotter = Plotter::new();
@@ -165,9 +171,9 @@ fn general_vm_soft_single_elem_3d() -> Result<(), StrError> {
             let mut circle = Canvas::new();
             circle.set_face_color("None").set_edge_color("#8c77f4");
             for i in 2..zz.len() {
-                circle.draw_circle(0.0, 0.0, zz[i] * SQRT_2_BY_3);
+                circle.draw_circle(0.0, 0.0, zz[i]);
             }
-            circle.draw_circle(0.0, 0.0, zz[2] * SQRT_2_BY_3);
+            circle.draw_circle(0.0, 0.0, zz[2]);
             plot.add(&circle);
         });
         plotter.add_2x2(&data, false, |curve, _, _| {

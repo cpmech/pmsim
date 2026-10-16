@@ -5,7 +5,7 @@ use pmsim::material::{Axis, Plotter, PlotterData};
 use pmsim::prelude::*;
 use pmsim::StrError;
 use russell_lab::approx_eq;
-use russell_lab::math::SQRT_2_BY_3;
+use russell_tensor::{SQRT_2_BY_3, TWO_BY_3};
 
 // von Mises plasticity with a single-element (Using the general ElastoplasticExp model)
 //
@@ -24,8 +24,8 @@ use russell_lab::math::SQRT_2_BY_3;
 // displacement    displacement
 //         ↓         ↓
 //  roller 3---------2
-//         |         |   E = 1500  z0 = 9.0
-//         |         |   ν = 0.25  H = 800
+//         |         |   E = 1500  kappa_ini = 9.0  (published)
+//         |         |   nu = 0.25 hh = 800         (published)
 //         |         |
 //         0---------1
 //      fixed       roller
@@ -42,7 +42,8 @@ use russell_lab::math::SQRT_2_BY_3;
 //
 // * Static non-linear plane-strain simulation
 // * Young: E = 1500, Poisson: ν = 0.25
-// * Hardening: H = 800, Initial yield stress: z0 = 9.0
+// * The published parameters are converted once to the isomorphic invariants of
+//   book chapter 1:5: b0 = √(2/3) kappa_ini (= 9.0) and H = (2/3) hh (= 800)
 //
 // The results are compared with the code HYPLAS discussed in Ref #1.
 //
@@ -84,8 +85,10 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         stress_strain: StressStrain::VonMises {
             young: YOUNG,
             poisson: POISSON,
-            kappa_ini: KAPPA_INI,
-            hh: 800.0,
+            // isomorphic parameters, converted once from the published (classic) values:
+            // b0 = sqrt(2/3) kappa_ini and H = (2/3) hh
+            b_0: SQRT_2_BY_3 * KAPPA_INI,
+            h: TWO_BY_3 * 800.0,
         },
         ngauss: Some(NGAUSS),
     };
@@ -177,7 +180,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         tol_displacement,
         tol_stress,
         0,
-        Some((1, 1.0, 1e-10)),
+        Some((0, 1.224744871391589, 1e-10)), // a = sqrt(3/2) eps_bar_p
     )?;
     assert!(all_good);
     */
@@ -203,7 +206,7 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         let data = PlotterData::from_states(ss)?;
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].z_set[0];
+            zz[i] = ss[i].z_set[1]; // b = ||dev(sigma)|| (the octahedral plane radius)
         }
         let mut plotter = Plotter::new();
         plotter.set_dark_mode().set_oct_circle(KAPPA_INI * SQRT_2_BY_3, |_| {});
@@ -211,9 +214,9 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
             let mut circle = Canvas::new();
             circle.set_face_color("None").set_edge_color("#8c77f4");
             for i in 2..zz.len() {
-                circle.draw_circle(0.0, 0.0, zz[i] * SQRT_2_BY_3);
+                circle.draw_circle(0.0, 0.0, zz[i]);
             }
-            circle.draw_circle(0.0, 0.0, zz[2] * SQRT_2_BY_3);
+            circle.draw_circle(0.0, 0.0, zz[2]);
             plot.add(&circle);
         });
         plotter.add_2x2(&data, false, |curve, _, _| {
