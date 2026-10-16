@@ -326,7 +326,7 @@ mod tests {
     use crate::material::{ElastoplasticImp, LocalState, Settings, TraitStressStrain};
     use crate::D2;
     use russell_lab::approx_eq;
-    use russell_tensor::{Tensor2, SQRT_2_BY_3, TWO_BY_3};
+    use russell_tensor::{Tensor2, SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
@@ -389,5 +389,46 @@ mod tests {
         // Check the algorithmic flags
         assert_eq!(state.elastic, true);
         assert_eq!(state.lambda_alg, 0.0);
+    }
+
+    #[test]
+    fn isomorphic_conversion_of_the_hardening_softening_curve_is_exact() {
+        use super::HardeningSoftening;
+
+        // published (classic normalisation) parameters of the hardening-softening curve
+        let (li, lr, y0r, alpha, beta) = (800.0, 200.0, 20.0, 0.1, 2.0);
+        let classic = HardeningSoftening::new(li, lr, y0r, alpha, beta).unwrap();
+
+        // the same curve converted to the isomorphic normalisation (see VonMisesSoft::new)
+        let iso = HardeningSoftening::new(
+            TWO_BY_3 * li,
+            TWO_BY_3 * lr,
+            SQRT_2_BY_3 * y0r,
+            SQRT_3_BY_2 * alpha,
+            SQRT_3_BY_2 * beta,
+        )
+        .unwrap();
+
+        // check  H(a,b) = (2/3) Ĥ(x,y),  ∂H/∂a = (2/3) √(2/3) ∂Ĥ/∂x  and  ∂H/∂b = √(2/3) ∂Ĥ/∂y
+        // with a = √(3/2) x and b = √(2/3) y  (x = α and y = κ in the classic normalisation)
+        let points = [
+            (0.0, 9.0),
+            (0.001, 9.5),
+            (0.005, 12.0),
+            (0.01, 16.0),
+            (0.02, 19.0),
+            (0.05, 9.0), // y > yr(x): the clamped branch
+        ];
+        for (x, y) in points {
+            let a = SQRT_3_BY_2 * x;
+            let b = SQRT_2_BY_3 * y;
+            approx_eq(iso.calc_hh(a, b), TWO_BY_3 * classic.calc_hh(x, y), 1e-9);
+            approx_eq(
+                iso.calc_dhh_dx(a, b),
+                TWO_BY_3 * SQRT_2_BY_3 * classic.calc_dhh_dx(x, y),
+                1e-9,
+            );
+            approx_eq(iso.calc_dhh_dy(a, b), SQRT_2_BY_3 * classic.calc_dhh_dy(x, y), 1e-9);
+        }
     }
 }
