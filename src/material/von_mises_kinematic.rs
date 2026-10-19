@@ -17,34 +17,129 @@ const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 /// Implements the von Mises plasticity model with isotropic and kinematic (Armstrong-Frederick)
 /// hardening
 ///
-/// **Note:** This model uses the *isomorphic* invariants of book chapter 1:5, whose yield function
-/// is
+/// This is the book's "von Mises Model" chapter with both hardening mechanisms, written in the
+/// isomorphic invariants of the book's "Stress and Strain Invariants" chapter.
+///
+/// # "Kinematic hardening" section
+///
+/// The yield function is written in terms of the *relative* stress
 ///
 /// ```text
-/// f = ξt - b,     ξ = dev(σ) - c,     ξt = ‖ξ‖ = √(2 J2)
+/// chi := σ - c
+///
+/// f(σ, b, c) = σt(chi) - b,     σt(chi) = ‖dev(chi)‖,     b > 0
 /// ```
 ///
-/// with the hardening laws
+/// and its gradients are
 ///
 /// ```text
-/// ḃ = λ hb(a),         hb(a) = H + Q β exp(-β a)      (isotropic)
-/// ċ = λ (C ξ̂ - D c),   ξ̂ = ξ / ξt                     (Armstrong-Frederick)
-/// ȧ = λ                                               (accumulated plastic strain)
+/// ∂f/∂σ = shat(chi),     ∂f/∂b = -1,     ∂f/∂c = -shat(chi)
+///
+/// shat(chi) := dev(chi) / ‖dev(chi)‖
 /// ```
 ///
-/// `D = 0` recovers linear (Prager) kinematic hardening in the same code path. The state is
-/// `z = {a, b, c}`, i.e., `NZ = 2 + ncp` internal variables.
+/// The flow rule is associative (g = f), so that
 ///
-/// The book (chapter 3:6) uses the linear isotropic law, i.e., `hb = H`. The saturating term
-/// `Q β exp(-β a)` is a documented extension of this implementation: the general form required by
-/// published parameter sets (e.g., Puso/SPCEN) is `hb(a) = H + Σᵢ Qᵢ βᵢ exp(-βᵢ a)`; the single
-/// `(Q, β)` pair implemented here covers those sets and `Q = 0` recovers the book's linear law.
+/// ```text
+/// ε̇p = λ shat(chi)
+/// ```
 ///
-/// **Note:** This model must be used through the general elastoplastic implementation
-/// ([crate::material::ElastoplasticImp]), which solves the residual system of book chapter 3:2
-/// with the four callbacks implemented below; the AF law has no closed-form return mapping.
+/// and, since ‖shat(chi)‖ = 1, the accumulated plastic strain a = ε̄p satisfies
 ///
-/// **Note:** This model works in 3D (2D is plane-strain only).
+/// ```text
+/// ȧ = λ     =>     h_a = 1
+/// ```
+///
+/// The size of the yield surface follows the isotropic law and the back stress follows the
+/// Armstrong-Frederick model:
+///
+/// ```text
+/// ḃ = λ h_b(a)                            h_b(a) = H + Q beta exp(-beta a)
+/// ċ = λ [C shat(chi) - D c]     =>        h_c = C shat(chi) - D c
+/// ```
+///
+/// Setting D = 0 recovers the linear (Prager) kinematic hardening model in the same code path. The
+/// Armstrong-Frederick model bounds the back stress: for monotonic plastic loading along a fixed
+/// direction ‖c‖ -> C/D, which corresponds to a uniaxial back stress of √(3/2) C/D; likewise, the
+/// uniaxial plastic modulus associated with the kinematic hardening is (3/2) C and the uniaxial
+/// counterpart of the recall parameter is D_uni = √(3/2) D. The internal variables are
+/// z = {a, b, c}, i.e., n_z = 2 + n_sigma (the code's `ncp`).
+///
+/// The term Q beta exp(-beta a) is an **extension of the code**: the book's "Kinematic hardening"
+/// section, its "Stress update" section, and its analytical solutions use the linear isotropic law,
+/// i.e., h_b = H, which is exactly the case Q = 0 here. The general form required by published
+/// parameter sets (e.g., Puso/SPCEN) is h_b(a) = H + sum_i Q_i beta_i exp(-beta_i a), of which this
+/// model implements one term.
+///
+/// # "Continuous elastoplastic moduli" section
+///
+/// For reference, the book's auxiliary variables for this model are
+///
+/// ```text
+/// M_p = H + C - D shat(chi):c        N_p = M_p + 2 G
+/// ```
+///
+/// They define the *continuous* moduli of the book. This implementation does not need them: the
+/// consistent tangent modulus is the *algorithmic* one, obtained from the Jacobian of the implicit
+/// problem (see below).
+///
+/// # "Stress update" section
+///
+/// The blocks of the book's implicit problem are implemented by the callbacks below:
+///
+/// ```text
+/// gs        = shat(chi)
+/// G_sigma|1 = ∂²σt/∂σ²                      at chi        -> calc_ggs
+/// G_z|1     = [0, 0, -G_sigma|1]                            -> calc_ggz
+/// H_sigma|1 = [0; 0; C G_sigma|1]                           -> calc_hhs
+/// H_z|1     = [[0, 0, 0], [0, 0, 0], [0, 0, -C G_sigma|1 - D P_sym]]   -> calc_hhz
+/// f_sigma|1 = shat(chi)                                     -> calc_fs
+/// f_z|1     = [0, -1, -shat(chi)]                           -> calc_fz
+/// ```
+///
+/// The book remarks that the (b, a) entry of H_z|1 vanishes only because the isotropic hardening is
+/// linear (h_b = H); for a saturating law ∂h_b/∂a is not zero and the entry must be filled
+/// accordingly. This implementation does exactly that: `calc_hhz` writes ∂h_b/∂a = -Q beta²
+/// exp(-beta a) at that position, and the entry is zero when Q = 0.
+///
+/// # "Linear kinematic hardening model with analytical solution" section
+///
+/// For D = 0 (and linear isotropic hardening) the book derives the closed form
+///
+/// ```text
+/// chi_tr      = σ_tr - c_0
+/// f_trial     = ‖chi_tr‖ - b_0
+/// lambda_1    = f_trial / N_p,     N_p = 2 G + H + C
+/// shat(chi_1) = shat(chi_tr)                       (coaxiality)
+///
+/// σ_1 = σ_tr - 2 G lambda_1 shat(chi_tr)
+/// c_1 = c_0 + C lambda_1 shat(chi_tr)
+/// b_1 = b_0 + H lambda_1
+/// ```
+///
+/// with the uniaxial corollaries: the monotonic plastic modulus is H_uni + C_uni; after a plastic
+/// prestrain ε̄p the reverse loading resumes at σ = (C_uni - H_uni) ε̄p - Y; and for H_uni = 0 a
+/// strain-controlled cycle with plastic strain range Δε̄p stabilizes at the stress range
+/// Δσ = 2 Y + C_uni Δε̄p.
+///
+/// This implementation does **not** use the closed form: the model is integrated by the general
+/// elastoplastic implementation, which solves the implicit problem of the book's "Stress Update
+/// Algorithms" chapter with the Newton-Raphson method. That route is required for the
+/// Armstrong-Frederick law and for nonlinear isotropic hardening, and it is sufficient for the linear
+/// cases; the closed form above is the reference that the tests check the implicit solution against.
+///
+/// **Note:** the consistent tangent modulus is the algorithmic one, obtained by inverting the
+/// Jacobian of the implicit problem. The analytical expressions alpha, beta, and tau_alg of the book's
+/// "Analytical consistent tangent modulus" section belong to the *linear isotropic* hardening model:
+/// tau_alg = σt + 2 G lambda_1 assumes that the yield surface grew by H lambda_1, so it does not
+/// hold when the back stress moves.
+///
+/// **Note:** the parameters are in the isomorphic normalization of the invariants chapter. The
+/// classic (uniaxial) normalization uses b_0 = √(2/3) Y, H = (2/3) H_uni, C = (2/3) C_uni, and
+/// D = √(2/3) D_uni; published parameter sets enter only through
+/// [StressStrain::von_mises_kinematic_from_published].
+///
+/// **Note:** this model works in 2D (plane-strain only) or 3D.
 pub struct VonMisesKinematic<const N: usize> {
     /// Linear elasticity
     lin_elasticity: LinElasticity<N>,
@@ -52,18 +147,21 @@ pub struct VonMisesKinematic<const N: usize> {
     /// Isotropic hardening modulus H
     h: f64,
 
-    /// Saturating isotropic hardening: Q
+    /// Saturating isotropic hardening: Q (Q = 0 gives the book's linear isotropic law, h_b = H)
     q_sat: f64,
 
-    /// Saturating isotropic hardening: β
+    /// Saturating isotropic hardening: beta (the exponent of the saturating term)
     beta_sat: f64,
 
-    /// Initial size of the yield surface
+    /// Initial size of the yield surface b_0
     ///
-    /// This value corresponds to the isomorphic invariant `ξt = ‖dev(σ) - c‖`:
+    /// Here b_0 = √(2/3) Y, where Y is the uniaxial yield stress.
+    ///
+    /// This value is the isomorphic invariant of the relative stress at the initial yield surface,
+    /// i.e., σt(chi) = ‖dev(chi)‖ with chi = σ - c:
     ///
     /// ```text
-    /// f = ξt - b
+    /// f = σt(chi) - b
     /// ```
     b_0: f64,
 
@@ -80,7 +178,7 @@ pub struct VonMisesKinematic<const N: usize> {
 impl<const N: usize> VonMisesKinematic<N> {
     /// Allocates a new instance
     ///
-    /// The parameters must be in the isomorphic normalisation (book chapter 1:5). Use
+    /// The parameters must be in the isomorphic normalization (book chapter 1:5). Use
     /// [StressStrain::von_mises_kinematic_from_published] to convert a published parameter set.
     pub fn new(ideal: &Idealization<N>, param: &StressStrain, settings: &Settings) -> Result<Self, StrError> {
         if ideal.plane_stress {
@@ -97,7 +195,7 @@ impl<const N: usize> VonMisesKinematic<N> {
                 c_hard,
                 d_hard,
             } => {
-                // the yield surface must exist (b = 0 leaves ξ = 0 at yield, i.e., a singular model)
+                // the yield surface must exist (b = 0 leaves dev(chi) = 0 at yield, i.e., a singular model)
                 if b_0 <= B0_MIN {
                     return Err("von Mises kinematic hardening model requires b_0 > 1e-6");
                 }
@@ -121,7 +219,7 @@ impl<const N: usize> VonMisesKinematic<N> {
         }
     }
 
-    /// Calculates the isotropic hardening function hb(a) = H + Q β exp(-β a) = db/da
+    /// Calculates the isotropic hardening function h_b(a) = H + Q beta exp(-beta a) = db/da
     fn calc_hb(&self, a: f64) -> f64 {
         if self.q_sat == 0.0 {
             self.h
@@ -130,7 +228,7 @@ impl<const N: usize> VonMisesKinematic<N> {
         }
     }
 
-    /// Calculates the derivative of the isotropic hardening function: ∂hb/∂a = -Q β² exp(-β a)
+    /// Calculates the derivative of the isotropic hardening function: ∂h_b/∂a = -Q beta² exp(-beta a)
     fn calc_dhb_da(&self, a: f64) -> f64 {
         if self.q_sat == 0.0 {
             0.0
@@ -147,7 +245,10 @@ impl<const N: usize> VonMisesKinematic<N> {
         }
     }
 
-    /// Calculates the shifted stress ξ = dev(σ) - c
+    /// Calculates the relative stress chi = σ - c
+    ///
+    /// The code stores dev(chi) = dev(σ) - c, which is valid because the back stress is deviatoric
+    /// (c_0 = 0 and the flow rule is deviatoric).
     fn calc_xi(&self, xi: &mut Tensor2<N>, state: &LocalState<N>) {
         let mut c = Tensor2::new();
         self.get_back_stress(&mut c, state);
@@ -157,10 +258,10 @@ impl<const N: usize> VonMisesKinematic<N> {
         }
     }
 
-    /// Calculates the unit vector ξ̂ = ξ / ‖ξ‖ and returns the norm ‖ξ‖
+    /// Calculates the unit deviator shat(chi) = dev(chi) / ‖dev(chi)‖ and returns ‖dev(chi)‖
     ///
-    /// Returns an error when the shifted stress vanishes (the unit vector is not defined there);
-    /// note that only the gradients need ξ̂, whereas the yield function itself is well defined
+    /// Returns an error when the relative stress vanishes (the unit deviator is not defined there);
+    /// note that only the gradients need shat(chi), whereas the yield function itself is well defined
     /// (f = -b) at the virgin state.
     fn calc_xi_hat(&self, xi_hat: &mut Tensor2<N>, state: &LocalState<N>) -> Result<f64, StrError> {
         self.calc_xi(xi_hat, state);
@@ -174,7 +275,8 @@ impl<const N: usize> VonMisesKinematic<N> {
         Ok(norm)
     }
 
-    /// Calculates `Gσ = ∂(gs)/∂σ = (P_sd - ξ̂ ⊗ ξ̂) / ‖ξ‖`, i.e., the derivative of ξ̂ w.r.t. σ
+    /// Calculates the book's G_sigma|1 = ∂(gs)/∂σ = (P_sd - shat(chi) ⊗ shat(chi)) / ‖dev(chi)‖,
+    /// i.e., the derivative of shat(chi) with respect to the stress tensor
     fn calc_mgsig(&self, mgsig: &mut Tensor4<N>, state: &LocalState<N>) -> Result<(), StrError> {
         let mut xi_hat = Tensor2::new();
         let norm = self.calc_xi_hat(&mut xi_hat, state)?;
@@ -214,7 +316,11 @@ impl<const N: usize> TraitStressStrain<N> for VonMisesKinematic<N> {
         Ok(())
     }
 
-    /// Returns an error because this model must be used through the general Elastoplastic implementation
+    /// Returns an error because this model has no closed-form consistent tangent modulus
+    ///
+    /// The CTM of this model is the algorithmic tangent obtained from the Jacobian of the implicit
+    /// problem (see the module documentation), which is assembled by the general elastoplastic
+    /// implementation.
     fn stiffness(
         &mut self,
         _dd: &mut Tensor4<N>,
@@ -225,7 +331,11 @@ impl<const N: usize> TraitStressStrain<N> for VonMisesKinematic<N> {
         Err("INTERNAL ERROR: must use general Elastoplastic implementation")
     }
 
-    /// Returns an error because this model must be used through the general Elastoplastic implementation
+    /// Returns an error because this model has no analytical return mapping
+    ///
+    /// The stress update is the solution of the implicit problem of the book's "Stress Update
+    /// Algorithms" chapter, computed by the general elastoplastic implementation with the
+    /// Newton-Raphson method (needed for the Armstrong-Frederick law).
     fn update_stress(
         &mut self,
         _state: &mut LocalState<N>,
@@ -248,7 +358,7 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
         self.b_0
     }
 
-    /// Calculates the yield function f
+    /// Calculates the yield function f(σ, b, c) = σt(chi) - b,  chi = σ - c
     fn calc_f(&self, state: &LocalState<N>) -> Result<f64, StrError> {
         let mut xi = Tensor2::new();
         self.calc_xi(&mut xi, state);
@@ -256,9 +366,15 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
         Ok(xi.norm() - b)
     }
 
-    /// Calculates the hardening coefficients h
+    /// Calculates the hardening functions h = {h_a, h_b, h_c}
+    ///
+    /// ```text
+    /// h_a = 1                        (ȧ = λ)
+    /// h_b = H + Q beta exp(-beta a)  (ḃ = λ h_b, with h_b = H for Q = 0, the book's law)
+    /// h_c = C shat(chi) - D c        (ċ = λ h_c)
+    /// ```
     fn calc_h(&self, h: &mut Vector, state: &LocalState<N>) -> Result<(), StrError> {
-        // z = {a, b, c}:  ȧ = λ,  ḃ = λ hb(a),  ċ = λ (C ξ̂ - D c)
+        // z = {a, b, c}:  ȧ = λ,  ḃ = λ h_b(a),  ċ = λ [C shat(chi) - D c]
         let a = state.z_set[0];
         let mut xi_hat = Tensor2::new();
         self.calc_xi_hat(&mut xi_hat, state)?;
@@ -282,11 +398,13 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     ///
     /// ```text
     ///       ∂f
-    /// fs := ──
+    /// fs := ──  =  shat(chi)
     ///       ∂σ
     /// ```
+    ///
+    /// where shat(chi) = dev(chi) / ‖dev(chi)‖ (the book's f_sigma|1, evaluated at chi_1).
     fn calc_fs(&self, df_dsigma: &mut Tensor2<N>, state: &LocalState<N>) -> Result<(), StrError> {
-        // fs = ∂f/∂σ = ∂ξt/∂σ = ξ̂
+        // fs = ∂f/∂σ = ∂σt(chi)/∂σ = shat(chi)
         self.calc_xi_hat(df_dsigma, state)?;
         Ok(())
     }
@@ -305,10 +423,12 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// Calculates the derivative of the yield function with respect to internal variables
     ///
     /// ```text
-    ///        ∂f
-    /// fzₖ := ───
-    ///        ∂zₖ
+    ///         ∂f
+    /// fz_k := ───  =  [0, -1, -shat(chi)]
+    ///         ∂z_k
     /// ```
+    ///
+    /// with z = {a, b, c} (the book's f_z|1).
     fn calc_fz(&self, df_dz: &mut Vector, state: &LocalState<N>) -> Result<(), StrError> {
         let mut xi_hat = Tensor2::new();
         self.calc_xi_hat(&mut xi_hat, state)?;
@@ -317,7 +437,7 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
         df_dz[0] = 0.0;
         df_dz[1] = -1.0;
 
-        // df/dc = -ξ̂
+        // df/dc = -shat(chi)
         for i in 0..N {
             df_dz[NZ_VON_MISES_KINEMATIC_EXTRA + i] = -xi_hat.get(i);
         }
@@ -341,10 +461,12 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// Calculates the second derivative of the plastic potential function with respect to stress
     ///
     /// ```text
-    ///             ∂(gs)     ∂²g
-    /// ggs := Gσ = ───── = ───────
-    ///              ∂σ     ∂σ ⊗ ∂σ
+    ///                ∂(gs)     ∂²g
+    /// ggs := G_sigma|1 = ───── = ───────  =  ∂²σt/∂σ²
+    ///                 ∂σ     ∂σ ⊗ ∂σ
     /// ```
+    ///
+    /// i.e., the book's G_sigma|1 = ∂²σt/∂σ², evaluated at the relative stress chi_1.
     fn calc_ggs(&self, ggs: &mut Tensor4<N>, state: &LocalState<N>) -> Result<(), StrError> {
         self.calc_mgsig(ggs, state)
     }
@@ -352,14 +474,16 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
     /// ```text
-    ///               ∂(gs)
-    /// ggz := Gz|k = ─────
-    ///                ∂zₖ
+    ///                 ∂(gs)
+    /// ggz := G_z|1 = ─────  =  [0, 0, -G_sigma|1]
+    ///                  ∂z_k
     ///
     /// ggz is (ncp x nz)
     /// ```
+    ///
+    /// because gs = shat(chi) depends on chi = σ - c only through the c block.
     fn calc_ggz(&self, ggz: &mut Matrix, state: &LocalState<N>) -> Result<(), StrError> {
-        // gs = ξ̂:  ∂(gs)/∂a = ∂(gs)/∂b = 0  and  ∂(gs)/∂c = -Gσ
+        // gs = shat(chi):  ∂(gs)/∂a = ∂(gs)/∂b = 0  and  ∂(gs)/∂c = -G_sigma|1
         ggz.fill(0.0);
         let mut mgsig = Tensor4::new();
         self.calc_mgsig(&mut mgsig, state)?;
@@ -374,14 +498,16 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// Calculates the second derivatives of the hardening function with respect to stress
     ///
     /// ```text
-    ///               ∂hₖ
-    /// hhs := Hσ|k = ───
-    ///               ∂σ
+    ///                  ∂h_k
+    /// hhs := H_sigma|1 = ───  =  [0; 0; C G_sigma|1]
+    ///                   ∂σ
     ///
     /// hhs is (nz x ncp)
     /// ```
+    ///
+    /// because only h_c = C shat(chi) - D c depends on the stress tensor.
     fn calc_hhs(&self, hhs: &mut Matrix, state: &LocalState<N>) -> Result<(), StrError> {
-        // ∂h_a/∂σ = ∂h_b/∂σ = 0  and  ∂h_c/∂σ = C Gσ
+        // ∂h_a/∂σ = ∂h_b/∂σ = 0  and  ∂h_c/∂σ = C G_sigma|1
         hhs.fill(0.0);
         let mut mgsig = Tensor4::new();
         self.calc_mgsig(&mut mgsig, state)?;
@@ -396,20 +522,29 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// Calculates the second derivatives of the hardening function with respect to internal variables
     ///
     /// ```text
-    ///                ∂hᵢ
-    /// hhz := Hz|ij = ───
-    ///                ∂zⱼ
+    ///                   ∂h_i
+    /// hhz := H_z|1 = ───
+    ///                   ∂z_j
     ///
-    /// hhz is (nz x nz)
+    /// hhz is (nz x nz), with the non-zero entries
+    ///
+    ///   (b, a) = ∂h_b/∂a = -Q beta² exp(-beta a)      <- the coupling the book remarks on
+    ///   (c, c) = -C G_sigma|1 - D P_sym
     /// ```
+    ///
+    /// The (b, a) entry is non-zero only for a nonlinear isotropic law, i.e., when Q != 0 (the book
+    /// remarks that it vanishes for the linear law of [super::VonMises]). The code uses the
+    /// deviatoric projector P_sd in place of P_sym, which is equivalent here because the back stress
+    /// is deviatoric (c_0 = 0 and the flow rule is deviatoric): the volumetric c equations decouple
+    /// and hold c_vol = 0.
     fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState<N>) -> Result<(), StrError> {
         hhz.fill(0.0);
 
-        // ∂h_a/∂z = ∂h_b/∂z = 0, except the coupling of r_b with a through hb(a):
-        // ∂h_b/∂a = ∂hb/∂a = -Q β² exp(-β a)
+        // ∂h_a/∂z = ∂h_b/∂z = 0, except the coupling of r_b with a through h_b(a):
+        // ∂h_b/∂a = -Q beta² exp(-beta a)
         hhz.set(1, 0, self.calc_dhb_da(state.z_set[0]));
 
-        // ∂h_c/∂c = -C Gσ - D P_sd
+        // ∂h_c/∂c = -C G_sigma|1 - D P_sd
         let mut mgsig = Tensor4::new();
         self.calc_mgsig(&mut mgsig, state)?;
         for i in 0..N {

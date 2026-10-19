@@ -20,10 +20,14 @@ pub enum StressStrain {
         poisson: f64,
     },
 
-    /// von Mises plasticity model
+    /// von Mises plasticity model with linear isotropic hardening
     ///
-    /// **Note:** The parameters below are in the *isomorphic* invariants convention of
-    /// book chapter 1:5; see the conversion table in the doc of `StressStrain::von_mises_from_published`.
+    /// This is the model of the book's "von Mises Model" chapter, "Isotropic hardening" section,
+    /// whose yield function is f(σ, b) = σt(σ) - b with σt = ‖dev(σ)‖, hardening b(a) = b_0 + H a,
+    /// and internal variables z = {a, b}.
+    ///
+    /// **Note:** the parameters below are in the isomorphic normalization of the book's "Stress and
+    /// Strain Invariants" chapter; see also the conversion table in `StressStrain::von_mises_from_published`.
     VonMises {
         /// Young's modulus
         young: f64,
@@ -33,30 +37,35 @@ pub enum StressStrain {
 
         /// Isotropic hardening modulus `H`
         ///
-        /// **Note:** `H = (2/3) hh` where `hh` is the hardening modulus in the classic
-        /// (uniaxial) normalisation, i.e., the uniaxial plastic modulus is `(3/2) H`.
+        /// **Note:** `H = (2/3) H_uni` where `H_uni` is the uniaxial (classic) hardening modulus,
+        /// i.e., the uniaxial plastic modulus is `(3/2) H`.
         ///
-        /// The size of the yield surface is `b = b₀ + H a` where `a` is the accumulated
-        /// plastic strain (given by `ȧ = λ`).
+        /// The size of the yield surface is `b(a) = b_0 + H a` where `a` is the accumulated plastic
+        /// strain (given by `ȧ = λ`).
         h: f64,
 
-        /// Initial size of the yield surface `b₀`
+        /// Initial size of the yield surface `b_0`
         ///
-        /// **Note:** `b₀ = √(2/3) κ_ini` where `κ_ini` is the initial yield stress in the
-        /// classic (uniaxial) normalisation. This value corresponds to the isomorphic
-        /// deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)`:
+        /// **Note:** `b_0 = √(2/3) Y` where `Y` is the uniaxial yield stress (the classic
+        /// normalization); `b_0` is the isomorphic deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)`
+        /// at the initial yield surface:
         ///
         /// ```text
-        /// f = σt - b
+        /// f(σ, b) = σt(σ) - b
         /// ```
         b_0: f64,
     },
 
-    /// von Mises plasticity model with softening
+    /// von Mises plasticity model with a nonlinear (hardening-softening) isotropic law
     ///
-    /// **Note:** All the parameters below are in the *isomorphic* invariants convention of book
-    /// chapter 1:5 (as for the plain von Mises model). Published (classic/uniaxial) parameter
-    /// sets must be converted with [StressStrain::von_mises_soft_from_published].
+    /// This is the book's "von Mises Model" with the isotropic hardening of its "Isotropic
+    /// hardening" section generalized from `b(a) = b_0 + H a` to an arbitrary curve `b(a)`; the
+    /// curve is an extension of the code (see [crate::material::VonMisesSoft]).
+    ///
+    /// **Note:** all the parameters below are in the isomorphic normalization of the book's "Stress
+    /// and Strain Invariants" chapter (as for the plain von Mises model). Published
+    /// (classic/uniaxial) parameter sets must be converted with
+    /// [StressStrain::von_mises_soft_from_published].
     VonMisesSoft {
         /// Young's modulus
         young: f64,
@@ -64,47 +73,53 @@ pub enum StressStrain {
         /// Poisson's coefficient
         poisson: f64,
 
-        /// Reference ordinate `yr(0)`, in the isomorphic normalisation
+        /// Reference ordinate `yr(0)`, in the isomorphic normalization
         y0r: f64,
 
-        /// Initial slope `λi`, in the isomorphic normalisation
+        /// Initial slope `λi`, in the isomorphic normalization
         li: f64,
 
-        /// Reference slope `λr`; second slope, after peak, going down (isomorphic normalisation)
+        /// Reference slope `λr`; second slope, after peak, going down (isomorphic normalization)
         lr: f64,
 
-        /// Smoothing parameter `α`; when going from `λi` to `λr` (isomorphic normalisation)
+        /// Smoothing parameter `α`; when going from `λi` to `λr` (isomorphic normalization)
         a: f64,
 
-        /// Smoothing parameter `β`; when going from `λr` to 0 (isomorphic normalisation)
+        /// Smoothing parameter `β`; when going from `λr` to 0 (isomorphic normalization)
         b: f64,
 
-        /// Initial size of the yield surface `b₀`
+        /// Initial size of the yield surface `b_0`
         ///
-        /// This value corresponds to the isomorphic deviatoric invariant
-        /// `σt = ‖dev(σ)‖ = √(2 J2)`:
+        /// Here `b_0 = √(2/3) Y`, where `Y` is the uniaxial yield stress; `b_0` is the isomorphic
+        /// deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)` at the initial yield surface:
         ///
         /// ```text
-        /// f = σt - b
+        /// f(σ, b) = σt(σ) - b
         /// ```
         b_0: f64,
     },
 
     /// von Mises plasticity model with isotropic **and** kinematic (Armstrong-Frederick) hardening
     ///
-    /// **Note:** All the parameters below are in the *isomorphic* invariants convention of book
-    /// chapter 1:5, whose yield function is
+    /// This is the book's "von Mises Model" with both hardening mechanisms (see its "Kinematic
+    /// hardening" and "Stress update" sections), written in the isomorphic normalization of the
+    /// book's "Stress and Strain Invariants" chapter. The yield function uses the relative stress
+    /// `chi = σ - c`:
     ///
     /// ```text
-    /// f = ξt - b,     ξ = dev(σ) - c,     ξt = ‖ξ‖
+    /// f(σ, b, c) = σt(chi) - b,     σt(chi) = ‖dev(chi)‖
     /// ```
     ///
     /// with the hardening laws
     ///
     /// ```text
-    /// ḃ = λ hb(a),    hb(a) = H + Q β exp(-β a)        (isotropic)
-    /// ċ = λ (C ξ̂ - D c),   ξ̂ = ξ / ‖ξ‖                (Armstrong-Frederick; D = 0 → Prager)
+    /// ḃ = λ h_b(a),          h_b(a) = H + Q beta exp(-beta a)   (isotropic)
+    /// ċ = λ [C shat(chi) - D c]                                 (Armstrong-Frederick)
     /// ```
+    ///
+    /// where `shat(chi) = dev(chi) / ‖dev(chi)‖`, `D = 0` recovers the linear (Prager) kinematic
+    /// hardening model, and `Q = 0` recovers the book's linear isotropic law (`h_b = H`). The
+    /// internal variables are `z = {a, b, c}`, i.e., `n_z = 2 + n_sigma`.
     ///
     /// Published (classic/uniaxial) parameter sets must be converted with
     /// [StressStrain::von_mises_kinematic_from_published].
@@ -488,9 +503,16 @@ pub struct ParamPorousSldLiqGas {
 impl StressStrain {
     /// Returns the number of internal variables used by the model
     ///
+    /// The models of the book's "von Mises Model" chapter have
+    ///
+    /// ```text
+    /// n_z = 2              (isotropic hardening only: z = {a, b})
+    /// n_z = 2 + n_sigma    (with kinematic hardening: z = {a, b, c})
+    /// ```
+    ///
     /// # Input
     ///
-    /// * `ncp` -- number of stress components, i.e., the `N` of the tensor representation
+    /// * `ncp` -- number of stress components `n_sigma`, i.e., the `N` of the tensor representation
     ///   (4 for 2D, 6 for 3D). Only models whose state holds one or more tensors (e.g.,
     ///   [StressStrain::VonMisesKinematic]) use this argument; the others ignore it.
     ///
@@ -533,22 +555,22 @@ impl StressStrain {
         Self::von_mises_from_published(1500.0, 0.25, 800.0, 9.0)
     }
 
-    /// Returns von Mises parameters converted from the published (classic/uniaxial)
-    /// normalisation to the isomorphic invariants of book chapter 1:5
+    /// Returns von Mises parameters converted from the published (classic/uniaxial) normalization
+    /// to the isomorphic normalization of the book's "Stress and Strain Invariants" chapter
     ///
     /// This is the boundary where published parameter sets enter the code; the conversion
     /// identities are asserted by the unit tests of this module. Table (the same as in
     /// `StressStrain::von_mises_from_published`, where `q = √(3/2) σt` and `κ = √(3/2) b`):
     ///
     /// ```text
-    /// H   = (2/3) hh
-    /// b_0 = √(2/3) kappa_ini
+    /// H   = (2/3) H_uni        (H_uni = hh, the uniaxial plastic modulus)
+    /// b_0 = √(2/3) Y           (Y = kappa_ini, the uniaxial yield stress)
     /// ```
     ///
     /// # Input
     ///
-    /// * `hh` -- published isotropic hardening modulus (uniaxial plastic modulus = hh)
-    /// * `kappa_ini` -- published initial size of the yield surface (uniaxial yield stress)
+    /// * `hh` -- published isotropic hardening modulus `H_uni` (the uniaxial plastic modulus)
+    /// * `kappa_ini` -- published initial size of the yield surface `Y` (the uniaxial yield stress)
     pub fn von_mises_from_published(young: f64, poisson: f64, hh: f64, kappa_ini: f64) -> Self {
         Self::VonMises {
             young,
@@ -558,8 +580,9 @@ impl StressStrain {
         }
     }
 
-    /// Returns von Mises (with softening) parameters converted from the published
-    /// (classic/uniaxial) normalisation to the isomorphic invariants of book chapter 1:5
+    /// Returns von Mises (with a nonlinear isotropic law) parameters converted from the published
+    /// (classic/uniaxial) normalization to the isomorphic normalization of the book's "Stress and
+    /// Strain Invariants" chapter
     ///
     /// The published hardening-softening curve is `κ(α)`, with `Ĥ = dκ/dα`. The isomorphic curve
     /// used by the model is `b(a) = √(2/3) κ(√(2/3) a)`, which is the same parametric curve when
@@ -599,19 +622,24 @@ impl StressStrain {
         }
     }
 
-    /// Returns von Mises (isotropic **and** kinematic hardening) parameters converted from the
-    /// published (classic/uniaxial) normalisation to the isomorphic invariants of book chapter 1:5
+    /// Returns von Mises (kinematic hardening) parameters converted from the published
+    /// (classic/uniaxial) normalization to the isomorphic normalization of the book's "Stress and
+    /// Strain Invariants" chapter
     ///
     /// Table (the same as in `StressStrain::von_mises_from_published`):
     ///
     /// ```text
-    /// H   = (2/3) hh               (uniaxial plastic modulus = hh)
-    /// b_0 = √(2/3) kappa_ini
-    /// C   = (2/3) C_classic        (uniaxial kinematic modulus = C_classic)
-    /// D   = √(2/3) D_classic       (uniaxial saturated back stress = C_classic/D_classic)
-    /// Q   = √(2/3) Q_classic       (uniaxial saturating isotropic stress = Q_classic)
-    /// β   = √(2/3) β_classic
+    /// H   = (2/3) H_uni            uniaxial plastic modulus = H_uni (= hh)
+    /// b_0 = √(2/3) Y               uniaxial yield stress = Y (= kappa_ini)
+    /// C   = (2/3) C_uni            uniaxial kinematic modulus = C_uni (= c_classic)
+    /// D   = √(2/3) D_uni           uniaxial saturated back stress = C_uni/D_uni
+    /// Q   = √(2/3) Q_classic       uniaxial saturating isotropic stress = Q_classic
+    /// beta = √(2/3) beta_classic
     /// ```
+    ///
+    /// The `(Q, beta)` pair is an extension of the code (the book uses the linear isotropic law,
+    /// i.e., Q = 0); the multi-term generalization of published sets is
+    /// `h_b(a) = H + sum_i Q_i beta_i exp(-beta_i a)`.
     ///
     /// # Input
     ///
@@ -903,7 +931,7 @@ mod tests {
 
     #[test]
     fn param_von_mises_from_published_works() {
-        // published (classic normalisation) parameters: hh and kappa_ini
+        // published (classic normalization) parameters: hh and kappa_ini
         let p = StressStrain::von_mises_from_published(1500.0, 0.25, 800.0, 9.0);
         match p {
             StressStrain::VonMises { young, poisson, h, b_0 } => {
@@ -922,7 +950,7 @@ mod tests {
 
     #[test]
     fn param_von_mises_soft_from_published_works() {
-        // published (classic normalisation) parameters of the hardening-softening curve
+        // published (classic normalization) parameters of the hardening-softening curve
         let (y0r, li, lr, a, b, kappa_ini) = (20.0, 800.0, 200.0, 0.1, 2.0, 9.0);
         let p = StressStrain::von_mises_soft_from_published(1500.0, 0.25, y0r, li, lr, a, b, kappa_ini);
         match p {

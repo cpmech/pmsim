@@ -9,31 +9,44 @@ use russell_tensor::{LinElasticity, Tensor2, Tensor4};
 /// Tolerance to detect elastic regime
 const F_TOL: f64 = 1e-6;
 
-/// Implements the von Mises plasticity model with Softening
+/// Implements the von Mises plasticity model with a nonlinear (hardening-softening) isotropic law
 ///
-/// **Note:** This model uses the *isomorphic* invariants of book chapter 1:5, whose yield
-/// function is
+/// This is the book's "von Mises Model" with the isotropic hardening of its "Isotropic hardening"
+/// section generalized from b(a) = b_0 + H a to an arbitrary curve b(a):
 ///
 /// ```text
-/// f = σt - b,     σt = ‖dev(σ)‖ = √(2 J2),     b = b(a)
+/// f(σ, b) = σt(σ) - b,     σt(σ) = ‖dev(σ)‖,     ∂f/∂σ = ŝ,     ∂f/∂b = -1
+///
+/// ε̇p = λ ŝ,     ȧ = λ (h_a = 1),     ḃ = λ h_b(a, b),     h_b = db/da
 /// ```
 ///
-/// where `a` is the accumulated plastic strain (given by `ȧ = λ`) and the hardening-softening
-/// curve `b(a)` is in the isomorphic normalisation, i.e., it is the curve of the model itself.
-/// Published (classic/uniaxial) curve parameters must be converted with
+/// The book notes that a more complex isotropic hardening model "may be adopted without much
+/// difficulty" and derives only the linear law; the curve b(a) implemented here (a smooth
+/// hardening-softening curve with its own parameters) is an extension of the code, and it is given
+/// in the isomorphic normalization, i.e., it is the curve of the model itself. Published
+/// (classic/uniaxial) curve parameters must be converted with
 /// [StressStrain::von_mises_soft_from_published] before they are given to this model.
 ///
-/// **Note:** This model works in 2D (plane-strain only) or 3D.
+/// Because h_b depends on a and b, the block H_z|1 of the book's "Stress update" section is not
+/// zero: its (b, a) entry is ∂h_b/∂a, filled in `calc_hhz` below. The book remarks that this entry
+/// vanishes only for the linear isotropic law, which is exactly the case of [super::VonMises].
+/// Since the law is nonlinear, the stress update has no analytical expression: the model is
+/// integrated by the general elastoplastic implementation, which solves the implicit problem of the
+/// book's "Stress Update Algorithms" chapter with the Newton-Raphson method.
+///
+/// **Note:** this model uses the isomorphic invariants of the book's "Stress and Strain Invariants"
+/// chapter, and it works in 2D (plane-strain only) or 3D.
 pub struct VonMisesSoft<const N: usize> {
     /// Linear elasticity
     lin_elasticity: LinElasticity<N>,
 
-    /// Hardening-Softening model (in the isomorphic normalisation)
+    /// Hardening-Softening model (in the isomorphic normalization)
     hs_model: HardeningSoftening,
 
-    /// Initial size of the yield surface
+    /// Initial size of the yield surface b_0
     ///
-    /// This value corresponds to the isomorphic deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)`:
+    /// Here b_0 = √(2/3) Y, where Y is the uniaxial yield stress; b_0 is the isomorphic deviatoric
+    /// invariant σt = ‖dev(σ)‖ = √(2 J2) at the initial yield surface:
     ///
     /// ```text
     /// f = σt - b
@@ -47,7 +60,7 @@ pub struct VonMisesSoft<const N: usize> {
 impl<const N: usize> VonMisesSoft<N> {
     /// Allocates a new instance
     ///
-    /// The parameters must be in the isomorphic normalisation (book chapter 1:5); the hardening-
+    /// The parameters must be in the isomorphic normalization (book chapter 1:5); the hardening-
     /// softening curve is used as given. Use [StressStrain::von_mises_soft_from_published] to
     /// convert a published parameter set (the conversion is exact for the curve and its
     /// derivatives; see the unit test at the end of this file).
@@ -141,14 +154,18 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
         self.b_0
     }
 
-    /// Calculates the yield function f
+    /// Calculates the yield function f(σ, b) = σt(σ) - b
     fn calc_f(&self, state: &LocalState<N>) -> Result<f64, StrError> {
         let sigma_r = state.stress.invariant_r(); // σt = ‖dev(σ)‖
         let b = state.z_set[1];
         Ok(sigma_r - b)
     }
 
-    /// Calculates the hardening coefficients h
+    /// Calculates the hardening functions h = {h_a, h_b} = {1, h_b(a, b)}
+    ///
+    /// ```text
+    /// ȧ = λ    and    ḃ = h_b(a, b) λ,     h_b = db/da
+    /// ```
     fn calc_h(&self, h: &mut Vector, state: &LocalState<N>) -> Result<(), StrError> {
         // Here: z = {z₀, z₁} = {a, b}
         //
@@ -167,9 +184,11 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
     ///
     /// ```text
     ///       ∂f
-    /// fs := ──
+    /// fs := ──  =  ŝ
     ///       ∂σ
     /// ```
+    ///
+    /// where ŝ = dev(σ) / ‖dev(σ)‖ is the unit deviator of the stress tensor.
     fn calc_fs(&self, df_dsigma: &mut Tensor2<N>, state: &LocalState<N>) -> Result<(), StrError> {
         // fs = ∂f/∂σ = ∂σt/∂σ = dev(σ) / ‖dev(σ)‖
         match deriv1_invariant_r(df_dsigma, &state.stress) {
@@ -192,10 +211,12 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
     /// Calculates the derivative of the yield function with respect to internal variables
     ///
     /// ```text
-    ///        ∂f
-    /// fzₖ := ───
-    ///        ∂zₖ
+    ///         ∂f
+    /// fz_k := ───  =  {0, -1}
+    ///         ∂z_k
     /// ```
+    ///
+    /// with z = {a, b}, i.e., ∂f/∂a = 0 and ∂f/∂b = -1.
     fn calc_fz(&self, df_dz: &mut Vector, _state: &LocalState<N>) -> Result<(), StrError> {
         df_dz[0] = 0.0; // df/da = 0
         df_dz[1] = -1.0; // df/db = -1
@@ -223,10 +244,13 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
     /// Calculates the second derivative of the plastic potential function with respect to stress
     ///
     /// ```text
-    ///             ∂(gs)     ∂²g
-    /// ggs := Gσ = ───── = ───────
-    ///              ∂σ     ∂σ ⊗ ∂σ
+    ///                ∂(gs)     ∂²g
+    /// ggs := G_sigma|1 = ───── = ───────  =  ∂²σt/∂σ²
+    ///                 ∂σ     ∂σ ⊗ ∂σ
     /// ```
+    ///
+    /// i.e., the book's G_sigma|1, evaluated at the updated stress (see the book's "Stress update"
+    /// section).
     fn calc_ggs(&self, ggs: &mut Tensor4<N>, state: &LocalState<N>) -> Result<(), StrError> {
         match deriv2_invariant_r(ggs, &state.stress) {
             Some(_) => Ok(()),
@@ -237,12 +261,14 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
     /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
     /// ```text
-    ///               ∂(gs)
-    /// ggz := Gz|k = ─────
-    ///                ∂zₖ
+    ///                 ∂(gs)
+    /// ggz := G_z|1 = ─────  =  [0, 0]
+    ///                  ∂z_k
     ///
     /// ggz is (ncp x nz)
     /// ```
+    ///
+    /// because gs = ŝ does not depend on the internal variables.
     fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState<N>) -> Result<(), StrError> {
         // g = f
         // gs = fs = ∂f/∂σ = ∂σt/∂σ
@@ -254,12 +280,14 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
     /// Calculates the second derivatives of the hardening function with respect to stress
     ///
     /// ```text
-    ///               ∂hₖ
-    /// hhs := Hσ|k = ───
-    ///               ∂σ
+    ///                  ∂h_k
+    /// hhs := H_sigma|1 = ───  =  [0; 0]
+    ///                   ∂σ
     ///
     /// hhs is (nz x ncp)
     /// ```
+    ///
+    /// because h = {1, h_b(a, b)} does not depend on the stress tensor.
     fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState<N>) -> Result<(), StrError> {
         hhs.fill(0.0);
         Ok(())
@@ -268,12 +296,15 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesSoft<N> {
     /// Calculates the second derivatives of the hardening function with respect to internal variables
     ///
     /// ```text
-    ///                ∂hᵢ
-    /// hhz := Hz|ij = ───
-    ///                ∂zⱼ
+    ///                   ∂h_i
+    /// hhz := H_z|1 = ───
+    ///                   ∂z_j
     ///
-    /// hhz is (nz x nz)
+    /// hhz is (nz x nz): the only non-zero entries are ∂h_b/∂a at (b, a) and ∂h_b/∂b at (b, b)
     /// ```
+    ///
+    /// The book remarks that the (b, a) entry is non-zero because the isotropic law is nonlinear; it
+    /// vanishes only for the linear law of [super::VonMises].
     fn calc_hhz(&self, hhz: &mut Matrix, state: &LocalState<N>) -> Result<(), StrError> {
         // Here: z = {z₀, z₁} = {a, b}
         //
@@ -315,7 +346,7 @@ mod tests {
 
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
-    const KAPPA_INI: f64 = 9.0; // published (classic normalisation) initial yield stress
+    const KAPPA_INI: f64 = 9.0; // published (classic normalization) initial yield stress
     const H: f64 = TWO_BY_3 * 800.0; // isotropic hardening modulus (H = (2/3) hh)
     const B_0: f64 = SQRT_2_BY_3 * 9.0; // initial size of the yield surface (b₀ = √(2/3) κ_ini)
 
@@ -383,7 +414,7 @@ mod tests {
     fn isomorphic_conversion_of_the_hardening_softening_curve_is_exact() {
         use super::HardeningSoftening;
 
-        // published (classic normalisation) parameters of the hardening-softening curve
+        // published (classic normalization) parameters of the hardening-softening curve
         let (y0r, li, lr, alpha, beta, kappa_ini) = (20.0, 800.0, 200.0, 0.1, 2.0, 9.0);
         let classic = HardeningSoftening::new(li, lr, y0r, alpha, beta).unwrap();
 
@@ -395,7 +426,7 @@ mod tests {
         };
 
         // check  H(a,b) = (2/3) Ĥ(x,y),  ∂H/∂a = (2/3) √(2/3) ∂Ĥ/∂x  and  ∂H/∂b = √(2/3) ∂Ĥ/∂y
-        // with a = √(3/2) x and b = √(2/3) y  (x = α and y = κ in the classic normalisation)
+        // with a = √(3/2) x and b = √(2/3) y  (x = α and y = κ in the classic normalization)
         let points = [
             (0.0, 9.0),
             (0.001, 9.5),
