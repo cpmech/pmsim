@@ -44,13 +44,6 @@ use russell_tensor::SQRT_2_BY_3;
 // * Young: E = 1500, Poisson: ν = 0.25
 // * The published parameters are converted once to the isomorphic invariants of
 //   book chapter 1:5: b0 = √(2/3) kappa_ini (= 9.0) and H = (2/3) hh (= 800)
-//
-// The results are compared with the code HYPLAS discussed in Ref #1.
-//
-// # Reference
-//
-// 1. de Souza Neto EA, Peric D, Owen DRJ (2008) Computational methods for plasticity,
-//    Theory and applications, Wiley, 791p
 
 const NAME: &str = "general_vm_single_elem_2d";
 const SAVE_FIGURE: bool = false;
