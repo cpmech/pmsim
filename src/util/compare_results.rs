@@ -56,8 +56,15 @@ fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
 ///   - 0 => no output
 ///   - 1 => shows error
 ///   - 2 => shows values and error
-/// * `eps_bar_p` -- Tells this function to check the accumulated plastic strain (eps_bar_p).
-///   The values in the tuple are `(index_in_z_set, conversion_factor, tolerance).`
+/// * `eps_bar_p` -- Tells this function to check an entry of the internal variables set
+///   (`z_set`). The values in the tuple are `(index_in_z_set, conversion_factor, tolerance).`
+///   For the von Mises models, the internal variable `a` is the accumulated plastic strain
+///   `eps_bar_p` of the book's "Introduction to Classical Plasticity" chapter, written in the
+///   isomorphic normalization of the book's "Stress and Strain Invariants" chapter; it relates to
+///   the classic (uniaxial) normalization by `a = √(3/2) eps_bar_p`. A reference table given in the
+///   classic normalization is therefore checked with `(0, √(3/2), tol)`: index 0 is the `a` column
+///   of `z = {a, b}` and the factor converts the reference value (see also the conversion table in
+///   the doc of `StressStrain::von_mises_kinematic_from_published`).
 ///
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///

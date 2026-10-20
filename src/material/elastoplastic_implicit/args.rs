@@ -1,5 +1,5 @@
 use crate::base::{Idealization, StressStrain};
-use crate::material::{LocalState, Settings, TraitPlasticity, VonMises, VonMisesSoft};
+use crate::material::{LocalState, Settings, TraitPlasticity, VonMises, VonMisesKinematic, VonMisesSoft};
 use crate::StrError;
 use russell_lab::{Matrix, Vector};
 use russell_tensor::{Tensor2, Tensor4};
@@ -116,6 +116,7 @@ impl<const N: usize> Args<N> {
         let model: Box<dyn TraitPlasticity<N>> = match param {
             StressStrain::VonMises { .. } => Box::new(VonMises::new(ideal, param, settings)?),
             StressStrain::VonMisesSoft { .. } => Box::new(VonMisesSoft::new(ideal, param, settings)?),
+            StressStrain::VonMisesKinematic { .. } => Box::new(VonMisesKinematic::new(ideal, param, settings)?),
             _ => return Err("selected model cannot be used with general Elastoplastic"),
         };
 
@@ -225,11 +226,12 @@ mod tests {
     #[test]
     fn new_errors_on_zero_z_ini() {
         let ideal = Idealization::<D2>::new();
+        // note: the values are in the isomorphic normalisation (as the model requires)
         let param = StressStrain::VonMises {
             young: 1500.0,
             poisson: 0.25,
-            hh: 800.0,
-            kappa_ini: F_TOL,
+            h: 800.0,
+            b_0: F_TOL,
         };
         let settings = Settings::new();
         assert!(Args::new(&ideal, &param, &settings).is_err());

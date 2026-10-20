@@ -141,15 +141,15 @@ mod tests {
     use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
     use crate::material::{LocalState, Settings};
     use crate::D2;
-    use russell_lab::math::{SQRT_2_BY_3, SQRT_3};
+    use russell_lab::math::SQRT_3;
     use russell_lab::{approx_eq, mat_approx_eq, num_jacobian};
     use russell_lab::{Matrix, Vector};
-    use russell_tensor::{t4_ddot_t2, Tensor2, ADD, SET};
+    use russell_tensor::{t4_ddot_t2, Tensor2, ADD, SET, SQRT_2_BY_3, TWO_BY_3};
 
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
-    const HH: f64 = 800.0;
-    const KAPPA_INI: f64 = 9.0;
+    const H: f64 = TWO_BY_3 * 800.0; // isotropic hardening modulus (H = (2/3) hh)
+    const B_0: f64 = SQRT_2_BY_3 * 9.0; // initial size of the yield surface (b₀ = √(2/3) κ_ini)
 
     #[test]
     fn test_residual_and_jacobian_callbacks() {
@@ -161,22 +161,25 @@ mod tests {
 
         // Set the initial stress state to be on the yield surface
         let p = 1.0;
-        let q = KAPPA_INI;
+        let r = B_0;
         let dist = p * SQRT_3; // distance from the octahedral plane to the origin.
-        let radius = q * SQRT_2_BY_3; // radius on the octahedral plane.
+        let radius = r; // radius on the octahedral plane (σt = ‖dev(σ)‖)
         let stress = Tensor2::new_from_octahedral(dist, radius, 0.0).unwrap();
         state.stress.set_tensor(1.0, &stress);
 
-        // Set the initial internal variable
-        state.z_set[0] = KAPPA_INI;
+        // Set the initial internal variable: b (the size of the yield surface)
+        state.z_set[1] = B_0;
 
         // Allocate the arguments and model
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            hh: HH,
-            kappa_ini: KAPPA_INI,
-        };
+        // isomorphic parameters, converted from the published pair (hh = 800, kappa_ini = 9)
+        let param = StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, 9.0);
+        match param {
+            StressStrain::VonMises { h, b_0, .. } => {
+                approx_eq(h, H, 1e-15);
+                approx_eq(b_0, B_0, 1e-15);
+            }
+            _ => panic!("VonMises parameters required"),
+        }
         let settings = Settings::new();
         let mut args = Args::new(&ideal, &param, &settings).unwrap();
 

@@ -1,5 +1,8 @@
 use super::GnlStrain;
-use super::{NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_SOFT};
+use super::{
+    NZ_CAM_CLAY, NZ_DRUCKER_PRAGER, NZ_LINEAR_ELASTIC, NZ_VON_MISES, NZ_VON_MISES_KINEMATIC_EXTRA, NZ_VON_MISES_SOFT,
+};
+use russell_tensor::{SQRT_2_BY_3, SQRT_3_BY_2, TWO_BY_3};
 use serde::{Deserialize, Serialize};
 
 /// Holds parameters for stress-strain relations (total or effective stress)
@@ -17,7 +20,15 @@ pub enum StressStrain {
         poisson: f64,
     },
 
-    /// von Mises plasticity model
+    /// von Mises plasticity model with linear isotropic hardening
+    ///
+    /// This is the model of the book's "von Mises Model" chapter, "Isotropic hardening" section,
+    /// whose yield function is f(σ, b) = σt(σ) - b with σt = ‖dev(σ)‖, hardening b(a) = b_0 + H a,
+    /// and internal variables z = {a, b}.
+    ///
+    /// **Note:** the parameters below are in the isomorphic normalization of the book's "Stress and
+    /// Strain Invariants" chapter; see also the conversion table in the doc of
+    /// `StressStrain::von_mises_from_published` and `StressStrain::von_mises_kinematic_from_published`.
     VonMises {
         /// Young's modulus
         young: f64,
@@ -25,20 +36,37 @@ pub enum StressStrain {
         /// Poisson's coefficient
         poisson: f64,
 
-        /// Hardening coefficient
-        hh: f64,
-
-        /// Initial size of the yield surface
+        /// Isotropic hardening modulus `H`
         ///
-        /// This value corresponds to the von Mises stress:
+        /// **Note:** `H = (2/3) H_uni` where `H_uni` is the uniaxial (classic) hardening modulus,
+        /// i.e., the uniaxial plastic modulus is `(3/2) H`.
+        ///
+        /// The size of the yield surface is `b(a) = b_0 + H a` where `a` is the accumulated plastic
+        /// strain (given by `ȧ = λ`).
+        h: f64,
+
+        /// Initial size of the yield surface `b_0`
+        ///
+        /// **Note:** `b_0 = √(2/3) Y` where `Y` is the uniaxial yield stress (the classic
+        /// normalization); `b_0` is the isomorphic deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)`
+        /// at the initial yield surface:
         ///
         /// ```text
-        /// f = σd - κ
+        /// f(σ, b) = σt(σ) - b
         /// ```
-        kappa_ini: f64,
+        b_0: f64,
     },
 
-    /// von Mises plasticity model with softening
+    /// von Mises plasticity model with a nonlinear (hardening-softening) isotropic law
+    ///
+    /// This is the book's "von Mises Model" with the isotropic hardening of its "Isotropic
+    /// hardening" section generalized from `b(a) = b_0 + H a` to an arbitrary curve `b(a)`; the
+    /// curve is an extension of the code (see [crate::material::VonMisesSoft]).
+    ///
+    /// **Note:** all the parameters below are in the isomorphic normalization of the book's "Stress
+    /// and Strain Invariants" chapter (as for the plain von Mises model). Published
+    /// (classic/uniaxial) parameter sets must be converted with
+    /// [StressStrain::von_mises_soft_from_published].
     VonMisesSoft {
         /// Young's modulus
         young: f64,
@@ -46,29 +74,87 @@ pub enum StressStrain {
         /// Poisson's coefficient
         poisson: f64,
 
-        /// Reference ordinate (yr(0)); stress at zero strain (x=0)
+        /// Reference ordinate `yr(0)`, in the isomorphic normalization
         y0r: f64,
 
-        /// Initial slope (λi)
+        /// Initial slope `λi`, in the isomorphic normalization
         li: f64,
 
-        /// Reference slope (λr); second slope, after peak, going down
+        /// Reference slope `λr`; second slope, after peak, going down (isomorphic normalization)
         lr: f64,
 
-        /// Smoothing parameter (α); when going from λi to λr
+        /// Smoothing parameter `α`; when going from `λi` to `λr` (isomorphic normalization)
         a: f64,
 
-        /// Smoothing parameter (β); when going from λr to 0
+        /// Smoothing parameter `β`; when going from `λr` to 0 (isomorphic normalization)
         b: f64,
 
-        /// Initial size of the yield surface
+        /// Initial size of the yield surface `b_0`
         ///
-        /// This value corresponds to the von Mises stress:
+        /// Here `b_0 = √(2/3) Y`, where `Y` is the uniaxial yield stress; `b_0` is the isomorphic
+        /// deviatoric invariant `σt = ‖dev(σ)‖ = √(2 J2)` at the initial yield surface:
         ///
         /// ```text
-        /// f = σd - κ
+        /// f(σ, b) = σt(σ) - b
         /// ```
-        kappa_ini: f64,
+        b_0: f64,
+    },
+
+    /// von Mises plasticity model with isotropic **and** kinematic (Armstrong-Frederick) hardening
+    ///
+    /// This is the book's "von Mises Model" with both hardening mechanisms (see its "Kinematic
+    /// hardening" and "Stress update" sections), written in the isomorphic normalization of the
+    /// book's "Stress and Strain Invariants" chapter. The yield function uses the relative stress
+    /// `chi = σ - c`:
+    ///
+    /// ```text
+    /// f(σ, b, c) = σt(chi) - b,     σt(chi) = ‖dev(chi)‖
+    /// ```
+    ///
+    /// with the hardening laws
+    ///
+    /// ```text
+    /// ḃ = λ h_b(a),          h_b(a) = H + Q beta exp(-beta a)   (isotropic)
+    /// ċ = λ [C s_hat(chi) - D c]                                (Armstrong-Frederick)
+    /// ```
+    ///
+    /// where `s_hat(chi) = dev(chi) / ‖dev(chi)‖`, `D = 0` recovers the linear (Prager) kinematic
+    /// hardening model, and `Q = 0` recovers the book's linear isotropic law (`h_b = H`). The
+    /// internal variables are `z = {a, b, c}`, i.e., `n_z = 2 + n_sigma`.
+    ///
+    /// Published (classic/uniaxial) parameter sets must be converted with
+    /// [StressStrain::von_mises_kinematic_from_published].
+    VonMisesKinematic {
+        /// Young's modulus
+        young: f64,
+
+        /// Poisson's coefficient
+        poisson: f64,
+
+        /// Isotropic hardening modulus `H`
+        h: f64,
+
+        /// Saturating isotropic hardening: `Q` (use 0.0 for a linear isotropic law)
+        q_sat: f64,
+
+        /// Saturating isotropic hardening: `β` (ignored when `Q` is zero)
+        beta_sat: f64,
+
+        /// Initial size of the yield surface `b₀`
+        ///
+        /// This value corresponds to the isomorphic deviatoric invariant
+        /// `σt = ‖dev(σ)‖ = √(2 J2)`:
+        ///
+        /// ```text
+        /// f = ξt - b
+        /// ```
+        b_0: f64,
+
+        /// Kinematic (Armstrong-Frederick) hardening modulus `C`
+        c_hard: f64,
+
+        /// Armstrong-Frederick recall parameter `D` (`D = 0` recovers linear/Prager kinematics)
+        d_hard: f64,
     },
 
     /// Drucker-Prager plasticity model
@@ -417,11 +503,38 @@ pub struct ParamPorousSldLiqGas {
 
 impl StressStrain {
     /// Returns the number of internal variables used by the model
-    pub fn nz(&self) -> usize {
+    ///
+    /// The models of the book's "von Mises Model" chapter have
+    ///
+    /// ```text
+    /// n_z = 2              (isotropic hardening only: z = {a, b})
+    /// n_z = 2 + n_sigma    (with kinematic hardening: z = {a, b, c})
+    /// ```
+    ///
+    /// # Input
+    ///
+    /// * `ncp` -- number of stress components `n_sigma`, i.e., the `N` of the tensor representation
+    ///   (4 for 2D, 6 for 3D). Only models whose state holds one or more tensors (e.g.,
+    ///   [StressStrain::VonMisesKinematic]) use this argument; the others ignore it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `ncp` is not 4 or 6 and the model is [StressStrain::VonMisesKinematic], which is
+    /// the only model that uses `ncp`. This guard catches a caller passing the *space* dimension
+    /// (2 or 3) instead of the number of stress components, which would silently mis-size `z`.
+    pub fn nz(&self, ncp: usize) -> usize {
         match self {
             Self::LinearElastic { .. } => NZ_LINEAR_ELASTIC,
             Self::VonMises { .. } => NZ_VON_MISES,
             Self::VonMisesSoft { .. } => NZ_VON_MISES_SOFT,
+            Self::VonMisesKinematic { .. } => {
+                assert!(
+                    ncp == 4 || ncp == 6,
+                    "nz requires ncp = 4 (2D) or 6 (3D) for the VonMisesKinematic model; got {} (note: ncp is the number of stress components, not the space dimension)",
+                    ncp
+                );
+                NZ_VON_MISES_KINEMATIC_EXTRA + ncp
+            }
             Self::DruckerPrager { .. } => NZ_DRUCKER_PRAGER,
             Self::CamClay { .. } => NZ_CAM_CLAY,
         }
@@ -436,12 +549,126 @@ impl StressStrain {
     }
 
     /// Returns VonMises sample parameters
+    ///
+    /// The published parameters (`hh = 800`, `κ_ini = 9`) are converted once by
+    /// [StressStrain::von_mises_from_published].
     pub fn sample_von_mises() -> Self {
+        Self::von_mises_from_published(1500.0, 0.25, 800.0, 9.0)
+    }
+
+    /// Returns von Mises parameters converted from the published (classic/uniaxial) normalization
+    /// to the isomorphic normalization of the book's "Stress and Strain Invariants" chapter
+    ///
+    /// This is the boundary where published parameter sets enter the code; the conversion
+    /// identities are asserted by the unit tests of this module. Table (`q = √(3/2) σt` and
+    /// `κ = √(3/2) b`):
+    ///
+    /// ```text
+    /// H   = (2/3) H_uni        (H_uni = hh, the uniaxial plastic modulus)
+    /// b_0 = √(2/3) Y           (Y = kappa_ini, the uniaxial yield stress)
+    /// ```
+    ///
+    /// # Input
+    ///
+    /// * `hh` -- published isotropic hardening modulus `H_uni` (the uniaxial plastic modulus)
+    /// * `kappa_ini` -- published initial size of the yield surface `Y` (the uniaxial yield stress)
+    pub fn von_mises_from_published(young: f64, poisson: f64, hh: f64, kappa_ini: f64) -> Self {
         Self::VonMises {
-            young: 1500.0,
-            poisson: 0.25,
-            hh: 800.0,
-            kappa_ini: 9.0,
+            young,
+            poisson,
+            h: TWO_BY_3 * hh,
+            b_0: SQRT_2_BY_3 * kappa_ini,
+        }
+    }
+
+    /// Returns von Mises (with a nonlinear isotropic law) parameters converted from the published
+    /// (classic/uniaxial) normalization to the isomorphic normalization of the book's "Stress and
+    /// Strain Invariants" chapter
+    ///
+    /// The published hardening-softening curve is `κ(α)`, with `Ĥ = dκ/dα`. The isomorphic curve
+    /// used by the model is `b(a) = √(2/3) κ(√(2/3) a)`, which is the same parametric curve when
+    ///
+    /// ```text
+    /// li ← (2/3) li        lr ← (2/3) lr        y0r ← √(2/3) y0r
+    /// a  ← √(3/2) a        b  ← √(3/2) b        b_0 ← √(2/3) kappa_ini
+    /// ```
+    ///
+    /// (the two smoothing parameters multiply a stress ordinate difference `yr - y`, hence the
+    /// `√(3/2)`). With these factors `H(a,b) = (2/3) Ĥ(x,y)` holds exactly, including the
+    /// derivatives; see the unit test of [crate::material::VonMisesSoft].
+    ///
+    /// # Input
+    ///
+    /// * `y0r`, `li`, `lr`, `a`, `b` -- published hardening-softening curve parameters
+    /// * `kappa_ini` -- published initial size of the yield surface
+    pub fn von_mises_soft_from_published(
+        young: f64,
+        poisson: f64,
+        y0r: f64,
+        li: f64,
+        lr: f64,
+        a: f64,
+        b: f64,
+        kappa_ini: f64,
+    ) -> Self {
+        Self::VonMisesSoft {
+            young,
+            poisson,
+            y0r: SQRT_2_BY_3 * y0r,
+            li: TWO_BY_3 * li,
+            lr: TWO_BY_3 * lr,
+            a: SQRT_3_BY_2 * a,
+            b: SQRT_3_BY_2 * b,
+            b_0: SQRT_2_BY_3 * kappa_ini,
+        }
+    }
+
+    /// Returns von Mises (kinematic hardening) parameters converted from the published
+    /// (classic/uniaxial) normalization to the isomorphic normalization of the book's "Stress and
+    /// Strain Invariants" chapter
+    ///
+    /// Table:
+    ///
+    /// ```text
+    /// H   = (2/3) H_uni            uniaxial plastic modulus = H_uni (= hh)
+    /// b_0 = √(2/3) Y               uniaxial yield stress = Y (= kappa_ini)
+    /// C   = (2/3) C_uni            uniaxial kinematic modulus = C_uni (= c_classic)
+    /// D   = √(2/3) D_uni           uniaxial saturated back stress = C_uni/D_uni
+    /// Q   = √(2/3) Q_classic       uniaxial saturating isotropic stress = Q_classic
+    /// beta = √(2/3) beta_classic
+    /// ```
+    ///
+    /// The `(Q, beta)` pair is an extension of the code (the book uses the linear isotropic law,
+    /// i.e., Q = 0); the multi-term generalization of published sets is
+    /// `h_b(a) = H + sum_i Q_i beta_i exp(-beta_i a)`.
+    ///
+    /// # Input
+    ///
+    /// * `hh` -- published isotropic hardening modulus
+    /// * `kappa_ini` -- published initial size of the yield surface (uniaxial yield stress)
+    /// * `c_classic` -- published kinematic (Armstrong-Frederick) modulus `C`
+    /// * `d_classic` -- published Armstrong-Frederick recall parameter `D` (0.0 for Prager)
+    /// * `q_classic` -- published saturating isotropic stress `Q` (0.0 for a linear law)
+    /// * `beta_classic` -- published saturation exponent `β` (ignored when `q_classic` is zero)
+    pub fn von_mises_kinematic_from_published(
+        young: f64,
+        poisson: f64,
+        hh: f64,
+        kappa_ini: f64,
+        c_classic: f64,
+        d_classic: f64,
+        q_classic: f64,
+        beta_classic: f64,
+    ) -> Self {
+        Self::VonMisesKinematic {
+            young,
+            poisson,
+            h: TWO_BY_3 * hh,
+            q_sat: SQRT_2_BY_3 * q_classic,
+            beta_sat: SQRT_2_BY_3 * beta_classic,
+            b_0: SQRT_2_BY_3 * kappa_ini,
+            c_hard: TWO_BY_3 * c_classic,
+            d_hard: SQRT_2_BY_3 * d_classic,
         }
     }
 }
@@ -583,8 +810,10 @@ impl ParamBeam {
 
 impl ParamSolid {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn nz(&self) -> usize {
-        self.stress_strain.nz()
+    ///
+    /// See [StressStrain::nz] for the meaning of `ncp`.
+    pub fn nz(&self, ncp: usize) -> usize {
+        self.stress_strain.nz(ncp)
     }
 
     /// Returns a sample of parameters for the linear elastic model
@@ -633,8 +862,10 @@ impl ParamPorousLiqGas {
 
 impl ParamPorousSldLiq {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn nz(&self) -> usize {
-        self.stress_strain.nz()
+    ///
+    /// See [StressStrain::nz] for the meaning of `ncp`.
+    pub fn nz(&self, ncp: usize) -> usize {
+        self.stress_strain.nz(ncp)
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic
@@ -655,8 +886,10 @@ impl ParamPorousSldLiq {
 
 impl ParamPorousSldLiqGas {
     /// Returns the number of internal variables used by the stress-strain model
-    pub fn nz(&self) -> usize {
-        self.stress_strain.nz()
+    ///
+    /// See [StressStrain::nz] for the meaning of `ncp`.
+    pub fn nz(&self, ncp: usize) -> usize {
+        self.stress_strain.nz(ncp)
     }
 
     /// Returns a sample with BrooksCorey retention, Constant conductivity, and LinearElastic
@@ -681,6 +914,7 @@ impl ParamPorousSldLiqGas {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use russell_lab::approx_eq;
 
     #[test]
     fn param_stress_strain_works() {
@@ -688,12 +922,66 @@ mod tests {
         let q = p.clone();
         let correct = "LinearElastic { young: 1500.0, poisson: 0.25 }";
         assert_eq!(format!("{:?}", q), correct);
-        assert_eq!(p.nz(), 0);
+        assert_eq!(p.nz(4), 0);
 
         let p = StressStrain::sample_von_mises();
-        let correct = "VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, kappa_ini: 9.0 }";
+        let correct = "VonMises { young: 1500.0, poisson: 0.25, h: 533.3333333333333, b_0: 7.3484692283495345 }";
         assert_eq!(format!("{:?}", p), correct);
-        assert_eq!(p.nz(), 2);
+        assert_eq!(p.nz(4), 2);
+    }
+
+    #[test]
+    fn param_von_mises_from_published_works() {
+        // published (classic normalization) parameters: hh and kappa_ini
+        let p = StressStrain::von_mises_from_published(1500.0, 0.25, 800.0, 9.0);
+        match p {
+            StressStrain::VonMises { young, poisson, h, b_0 } => {
+                assert_eq!(young, 1500.0);
+                assert_eq!(poisson, 0.25);
+                approx_eq(h, TWO_BY_3 * 800.0, 1e-15); // H   = (2/3) hh
+                approx_eq(b_0, SQRT_2_BY_3 * 9.0, 1e-15); // b_0 = sqrt(2/3) kappa_ini
+                approx_eq(h / TWO_BY_3, 800.0, 1e-12); // hh  = (3/2) H
+                approx_eq(b_0 / SQRT_2_BY_3, 9.0, 1e-12); // kappa_ini = sqrt(3/2) b_0
+            }
+            _ => panic!("VonMises parameters expected"),
+        }
+        // the sample parameters use the same conversion
+        assert_eq!(format!("{:?}", p), format!("{:?}", StressStrain::sample_von_mises()));
+    }
+
+    #[test]
+    fn param_von_mises_soft_from_published_works() {
+        // published (classic normalization) parameters of the hardening-softening curve
+        let (y0r, li, lr, a, b, kappa_ini) = (20.0, 800.0, 200.0, 0.1, 2.0, 9.0);
+        let p = StressStrain::von_mises_soft_from_published(1500.0, 0.25, y0r, li, lr, a, b, kappa_ini);
+        match p {
+            StressStrain::VonMisesSoft {
+                young,
+                poisson,
+                y0r: y0r_iso,
+                li: li_iso,
+                lr: lr_iso,
+                a: a_iso,
+                b: b_iso,
+                b_0,
+            } => {
+                assert_eq!(young, 1500.0);
+                assert_eq!(poisson, 0.25);
+                approx_eq(li_iso, TWO_BY_3 * li, 1e-15); // li  = (2/3) li
+                approx_eq(lr_iso, TWO_BY_3 * lr, 1e-15); // lr  = (2/3) lr
+                approx_eq(y0r_iso, SQRT_2_BY_3 * y0r, 1e-15); // y0r = sqrt(2/3) y0r
+                approx_eq(a_iso, SQRT_3_BY_2 * a, 1e-15); // a   = sqrt(3/2) a
+                approx_eq(b_iso, SQRT_3_BY_2 * b, 1e-15); // b   = sqrt(3/2) b
+                approx_eq(b_0, SQRT_2_BY_3 * kappa_ini, 1e-15); // b_0 = sqrt(2/3) kappa_ini
+                approx_eq(li_iso / TWO_BY_3, li, 1e-12); // li  = (3/2) li_iso
+                approx_eq(lr_iso / TWO_BY_3, lr, 1e-12); // lr  = (3/2) lr_iso
+                approx_eq(y0r_iso / SQRT_2_BY_3, y0r, 1e-12); // y0r = sqrt(3/2) y0r_iso
+                approx_eq(a_iso / SQRT_3_BY_2, a, 1e-12); // a   = sqrt(2/3) a_iso
+                approx_eq(b_iso / SQRT_3_BY_2, b, 1e-12); // b   = sqrt(2/3) b_iso
+                approx_eq(b_0 / SQRT_2_BY_3, kappa_ini, 1e-12); // kappa_ini = sqrt(3/2) b_0
+            }
+            _ => panic!("VonMisesSoft parameters expected"),
+        }
     }
 
     #[test]
@@ -783,7 +1071,7 @@ mod tests {
         assert_eq!(format!("{:?}", q), correct);
 
         let p = ParamSolid::sample_von_mises();
-        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, hh: 800.0, kappa_ini: 9.0 }, ngauss: None }";
+        let correct = "ParamSolid { density: 1.0, stress_strain: VonMises { young: 1500.0, poisson: 0.25, h: 533.3333333333333, b_0: 7.3484692283495345 }, ngauss: None }";
         assert_eq!(format!("{:?}", p), correct);
     }
 

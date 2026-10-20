@@ -46,6 +46,14 @@ impl<const N: usize> ModelStressStrain<N> {
                     Box::new(ElastoplasticImp::new(ideal, param, settings)?)
                 }
             }
+            StressStrain::VonMisesKinematic { .. } => {
+                // The Armstrong-Frederick law has no closed-form return mapping: the model is
+                // used through the general (implicit) elastoplastic implementation only.
+                if settings.gp_explicit_update() {
+                    return Err("VonMisesKinematic model does not support the explicit update");
+                }
+                Box::new(ElastoplasticImp::new(ideal, param, settings)?)
+            }
         };
         Ok(ModelStressStrain { actual })
     }

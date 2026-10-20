@@ -178,23 +178,26 @@ mod tests {
     use crate::material::{LocalState, Settings, TraitStressStrain, VonMises};
     use crate::D2;
     use russell_lab::approx_eq;
-    use russell_tensor::{t2_approx_eq, t4_approx_eq, Tensor2, Tensor4};
+    use russell_tensor::{t2_approx_eq, t4_approx_eq, Tensor2, Tensor4, SQRT_2_BY_3, TWO_BY_3};
 
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.45;
-    const HH: f64 = 800.0;
-    const KAPPA_INI: f64 = 9.0;
+    const H: f64 = TWO_BY_3 * 800.0; // isotropic hardening modulus (H = (2/3) hh)
+    const B_0: f64 = SQRT_2_BY_3 * 9.0; // initial size of the yield surface (b₀ = √(2/3) κ_ini)
 
     #[test]
     fn implicit_consistent_modulus_matches_von_mises() {
         // Idealization, parameters, and settings
         let ideal = Idealization::<D2>::new();
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            hh: HH,
-            kappa_ini: KAPPA_INI,
-        };
+        // isomorphic parameters, converted from the published pair (hh = 800, kappa_ini = 9)
+        let param = StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, 9.0);
+        match param {
+            StressStrain::VonMises { h, b_0, .. } => {
+                approx_eq(h, H, 1e-15);
+                approx_eq(b_0, B_0, 1e-15);
+            }
+            _ => panic!("VonMises parameters required"),
+        }
         let settings = Settings::new();
 
         // Allocate the von Mises model (directly)
@@ -207,7 +210,7 @@ mod tests {
 
         // Initialize the internal variables
         vm.initialize_int_vars(&mut state0).unwrap();
-        assert_eq!(state0.z_set[0], KAPPA_INI);
+        assert_eq!(state0.z_set[1], B_0);
 
         // Allocate the von Mises model via the general implicit elastoplasticity model
         let mut ep = ElastoplasticImp::new(&ideal, &param, &settings).unwrap();
@@ -224,8 +227,8 @@ mod tests {
         let ee = YOUNG;
         let nu = POISSON;
         let nu2 = POISSON * POISSON;
-        let z = 2.0 * KAPPA_INI;
-        let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
+        let r = 2.0 * B_0; // twice the size of the yield surface
+        let dy = r * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let deps_x = dy * nu / (1.0 - nu);
         let deps_y = -dy;
         let mut delta_strain = Tensor2::new();
@@ -248,7 +251,8 @@ mod tests {
 
         // Compare the states
         t2_approx_eq(&state_vm.stress, &state_ep.stress, 1e-13);
-        approx_eq(state_vm.z_set[0], state_ep.z_set[0], 1e-13);
+        approx_eq(state_vm.z_set[0], state_ep.z_set[0], 1e-13); // a
+        approx_eq(state_vm.z_set[1], state_ep.z_set[1], 1e-13); // b
         approx_eq(state_vm.lambda_alg, state_ep.lambda_alg, 1e-13);
         assert!(state_vm.lambda_alg > 0.0);
 

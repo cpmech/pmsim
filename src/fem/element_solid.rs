@@ -75,7 +75,7 @@ impl<'a, const N: usize> ElementSolid<'a, N> {
         let save_strain = settings.save_strain();
 
         // local state backup
-        let nz = param.nz();
+        let nz = param.nz(N);
         let backup = (0..gauss.npoint()).into_iter().map(|_| LocalState::new(nz)).collect();
 
         // allocate new instance

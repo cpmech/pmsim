@@ -5,6 +5,7 @@ use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Vector};
+use russell_tensor::SQRT_3_BY_2;
 
 const DIR: &str = "/tmp/pmsim/spo/spo_754";
 const NAME: &str = "spo_754_footing";
@@ -65,12 +66,8 @@ fn spo_754_footing() -> Result<(), StrError> {
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            kappa_ini: KAPPA_INI,
-            hh: H,
-        },
+        // published (classic/uniaxial) values: hh = H and kappa_ini = KAPPA_INI
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, H, KAPPA_INI),
         ngauss: Some(NGAUSS),
     };
 
@@ -260,7 +257,8 @@ fn run(
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((1, 1.0, 1e-9)),
+            // the reference data of Ref #1 uses the classic normalisation: a = sqrt(3/2) eps_bar_p
+            Some((0, SQRT_3_BY_2, 1e-9)),
         )?;
         assert!(all_good);
     }

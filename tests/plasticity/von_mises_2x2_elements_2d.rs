@@ -6,7 +6,7 @@ use pmsim::prelude::*;
 use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::approx_eq;
-use russell_lab::math::SQRT_2_BY_3;
+use russell_tensor::{SQRT_2_BY_3, SQRT_3_BY_2};
 
 // von Mises plasticity with a four Qua8 elements
 //
@@ -95,12 +95,9 @@ fn test_von_mises_2x2_elements_2d() -> Result<(), StrError> {
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            kappa_ini: KAPPA_INI,
-            hh: 800.0,
-        },
+        // published (classic/uniaxial) values: kappa_ini = 9 and hh = 800; converted to the
+        // isomorphic invariants by the boundary constructor
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, KAPPA_INI),
         ngauss: Some(NGAUSS),
     };
     let mut schema = Schema::new();
@@ -227,9 +224,11 @@ fn run_test(
         }
 
         // compare the results with Ref #1
-        let idx_alpha = 1; // index of the accumulated plastic strain in the z set
+        let idx_a = 0; // index of the accumulated plastic strain (a) in the z set
         let tol_displacement = 8.24e-10;
         let tol_stress = 1.13e-6;
+        // the reference data of Ref #1 uses the classic normalisation: a = sqrt(3/2) eps_bar_p
+        // (see the conversion table in StressStrain::von_mises_from_published)
         let all_good = compare_results(
             &mesh,
             &schema,
@@ -241,7 +240,7 @@ fn run_test(
             tol_displacement,
             tol_stress,
             0,
-            Some((idx_alpha, 1.0, 1e-9)),
+            Some((idx_a, SQRT_3_BY_2, 1e-9)),
         )?;
         assert!(all_good);
     }
@@ -267,7 +266,7 @@ fn run_test(
         let data = PlotterData::from_states(ss)?;
         let mut zz = vec![0.0; lambdas.len()];
         for i in 0..lambdas.len() {
-            zz[i] = ss[i].z_set[0];
+            zz[i] = ss[i].z_set[1]; // b = ||dev(sigma)|| (the octahedral plane radius)
         }
         let mut plotter = Plotter::new();
         plotter
@@ -278,9 +277,9 @@ fn run_test(
             let mut circle = Canvas::new();
             circle.set_face_color("None").set_edge_color("#8c77f4");
             for i in 2..zz.len() {
-                circle.draw_circle(0.0, 0.0, zz[i] * SQRT_2_BY_3);
+                circle.draw_circle(0.0, 0.0, zz[i]);
             }
-            circle.draw_circle(0.0, 0.0, zz[2] * SQRT_2_BY_3);
+            circle.draw_circle(0.0, 0.0, zz[2]);
             plot.add(&circle);
         });
         plotter.add_2x2(&data, false, |curve, _, _| {

@@ -3,9 +3,9 @@ use crate::base::{Idealization, StressStrain, NZ_VON_MISES};
 use crate::StrError;
 use gemlab::mesh::CellId;
 use russell_lab::{Matrix, Vector};
-use russell_tensor::{deriv1_invariant_q, deriv2_invariant_q};
+use russell_tensor::{deriv1_invariant_r, deriv2_invariant_r};
 use russell_tensor::{t4_ddot_t2, LinElasticity, Tensor2, Tensor4};
-use russell_tensor::{ADD, IDENTITY2, P_SYMDEV, SQRT_2_BY_3};
+use russell_tensor::{ADD, IDENTITY2, P_SYMDEV};
 
 /// Tolerance to detect elastic regime
 pub(crate) const F_TOL: f64 = 1e-6;
@@ -13,9 +13,53 @@ pub(crate) const F_TOL: f64 = 1e-6;
 /// Defines an alias to P_SYMDEV
 const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 
-/// Implements the von Mises plasticity model
+/// Implements the von Mises plasticity model with linear isotropic hardening
 ///
-/// **Note:** This model works in 2D (plane-strain only) or 3D.
+/// This is the model of the book's "von Mises Model" chapter, "Isotropic hardening" section,
+/// written in the isomorphic invariants of the book's "Stress and Strain Invariants" chapter. The
+/// yield function is
+///
+/// ```text
+/// f(σ, b) = σt(σ) - b,     σt(σ) = ‖dev(σ)‖ = √(2 J2),     b > 0
+/// ```
+///
+/// and its gradients are
+///
+/// ```text
+/// ∂f/∂σ = ŝ,     ŝ := dev(σ) / ‖dev(σ)‖,     ∂f/∂b = -1
+/// ```
+///
+/// The flow rule is associative (g = f), hence
+///
+/// ```text
+/// ε̇p = λ ŝ
+/// ```
+///
+/// and, since ‖ŝ‖ = 1, the accumulated plastic strain a = ε̄p satisfies
+///
+/// ```text
+/// ȧ = λ     =>     h_a = 1
+/// ```
+///
+/// The size of the yield surface follows the linear isotropic hardening law
+///
+/// ```text
+/// b(a) = b_0 + H a     =>     ḃ = H λ = H ȧ     =>     h_b = H
+/// ```
+///
+/// with b_0 = √(2/3) Y, where Y is the uniaxial yield stress. The internal variables are
+/// z = {a, b}, i.e., n_z = 2.
+///
+/// The stress update and the consistent tangent modulus are the analytical expressions of the
+/// book's "Linear isotropic hardening model with analytical solution" section; see `update_stress`
+/// and `stiffness` below, where the auxiliary variables alpha, beta, and tau_alg appear (note that
+/// the code keeps dev(σ) in the field `s`).
+///
+/// **Note:** the parameters are in the isomorphic normalization of the invariants chapter. The
+/// classic (uniaxial) normalization uses q = √(3/2) σt, κ = √(3/2) b, and hh = (3/2) H; published
+/// parameter sets enter only through [StressStrain::von_mises_from_published].
+///
+/// **Note:** this model works in 2D (plane-strain only) or 3D.
 pub struct VonMises<const N: usize> {
     /// Linear elasticity
     lin_elasticity: LinElasticity<N>,
@@ -26,19 +70,22 @@ pub struct VonMises<const N: usize> {
     /// Shear modulus G
     gg: f64,
 
-    /// Hardening coefficient
-    hh: f64,
-
-    /// Initial size of the yield surface
+    /// Isotropic hardening modulus H
     ///
-    /// This value corresponds to the von Mises stress:
+    /// Here H = (2/3) H_uni, where H_uni is the uniaxial plastic modulus.
+    h: f64,
+
+    /// Initial size of the yield surface b_0
+    ///
+    /// Here b_0 = √(2/3) Y, where Y is the uniaxial yield stress; b_0 is the isomorphic
+    /// deviatoric invariant σt = ‖dev(σ)‖ = √(2 J2) at the initial yield surface:
     ///
     /// ```text
-    /// f = σd - κ
+    /// f = σt - b
     /// ```
-    kappa_ini: f64,
+    b_0: f64,
 
-    /// Deviatoric stress: s = dev(σ)
+    /// Deviatoric stress: s = dev(σ) (the code's storage for the unit deviator ŝ = s / ‖s‖)
     s: Tensor2<N>,
 
     /// Additional settings
@@ -52,13 +99,8 @@ impl<const N: usize> VonMises<N> {
             return Err("von Mises model does not work in plane-stress");
         }
         match *param {
-            StressStrain::VonMises {
-                young,
-                poisson,
-                hh,
-                kappa_ini,
-            } => {
-                if kappa_ini <= F_TOL {
+            StressStrain::VonMises { young, poisson, h, b_0 } => {
+                if b_0 <= F_TOL {
                     return Err("von Mises initial size of the yield surface must > 1e-6");
                 }
                 let lin_elasticity = LinElasticity::new(young, poisson, false)?;
@@ -67,8 +109,8 @@ impl<const N: usize> VonMises<N> {
                     lin_elasticity,
                     kk,
                     gg,
-                    hh,
-                    kappa_ini,
+                    h,
+                    b_0,
                     s: Tensor2::new(),
                     settings: settings.clone(),
                 })
@@ -91,8 +133,8 @@ impl<const N: usize> TraitStressStrain<N> for VonMises<N> {
 
     /// Initializes the internal variables for the initial stress state
     fn initialize_int_vars(&self, state: &mut LocalState<N>) -> Result<(), StrError> {
-        state.z_set[0] = self.kappa_ini; // size of the yield surface
-        state.z_set[1] = 0.0; // accumulated plastic strain
+        state.z_set[0] = 0.0; // accumulated plastic strain:  a
+        state.z_set[1] = self.b_0; // size of the yield surface: b
         if !self.settings.gp_allow_initial_drift() {
             let f = self.calc_f(state)?;
             if f > 0.0 {
@@ -102,7 +144,27 @@ impl<const N: usize> TraitStressStrain<N> for VonMises<N> {
         Ok(())
     }
 
-    /// Computes the consistent tangent stiffness
+    /// Computes the consistent tangent modulus (CTM) analytically
+    ///
+    /// The expressions are those of the book's "Analytical consistent tangent modulus" section:
+    ///
+    /// ```text
+    /// C = 3 K P_iso + 2 G alpha P_sd + beta ŝ ⊗ ŝ
+    ///
+    /// alpha   = 1 - 2 G lambda_1 / tau_alg
+    /// beta    = 4 G² (lambda_1 / tau_alg - 1 / N_p)
+    /// tau_alg = σt|trial = σt + 2 G lambda_1
+    /// N_p     = 2 G + H
+    /// ```
+    ///
+    /// where lambda_1 is the algorithmic plastic multiplier recorded by the stress update. Note that
+    /// tau_alg is an identity of the *linear isotropic* hardening model: it recovers
+    /// sigma_t|trial from the updated state because the yield surface grew by H lambda_1. It does
+    /// not hold when the back stress moves; the kinematic model computes its CTM from the Jacobian
+    /// of the implicit problem instead (see [super::VonMisesKinematic]).
+    ///
+    /// In the code below: `d` = N_p, `a` = 2 G alpha, and `b` = beta / σt² (the last term is
+    /// multiplied by the components of dev(σ) = σt ŝ).
     fn stiffness(
         &mut self,
         dd: &mut Tensor4<N>,
@@ -122,17 +184,16 @@ impl<const N: usize> TraitStressStrain<N> for VonMises<N> {
         sigma.deviator(&mut self.s); // s = dev(σ)
 
         // coefficients
-        let (kk, gg, hh) = (self.kk, self.gg, self.hh);
-        let sigma_d = sigma.invariant_q();
-        let sigma_d_trial = sigma_d + lambda * 3.0 * gg;
-        let norm_s = sigma_d * SQRT_2_BY_3;
-        if norm_s < 1e-10 {
+        let (kk, gg, h) = (self.kk, self.gg, self.h);
+        let sigma_r = sigma.invariant_r(); // σt = ‖dev(σ)‖
+        let sigma_r_trial = sigma_r + 2.0 * gg * lambda;
+        if sigma_r < 1e-10 {
             println!("cell_id = {:?}, gauss_id = {:?}", cell_id, gauss_id);
-            return Err("von Mises stiffness cannot be computed with zero deviatoric norm (norm_s < 1e-10)");
+            return Err("von Mises stiffness cannot be computed with zero deviatoric norm (sigma_r < 1e-10)");
         }
-        let d = 3.0 * gg + hh;
-        let a = 2.0 * gg * (1.0 - lambda * 3.0 * gg / sigma_d_trial);
-        let b = 6.0 * gg * gg * (lambda / sigma_d_trial - 1.0 / d) / (norm_s * norm_s);
+        let d = 2.0 * gg + h;
+        let a = 2.0 * gg * (1.0 - lambda * 2.0 * gg / sigma_r_trial);
+        let b = 4.0 * gg * gg * (lambda / sigma_r_trial - 1.0 / d) / (sigma_r * sigma_r);
 
         // consistent tangent modulus
         for i in 0..N {
@@ -147,7 +208,22 @@ impl<const N: usize> TraitStressStrain<N> for VonMises<N> {
         Ok(())
     }
 
-    /// Updates the stress tensor given the strain increment tensor
+    /// Updates the stress tensor given the strain increment tensor (analytical return mapping)
+    ///
+    /// The steps are those of the book's "Analytical return mapping" section:
+    ///
+    /// ```text
+    /// f_trial   = σt|trial - b
+    /// lambda_1  = f_trial / N_p,       N_p = 2 G + H
+    /// alpha     = 1 - 2 G lambda_1 / σt|trial
+    /// σ_1       = (σ_s|trial / √3) I + alpha dev(σ_trial)
+    /// b_1       = b_0 + H lambda_1
+    /// a_1       = a_0 + lambda_1
+    /// ```
+    ///
+    /// where σ_s|trial is the trial mean stress invariant. The local variable `beta` in the code is
+    /// the book's alpha (the multiplier that scales the trial deviatoric stress); the book's beta
+    /// belongs to the consistent tangent modulus above.
     fn update_stress(
         &mut self,
         state: &mut LocalState<N>,
@@ -165,37 +241,37 @@ impl<const N: usize> TraitStressStrain<N> for VonMises<N> {
 
         // handle elastic update
         let f_trial = self.calc_f(state)?;
-        if f_trial < F_TOL * self.kappa_ini {
+        if f_trial < F_TOL * self.b_0 {
             return Ok(());
         }
 
         // coefficients
-        let (gg, hh) = (self.gg, self.hh);
+        let (gg, h) = (self.gg, self.h);
         let sigma_m_trial = state.stress.invariant_p();
-        let sigma_d_trial = state.stress.invariant_q();
-        let lambda = f_trial / (3.0 * gg + hh);
-        let beta = 1.0 - lambda * 3.0 * gg / sigma_d_trial;
+        let sigma_r_trial = state.stress.invariant_r(); // σt_trial = ‖dev(σ_trial)‖
+        let lambda = f_trial / (2.0 * gg + h);
+        let beta = 1.0 - lambda * 2.0 * gg / sigma_r_trial;
 
         // s_trial = dev(σ_trial)
         state.stress.deviator(&mut self.s); // s ← s_trial
 
-        // σ_new = σm_trial I + β s_trial
+        // σ_1 = (σ_s|trial / √3) I + alpha dev(σ_trial),  alpha = the local variable `beta` below
         for i in 0..N {
             state.stress.set(i, sigma_m_trial * IDENTITY2[i] + beta * self.s.get(i));
         }
 
         // check for zero deviatoric stress
-        let sigma_d = state.stress.invariant_q();
-        if sigma_d < 1e-10 {
+        let sigma_r = state.stress.invariant_r();
+        if sigma_r < 1e-10 {
             println!("cell_id = {:?}, gauss_id = {:?}", cell_id, gauss_id);
-            return Err("von Mises plastic update must not lead to zero sigma_d (sigma_d < 1e-10)");
+            return Err("von Mises plastic update must not lead to zero sigma_r (sigma_r < 1e-10)");
         }
 
-        // update the size of the yield surface: κ
-        state.z_set[0] += self.hh * lambda;
+        // update the accumulated plastic strain: a (ȧ = λ)
+        state.z_set[0] += lambda;
 
-        // update the accumulated plastic strain: α
-        state.z_set[1] += lambda;
+        // update the size of the yield surface: b (ḃ = H λ)
+        state.z_set[1] += self.h * lambda;
 
         // update flags
         state.elastic = false;
@@ -212,20 +288,20 @@ impl<const N: usize> TraitPlasticity<N> for VonMises<N> {
 
     /// Calculates the reference yield function value to use as normalization factor
     fn calc_f_ref(&self) -> f64 {
-        self.kappa_ini
+        self.b_0
     }
 
-    /// Calculates the yield function f
+    /// Calculates the yield function f(σ, b) = σt(σ) - b
     fn calc_f(&self, state: &LocalState<N>) -> Result<f64, StrError> {
-        let q = state.stress.invariant_q();
-        let kappa = state.z_set[0];
-        Ok(q - kappa)
+        let sigma_r = state.stress.invariant_r(); // σt = ‖dev(σ)‖
+        let b = state.z_set[1];
+        Ok(sigma_r - b)
     }
 
-    /// Calculates the hardening coefficients h
+    /// Calculates the hardening functions h = {h_a, h_b} = {1, H}
     fn calc_h(&self, h: &mut Vector, _state: &LocalState<N>) -> Result<(), StrError> {
-        h[0] = self.hh;
-        h[1] = 1.0;
+        h[0] = 1.0; // ȧ = λ
+        h[1] = self.h; // ḃ = H λ
         Ok(())
     }
 
@@ -233,12 +309,14 @@ impl<const N: usize> TraitPlasticity<N> for VonMises<N> {
     ///
     /// ```text
     ///       ∂f
-    /// fs := ──
+    /// fs := ──  =  ŝ
     ///       ∂σ
     /// ```
+    ///
+    /// where ŝ = dev(σ) / ‖dev(σ)‖ is the unit deviator of the stress tensor.
     fn calc_fs(&self, df_dsigma: &mut Tensor2<N>, state: &LocalState<N>) -> Result<(), StrError> {
-        // fs = ∂f/∂σ = ∂q/∂σ
-        match deriv1_invariant_q(df_dsigma, &state.stress) {
+        // fs = ∂f/∂σ = ∂σt/∂σ = dev(σ) / ‖dev(σ)‖
+        match deriv1_invariant_r(df_dsigma, &state.stress) {
             Some(_) => Ok(()),
             None => Err("cannot compute the derivative of the yield function due to singularity"),
         }
@@ -258,13 +336,15 @@ impl<const N: usize> TraitPlasticity<N> for VonMises<N> {
     /// Calculates the derivative of the yield function with respect to internal variables
     ///
     /// ```text
-    ///        ∂f
-    /// fzₖ := ───
-    ///        ∂zₖ
+    ///         ∂f
+    /// fz_k := ───  =  {0, -1}
+    ///         ∂z_k
     /// ```
+    ///
+    /// with z = {a, b}, i.e., ∂f/∂a = 0 and ∂f/∂b = -1.
     fn calc_fz(&self, df_dz: &mut Vector, _state: &LocalState<N>) -> Result<(), StrError> {
-        df_dz[0] = -1.0; // df/dκ = -1
-        df_dz[1] = 0.0; // df/dα = 0
+        df_dz[0] = 0.0; // df/da = 0
+        df_dz[1] = -1.0; // df/db = -1
         Ok(())
     }
 
@@ -289,12 +369,15 @@ impl<const N: usize> TraitPlasticity<N> for VonMises<N> {
     /// Calculates the second derivative of the plastic potential function with respect to stress
     ///
     /// ```text
-    ///             ∂(gs)     ∂²g
-    /// ggs := Gσ = ───── = ───────
-    ///              ∂σ     ∂σ ⊗ ∂σ
+    ///                ∂(gs)     ∂²g
+    /// ggs := G_sigma|1 = ───── = ───────  =  ∂²σt/∂σ²
+    ///                 ∂σ     ∂σ ⊗ ∂σ
     /// ```
+    ///
+    /// i.e., the book's G_sigma|1, evaluated at the updated stress (see the book's "Stress update"
+    /// section).
     fn calc_ggs(&self, ggs: &mut Tensor4<N>, state: &LocalState<N>) -> Result<(), StrError> {
-        match deriv2_invariant_q(ggs, &state.stress) {
+        match deriv2_invariant_r(ggs, &state.stress) {
             Some(_) => Ok(()),
             None => Err("cannot compute the second derivative of the plastic potential due to singularity"),
         }
@@ -303,15 +386,18 @@ impl<const N: usize> TraitPlasticity<N> for VonMises<N> {
     /// Calculates the second derivatives of the plastic potential function with respect to stress and internal variables
     ///
     /// ```text
-    ///               ∂(gs)
-    /// ggz := Gz|k = ─────
-    ///                ∂zₖ
+    ///                 ∂(gs)
+    /// ggz := G_z|1 = ─────  =  [0, 0]
+    ///                  ∂z_k
     ///
     /// ggz is (ncp x nz)
     /// ```
+    ///
+    /// because gs = ŝ does not depend on the internal variables (the book's G_z|1 for the isotropic
+    /// hardening model).
     fn calc_ggz(&self, ggz: &mut Matrix, _state: &LocalState<N>) -> Result<(), StrError> {
         // g = f
-        // gs = fs = ∂f/∂σ = ∂q/∂σ
+        // gs = fs = ∂f/∂σ = ∂σt/∂σ
         // ∂(gs)/∂zₖ = 0
         ggz.fill(0.0);
         Ok(())
@@ -320,12 +406,15 @@ impl<const N: usize> TraitPlasticity<N> for VonMises<N> {
     /// Calculates the second derivatives of the hardening function with respect to stress
     ///
     /// ```text
-    ///               ∂hₖ
-    /// hhs := Hσ|k = ───
-    ///               ∂σ
+    ///                  ∂h_k
+    /// hhs := H_sigma|1 = ───  =  [0; 0]
+    ///                   ∂σ
     ///
     /// hhs is (nz x ncp)
     /// ```
+    ///
+    /// because h = {1, H} does not depend on the stress tensor (the book's H_sigma|1 for the
+    /// isotropic hardening model).
     fn calc_hhs(&self, hhs: &mut Matrix, _state: &LocalState<N>) -> Result<(), StrError> {
         // h0 = constant
         hhs.fill(0.0);
@@ -335,12 +424,16 @@ impl<const N: usize> TraitPlasticity<N> for VonMises<N> {
     /// Calculates the second derivatives of the hardening function with respect to internal variables
     ///
     /// ```text
-    ///                ∂hᵢ
-    /// hhz := Hz|ij = ───
-    ///                ∂zⱼ
+    ///                   ∂h_i
+    /// hhz := H_z|1 = ───  =  [[0, 0], [0, 0]]
+    ///                   ∂z_j
     ///
     /// hhz is (nz x nz)
     /// ```
+    ///
+    /// which is zero because h = {1, H} does not depend on z. The book remarks that the (b, a) entry
+    /// vanishes only for the *linear* isotropic law: a nonlinear law has ∂h_b/∂a ≠ 0 and must fill
+    /// that entry (see [super::VonMisesSoft], which does).
     fn calc_hhz(&self, hhz: &mut Matrix, _state: &LocalState<N>) -> Result<(), StrError> {
         // h0 = constant
         hhz.fill(0.0);
@@ -357,12 +450,19 @@ mod tests {
     use crate::material::{LocalState, Settings, TraitStressStrain};
     use crate::{D2, D3};
     use russell_lab::approx_eq;
-    use russell_tensor::{Tensor2, Tensor4, SQRT_3, SQRT_3_BY_2};
+    use russell_tensor::{Tensor2, Tensor4, SQRT_2_BY_3, SQRT_3, SQRT_3_BY_2, TWO_BY_3};
 
     const YOUNG: f64 = 1500.0;
     const POISSON: f64 = 0.25;
-    const HH: f64 = 800.0;
-    const KAPPA_INI: f64 = 9.0;
+    const KAPPA_INI: f64 = 9.0; // published (classic normalization) initial yield stress
+    const H: f64 = TWO_BY_3 * 800.0; // isotropic hardening modulus (H = (2/3) hh)
+    const B_0: f64 = SQRT_2_BY_3 * 9.0; // initial size of the yield surface (b₀ = √(2/3) κ_ini)
+
+    // Isomorphic parameters used by these tests, converted from the published pair
+    // (hh = 800, kappa_ini = 9) by the boundary constructor
+    fn params() -> StressStrain {
+        StressStrain::von_mises_from_published(YOUNG, POISSON, 800.0, KAPPA_INI)
+    }
 
     // Generates a state reaching the yield surface
     fn update_to_yield_surface<const N: usize>(model: &mut VonMises<N>, lode: f64) -> LocalState<N> {
@@ -376,11 +476,11 @@ mod tests {
 
         // elastic update: from zero stress state to the yield surface (exactly)
         let dsigma_m = 1.0;
-        let dsigma_d = model.kappa_ini; // <<< will reach the yield surface (exactly)
+        let dsigma_r = model.b_0; // <<< will reach the yield surface (exactly)
         let depsilon_v = dsigma_m / kk;
-        let depsilon_d = dsigma_d / (3.0 * gg);
+        let depsilon_r = dsigma_r / (2.0 * gg);
         let d_distance = depsilon_v / SQRT_3;
-        let d_radius = depsilon_d * SQRT_3_BY_2;
+        let d_radius = depsilon_r;
 
         // update
         let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode).unwrap();
@@ -390,29 +490,28 @@ mod tests {
 
     #[test]
     fn initialize_internal_values_works() {
+        // the isomorphic parameters must be the conversion of the published pair (hh = 800,
+        // kappa_ini = 9); the factor table is in StressStrain::von_mises_from_published
+        match params() {
+            StressStrain::VonMises { h, b_0, .. } => {
+                approx_eq(h, H, 1e-15); // H   = (2/3) hh
+                approx_eq(b_0, B_0, 1e-15); // b0  = sqrt(2/3) kappa_ini
+            }
+            _ => panic!("VonMises parameters required"),
+        }
         let ideal = Idealization::<D2>::new();
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            hh: HH,
-            kappa_ini: KAPPA_INI,
-        };
+        let param = params();
         let settings = Settings::new();
         let model = VonMises::new(&ideal, &param, &settings).unwrap();
         let nz = model.nz();
         let mut state = LocalState::new(nz);
         model.initialize_int_vars(&mut state).unwrap();
-        assert_eq!(state.z_set.as_data(), &[KAPPA_INI, 0.0]);
+        assert_eq!(state.z_set.as_data(), &[0.0, B_0]);
     }
 
     #[test]
     fn update_stress_works_elastic() {
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            hh: HH,
-            kappa_ini: KAPPA_INI,
-        };
+        let param = params();
         let settings = Settings::new();
 
         // 2D
@@ -422,11 +521,11 @@ mod tests {
             for lode in [-1.0, 0.0, 1.0] {
                 let state = update_to_yield_surface(&mut model, lode);
                 let sigma_m = state.stress.invariant_p();
-                let sigma_d = state.stress.invariant_q();
+                let sigma_r = state.stress.invariant_r();
                 approx_eq(sigma_m, 1.0, 1e-14);
-                approx_eq(sigma_d, KAPPA_INI, 1e-14);
+                approx_eq(sigma_r, B_0, 1e-14);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.z_set.as_data(), &[KAPPA_INI, 0.0]);
+                assert_eq!(state.z_set.as_data(), &[0.0, B_0]);
             }
         }
 
@@ -437,11 +536,11 @@ mod tests {
             for lode in [-1.0, 0.0, 1.0] {
                 let state = update_to_yield_surface(&mut model, lode);
                 let sigma_m = state.stress.invariant_p();
-                let sigma_d = state.stress.invariant_q();
+                let sigma_r = state.stress.invariant_r();
                 approx_eq(sigma_m, 1.0, 1e-14);
-                approx_eq(sigma_d, KAPPA_INI, 1e-14);
+                approx_eq(sigma_r, B_0, 1e-14);
                 assert_eq!(state.elastic, true);
-                assert_eq!(state.z_set.as_data(), &[KAPPA_INI, 0.0]);
+                assert_eq!(state.z_set.as_data(), &[0.0, B_0]);
             }
         }
     }
@@ -450,16 +549,11 @@ mod tests {
     fn update_stress_works_elastoplastic() {
         // constants
         let deps_v = 0.001;
-        let deps_d = 0.005;
+        let deps_r = 0.005;
         let d_distance = deps_v / SQRT_3;
-        let d_radius = deps_d * SQRT_3_BY_2;
+        let d_radius = deps_r;
         let lode = 1.0;
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            hh: HH,
-            kappa_ini: KAPPA_INI,
-        };
+        let param = params();
         let settings = Settings::new();
 
         // 2D
@@ -469,23 +563,23 @@ mod tests {
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
             let mut state = update_to_yield_surface(&mut model, lode);
             let sigma_m_1 = state.stress.invariant_p();
-            let sigma_d_1 = state.stress.invariant_q();
+            let sigma_r_1 = state.stress.invariant_r();
 
             // elastoplastic update
             let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode).unwrap();
             model.update_stress(&mut state, &delta_strain, 0, 0).unwrap();
             let sigma_m_2 = state.stress.invariant_p();
-            let sigma_d_2 = state.stress.invariant_q();
+            let sigma_r_2 = state.stress.invariant_r();
 
             // check
             let (kk, gg) = model.lin_elasticity.get_bulk_shear();
-            let hh = HH;
+            let h = H;
             let correct_sigma_m = sigma_m_1 + kk * deps_v;
-            let correct_sigma_d = sigma_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+            let correct_sigma_r = sigma_r_1 + 2.0 * gg * h * deps_r / (2.0 * gg + h);
             approx_eq(sigma_m_2, correct_sigma_m, 1e-15);
-            approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
+            approx_eq(sigma_r_2, correct_sigma_r, 1e-14);
             assert_eq!(state.elastic, false);
-            approx_eq(state.z_set[0], correct_sigma_d, 1e-14);
+            approx_eq(state.z_set[1], correct_sigma_r, 1e-14);
         }
 
         // 3D
@@ -495,23 +589,23 @@ mod tests {
             let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
             let mut state = update_to_yield_surface(&mut model, lode);
             let sigma_m_1 = state.stress.invariant_p();
-            let sigma_d_1 = state.stress.invariant_q();
+            let sigma_r_1 = state.stress.invariant_r();
 
             // elastoplastic update
             let delta_strain = Tensor2::new_from_octahedral(d_distance, d_radius, lode).unwrap();
             model.update_stress(&mut state, &delta_strain, 0, 0).unwrap();
             let sigma_m_2 = state.stress.invariant_p();
-            let sigma_d_2 = state.stress.invariant_q();
+            let sigma_r_2 = state.stress.invariant_r();
 
             // check
             let (kk, gg) = model.lin_elasticity.get_bulk_shear();
-            let hh = HH;
+            let h = H;
             let correct_sigma_m = sigma_m_1 + kk * deps_v;
-            let correct_sigma_d = sigma_d_1 + 3.0 * gg * hh * deps_d / (3.0 * gg + hh);
+            let correct_sigma_r = sigma_r_1 + 2.0 * gg * h * deps_r / (2.0 * gg + h);
             approx_eq(sigma_m_2, correct_sigma_m, 1e-15);
-            approx_eq(sigma_d_2, correct_sigma_d, 1e-14);
+            approx_eq(sigma_r_2, correct_sigma_r, 1e-14);
             assert_eq!(state.elastic, false);
-            approx_eq(state.z_set[0], correct_sigma_d, 1e-14);
+            approx_eq(state.z_set[1], correct_sigma_r, 1e-14);
         }
     }
 
@@ -529,12 +623,7 @@ mod tests {
     fn stiffness_works_elastoplastic_2d() {
         // model
         let ideal = Idealization::<D2>::new();
-        let param = StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            hh: HH,
-            kappa_ini: KAPPA_INI,
-        };
+        let param = params();
         let settings = Settings::new();
         let mut model = VonMises::new(&ideal, &param, &settings).unwrap();
 
@@ -544,11 +633,11 @@ mod tests {
         model.initialize_int_vars(&mut state).unwrap();
 
         // plane-strain strain increments reaching yield surface
+        // (the published, classic initial yield stress is κ_ini = √(3/2) b₀)
         let ee = YOUNG;
         let nu = POISSON;
         let nu2 = POISSON * POISSON;
-        let z = KAPPA_INI;
-        let dy = z * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
+        let dy = KAPPA_INI * (1.0 - nu2) / (ee * f64::sqrt(1.0 - nu + nu2));
         let eps_x = dy * nu / (1.0 - nu);
         let eps_y = -dy;
 
@@ -568,7 +657,7 @@ mod tests {
         ];
         compare_spo_results(&dd, &dd_spo, 1e-16);
         assert_eq!(state.elastic, true);
-        assert_eq!(state.z_set.as_data(), &[z, 0.0]);
+        assert_eq!(state.z_set.as_data(), &[0.0, B_0]);
 
         // second update: elastoplastic behavior
         delta_strain.set(0, (2.0 - 0.9999) * eps_x);
@@ -583,9 +672,11 @@ mod tests {
             [-2.081794007857600E-15, 2.914511611000640E-15, 3.923076923076923E+02],
         ];
         compare_spo_results(&dd, &dd_spo, 1e-12);
-        let sigma_d = state.stress.invariant_q();
+        let sigma_r = state.stress.invariant_r();
         assert_eq!(state.elastic, false);
-        assert_eq!(state.z_set[0], sigma_d);
-        approx_eq(state.lambda_alg, 3.461538461538463E-03, 1e-15);
+        assert_eq!(state.z_set[1], sigma_r);
+        // the published (classic) algorithmic multiplier is 3.461538461538463E-03; here it is
+        // reported in the isomorphic normalization: λ = √(3/2) λ_classic
+        approx_eq(state.lambda_alg, SQRT_3_BY_2 * 3.461538461538463E-03, 1e-15);
     }
 }

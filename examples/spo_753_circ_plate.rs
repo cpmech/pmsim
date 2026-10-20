@@ -6,6 +6,7 @@ use pmsim::util::{compare_results, ReferenceDataSPO, ReferenceDataTrait, Referen
 use pmsim::StrError;
 use russell_lab::Vector;
 use russell_sparse::Genie;
+use russell_tensor::SQRT_3_BY_2;
 use structopt::StructOpt;
 
 use pmsim::util::testing_spo_753_data::{DEFLECTION, LOAD};
@@ -83,12 +84,8 @@ fn main() -> Result<(), StrError> {
     // parameters
     let p1 = ParamSolid {
         density: 1.0,
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            kappa_ini: KAPPA_INI,
-            hh: H,
-        },
+        // published (classic/uniaxial) values: hh = H and kappa_ini = KAPPA_INI
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, H, KAPPA_INI),
         ngauss: Some(NGAUSS),
     };
 
@@ -202,7 +199,8 @@ fn main() -> Result<(), StrError> {
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((1, 1.0, 1e-8)),
+            // the reference data of Ref #1 uses the classic normalisation: a = sqrt(3/2) eps_bar_p
+            Some((0, SQRT_3_BY_2, 1e-8)),
         )?;
         assert!(all_good);
     }

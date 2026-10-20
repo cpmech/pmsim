@@ -6,6 +6,7 @@ use pmsim::util::{compare_results, ReferenceDataType};
 use pmsim::StrError;
 use russell_lab::math::{PI, SQRT_3};
 use russell_lab::{approx_eq, read_data, Vector};
+use russell_tensor::SQRT_3_BY_2;
 
 // Example 7.5.1 (aka 751) on page 244 of Ref #1 (aka SPO's book)
 //
@@ -69,12 +70,8 @@ fn spo_751_pres_cylin() -> Result<(), StrError> {
     let param1 = ParamSolid {
         density: 1.0,
         // stress_strain: StressStrain::LinearElastic { young: YOUNG, poisson: POISSON, },
-        stress_strain: StressStrain::VonMises {
-            young: YOUNG,
-            poisson: POISSON,
-            hh: 0.0,
-            kappa_ini: 0.24,
-        },
+        // published (classic/uniaxial) values: hh = 0.0 and kappa_ini = 0.24
+        stress_strain: StressStrain::von_mises_from_published(YOUNG, POISSON, 0.0, 0.24),
         ngauss: Some(NGAUSS),
     };
     let mut schema = Schema::new();
@@ -200,7 +197,8 @@ fn run(
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            Some((1, 1.0, 1e-11)),
+            // the reference data of Ref #1 uses the classic normalisation: a = sqrt(3/2) eps_bar_p
+            Some((0, SQRT_3_BY_2, 1e-11)),
         )?;
         assert!(all_good);
     }
