@@ -8,7 +8,7 @@ use russell_tensor::SQRT_2_BY_3;
 pub(super) fn generate_states_von_mises<const N: usize>(bulk: f64, shear: f64, lode: f64) -> Vec<LocalState<N>> {
     let young = 9.0 * bulk * shear / (3.0 * bulk + shear);
     let poisson = (3.0 * bulk - 2.0 * shear) / (6.0 * bulk + 2.0 * shear);
-    let kappa = 9.0; // size of the von Mises yield surface (classic normalisation)
+    let kappa = 9.0; // size of the von Mises yield surface (classic normalization)
     let b = SQRT_2_BY_3 * kappa; // size of the yield surface (isomorphic: b = √(2/3) κ)
     let n_increments = 2;
     let sigma_m_0 = 0.0;

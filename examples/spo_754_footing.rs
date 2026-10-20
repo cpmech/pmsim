@@ -299,7 +299,6 @@ fn main() -> Result<(), StrError> {
             tol_displacement,
             tol_stress,
             VERBOSE_LEVEL,
-            // the reference data of Ref #1 uses the classic normalisation: a = sqrt(3/2) eps_bar_p
             Some((0, SQRT_3_BY_2, 1e-9)),
         )?;
         assert!(all_good);

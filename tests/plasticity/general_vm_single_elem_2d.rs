@@ -160,26 +160,6 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         }
     }
 
-    // compare the results with Ref #1
-    /*
-    let tol_displacement = 8.24e-10;
-    let tol_stress = 1.13e-6;
-    let all_good = compare_results(
-        &mesh,
-        &schema,
-        &config,
-        "/tmp/pmsim/plasticity/",
-        NAME,
-        ReferenceDataType::SPO,
-        "data/spo/spo_von_mises_single_element.json",
-        tol_displacement,
-        tol_stress,
-        0,
-        Some((0, 1.224744871391589, 1e-10)), // a = sqrt(3/2) eps_bar_p
-    )?;
-    assert!(all_good);
-    */
-
     // figure
     if SAVE_FIGURE {
         // displacement-force data
@@ -193,7 +173,6 @@ fn general_vm_single_elem_2d() -> Result<(), StrError> {
         plot.add(&dm)
             .add(&curve)
             .grid_and_labels("uy", "fy")
-            .set_range(-0.035, 0.0, -13.5, 0.0)
             .save(&format!("/tmp/pmsim/plasticity/{}_disp.svg", NAME))?;
 
         // stress-strain data

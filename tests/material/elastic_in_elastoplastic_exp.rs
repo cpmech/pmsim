@@ -22,8 +22,8 @@ fn elastic_in_elastoplastic_exp() -> Result<(), StrError> {
     // parameters
     let young = 1500.0;
     let poisson = 0.25;
-    let hh = 800.0; // published (classic normalisation) hardening modulus
-    let kappa_ini = 9.0; // published (classic normalisation) initial yield stress
+    let hh = 800.0; // published (classic normalization) hardening modulus
+    let kappa_ini = 9.0; // published (classic normalization) initial yield stress
     let param_el = StressStrain::LinearElastic { young, poisson };
     // converted to the isomorphic invariants by the boundary constructor
     let param_vm = StressStrain::von_mises_from_published(young, poisson, hh, kappa_ini);

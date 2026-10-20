@@ -227,8 +227,6 @@ fn run_test(
         let idx_a = 0; // index of the accumulated plastic strain (a) in the z set
         let tol_displacement = 8.24e-10;
         let tol_stress = 1.13e-6;
-        // the reference data of Ref #1 uses the classic normalisation: a = sqrt(3/2) eps_bar_p
-        // (see the conversion table in StressStrain::von_mises_from_published)
         let all_good = compare_results(
             &mesh,
             &schema,
