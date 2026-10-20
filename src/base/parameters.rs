@@ -27,7 +27,8 @@ pub enum StressStrain {
     /// and internal variables z = {a, b}.
     ///
     /// **Note:** the parameters below are in the isomorphic normalization of the book's "Stress and
-    /// Strain Invariants" chapter; see also the conversion table in `StressStrain::von_mises_from_published`.
+    /// Strain Invariants" chapter; see also the conversion table in the doc of
+    /// `StressStrain::von_mises_from_published` and `StressStrain::von_mises_kinematic_from_published`.
     VonMises {
         /// Young's modulus
         young: f64,
@@ -559,8 +560,8 @@ impl StressStrain {
     /// to the isomorphic normalization of the book's "Stress and Strain Invariants" chapter
     ///
     /// This is the boundary where published parameter sets enter the code; the conversion
-    /// identities are asserted by the unit tests of this module. Table (the same as in
-    /// `StressStrain::von_mises_from_published`, where `q = √(3/2) σt` and `κ = √(3/2) b`):
+    /// identities are asserted by the unit tests of this module. Table (`q = √(3/2) σt` and
+    /// `κ = √(3/2) b`):
     ///
     /// ```text
     /// H   = (2/3) H_uni        (H_uni = hh, the uniaxial plastic modulus)
@@ -626,7 +627,7 @@ impl StressStrain {
     /// (classic/uniaxial) normalization to the isomorphic normalization of the book's "Stress and
     /// Strain Invariants" chapter
     ///
-    /// Table (the same as in `StressStrain::von_mises_from_published`):
+    /// Table:
     ///
     /// ```text
     /// H   = (2/3) H_uni            uniaxial plastic modulus = H_uni (= hh)

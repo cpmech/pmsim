@@ -64,7 +64,7 @@ fn query_failed_bool(a: bool, b: bool, verbose: usize) -> bool {
 ///   the classic (uniaxial) normalization by `a = √(3/2) eps_bar_p`. A reference table given in the
 ///   classic normalization is therefore checked with `(0, √(3/2), tol)`: index 0 is the `a` column
 ///   of `z = {a, b}` and the factor converts the reference value (see also the conversion table in
-///   `StressStrain::von_mises_from_published`).
+///   the doc of `StressStrain::von_mises_kinematic_from_published`).
 ///
 /// **Note:** The first pmsim's file with index 0 is ignored.
 ///
