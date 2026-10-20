@@ -136,8 +136,8 @@ impl<'a> Plotter<'a> {
             tab_3x2_fig_size: (600.0, 800.0),
             tab_leg_index: 3,
             tab_leg_ncol: 3,
-            tab_selected_2x2: (Axis::EpsMean(true, false), Axis::SigM(false)),
-            tab_selected_3x2: (Axis::EpsMean(true, false), Axis::SigD(false)),
+            tab_selected_2x2: (Axis::EpsS(true, false), Axis::SigS(false)),
+            tab_selected_3x2: (Axis::EpsS(true, false), Axis::SigT(false)),
             dark_mode: false,
         }
     }
@@ -300,9 +300,9 @@ impl<'a> Plotter<'a> {
     {
         let percent = true;
         let (negative, normalized) = if porous_media { (true, true) } else { (false, false) };
-        let sig_m = Axis::SigM(negative);
-        let sig_d = Axis::SigD(normalized);
-        let eps_d = Axis::EpsDev(percent);
+        let sig_m = Axis::SigS(negative);
+        let sig_d = Axis::SigT(normalized);
+        let eps_d = Axis::EpsT(percent);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
             vec![(eps_d, sig_d), self.tab_selected_2x2],
@@ -336,10 +336,10 @@ impl<'a> Plotter<'a> {
     {
         let percent = true;
         let (negative, normalized) = if porous_media { (true, true) } else { (false, false) };
-        let eps_v = Axis::EpsMean(percent, negative);
-        let eps_d = Axis::EpsDev(percent);
-        let sig_m = Axis::SigM(negative);
-        let sig_d = Axis::SigD(normalized);
+        let eps_v = Axis::EpsS(percent, negative);
+        let eps_d = Axis::EpsT(percent);
+        let sig_m = Axis::SigS(negative);
+        let sig_d = Axis::SigT(normalized);
         let axes = vec![
             vec![(sig_m, sig_d), (Axis::OctX, Axis::OctY)],
             vec![(eps_d, sig_d), self.tab_selected_3x2],
@@ -526,7 +526,6 @@ mod tests {
     use crate::D2;
     use plotpy::{Curve, SlopeIcon};
     use russell_lab::approx_eq;
-    use russell_lab::math::{SQRT_2, SQRT_3};
     use russell_tensor::Tensor2;
 
     const SAVE_FIGURE: bool = false;
@@ -549,8 +548,8 @@ mod tests {
         let data_b = PlotterData::from_states(&states_b).unwrap();
         let mut plotter = Plotter::new();
         // pair: eps_v, sig_m
-        let eps_v = Axis::EpsMean(true, false);
-        let sig_m = Axis::SigM(false);
+        let eps_v = Axis::EpsS(true, false);
+        let sig_m = Axis::SigS(false);
         // configure curves
         let set_curve_a = |curve: &mut Curve| {
             curve.set_label("A").set_line_color("#1a9128").set_marker_style("o");
@@ -577,18 +576,18 @@ mod tests {
         let data_a = PlotterData::from_states(&states_a).unwrap();
         let data_b = PlotterData::from_states(&states_b).unwrap();
         let mut plotter = Plotter::new();
-        // pair: eps_mean, sig_m
-        let eps_mean = Axis::EpsMean(false, false);
-        let sig_m = Axis::SigM(false);
-        // pair: eps_mean_alt, sig_m_alt
-        let eps_mean_alt = Axis::EpsMean(true, true);
-        let sig_m_alt = Axis::SigM(true);
-        // pair: eps_dev, sig_d
-        let eps_dev = Axis::EpsDev(false);
-        let sig_d = Axis::SigD(false);
-        // pair: eps_dev_alt, sig_d_alt
-        let eps_dev_alt = Axis::EpsDev(true);
-        let sig_d_alt = Axis::SigD(true);
+        // pair: eps_s, sig_m
+        let eps_s = Axis::EpsS(false, false);
+        let sig_s = Axis::SigS(false);
+        // pair: eps_s_alt, sig_s_alt
+        let eps_s_alt = Axis::EpsS(true, true);
+        let sig_s_alt = Axis::SigS(true);
+        // pair: eps_t, sig_t
+        let eps_t = Axis::EpsT(false);
+        let sig_t = Axis::SigT(false);
+        // pair: eps_t_alt, sig_t_alt
+        let eps_t_alt = Axis::EpsT(true);
+        let sig_t_alt = Axis::SigT(true);
         // configure curves
         let set_curve_a = |curve: &mut Curve| {
             curve.set_label("A").set_line_color("#1a9128").set_marker_style("o");
@@ -596,31 +595,31 @@ mod tests {
         let set_curve_b = |curve: &mut Curve| {
             curve.set_label("B").set_line_color("#de3163").set_marker_style("*");
         };
-        // draw: eps_mean, sig_m
-        plotter.add(eps_mean, sig_m, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_mean, sig_m, &data_b, set_curve_b).unwrap();
-        // draw: eps_mean_alt, sig_m_alt
-        plotter.add(eps_mean_alt, sig_m_alt, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_mean_alt, sig_m_alt, &data_b, set_curve_b).unwrap();
-        // draw: eps_dev, sig_d
-        plotter.add(eps_dev, sig_d, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_dev, sig_d, &data_b, set_curve_b).unwrap();
-        // draw: eps_dev_alt, sig_d_alt
-        plotter.add(eps_dev_alt, sig_d_alt, &data_a, set_curve_a).unwrap();
-        plotter.add(eps_dev_alt, sig_d_alt, &data_b, set_curve_b).unwrap();
+        // draw: eps_s, sig_s
+        plotter.add(eps_s, sig_s, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_s, sig_s, &data_b, set_curve_b).unwrap();
+        // draw: eps_s_alt, sig_s_alt
+        plotter.add(eps_s_alt, sig_s_alt, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_s_alt, sig_s_alt, &data_b, set_curve_b).unwrap();
+        // draw: eps_t, sig_t
+        plotter.add(eps_t, sig_t, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_t, sig_t, &data_b, set_curve_b).unwrap();
+        // draw: eps_t_alt, sig_t_alt
+        plotter.add(eps_t_alt, sig_t_alt, &data_a, set_curve_a).unwrap();
+        plotter.add(eps_t_alt, sig_t_alt, &data_b, set_curve_b).unwrap();
         // calculate slopes
-        let (slope, x_mid_bulk, y_mid_bulk) = data_a.slope(eps_mean, sig_m).unwrap();
-        approx_eq(slope, bulk * SQRT_3, 1e-11);
-        let (slope, x_mid_shear, y_mid_shear) = data_a.slope(eps_dev, sig_d).unwrap();
-        approx_eq(slope, (3.0 * SQRT_2 / SQRT_3) * shear, 1e-12);
+        let (slope, x_mid_bulk, y_mid_bulk) = data_a.slope(eps_s, sig_s).unwrap();
+        approx_eq(slope, 3.0 * bulk, 1e-11);
+        let (slope, x_mid_shear, y_mid_shear) = data_a.slope(eps_t, sig_t).unwrap();
+        approx_eq(slope, 2.0 * shear, 1e-12);
         // extra features
-        plotter.set_extra(eps_mean, sig_m, move |plot| {
+        plotter.set_extra(eps_s, sig_s, move |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2);
             icon.draw(bulk, x_mid_bulk, y_mid_bulk);
             plot.set_figure_size_points(550.0, 350.0).add(&icon);
         });
-        plotter.set_extra(eps_dev, sig_d, move |plot| {
+        plotter.set_extra(eps_t, sig_t, move |plot| {
             let mut icon = SlopeIcon::new();
             icon.set_length(0.2).set_above(true);
             icon.draw(3.0 * shear, x_mid_shear, y_mid_shear + 0.5);
