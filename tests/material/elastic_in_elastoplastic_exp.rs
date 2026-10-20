@@ -197,13 +197,13 @@ fn do_plot(
     plotter.set_oct_circle(radius_1, |canvas| {
         canvas.set_line_style("-");
     });
-    plotter.set_extra(Axis::SigM(false), Axis::SigD(false), |plot| {
+    plotter.set_extra(Axis::SigS(false), Axis::SigT(false), |plot| {
         plot.set_xrange(0.0, 2.0);
     });
-    plotter.set_extra(Axis::EpsDev(true), Axis::EpsMean(true, false), |plot| {
+    plotter.set_extra(Axis::EpsT(true), Axis::EpsS(true, false), |plot| {
         plot.set_yrange(-1.0, 1.0);
     });
-    plotter.set_extra(Axis::SigM(false), Axis::EpsMean(true, false), |plot| {
+    plotter.set_extra(Axis::SigS(false), Axis::EpsS(true, false), |plot| {
         plot.set_xrange(0.0, 2.0);
         plot.set_yrange(-1.0, 1.0);
     });

@@ -1,11 +1,11 @@
 /// Defines the data type along an axis of Plotter
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 pub enum Axis {
-    /// Mean pressure (negative)
-    SigM(/*negative*/ bool),
+    /// Isomorphic Mean pressure (negative)
+    SigS(/*negative*/ bool),
 
-    /// Deviatoric stress (normalized)
-    SigD(/*normalized*/ bool),
+    /// Isomorphic Deviatoric stress (normalized)
+    SigT(/*normalized*/ bool),
 
     // Lode invariant associated with the stress tensor
     Lode,
@@ -17,10 +17,10 @@ pub enum Axis {
     OctY,
 
     /// (optional) Isomorphic mean strain (percent, negative)
-    EpsMean(/*percent*/ bool, /*negative*/ bool),
+    EpsS(/*percent*/ bool, /*negative*/ bool),
 
     /// (optional) Isomorphic deviatoric strain (percent)
-    EpsDev(/*percent*/ bool),
+    EpsT(/*percent*/ bool),
 
     /// (optional) Yield function value
     Yield,
@@ -33,28 +33,28 @@ impl Axis {
     /// Generates labels for the axis
     pub(super) fn label(&self) -> String {
         match self {
-            Self::SigM(negative) => {
+            Self::SigS(negative) => {
                 let n = if *negative { "-" } else { "" };
-                format!("${}\\sigma_m$", n)
+                format!("${}\\sigma_s$", n)
             }
-            Self::SigD(normalized) => {
+            Self::SigT(normalized) => {
                 if *normalized {
-                    "$\\sigma_d\\,/\\,|\\sigma_m|$".to_string()
+                    "$\\sigma_t\\,/\\,|\\sigma_s|$".to_string()
                 } else {
-                    "$\\sigma_d$".to_string()
+                    "$\\sigma_t$".to_string()
                 }
             }
             Self::Lode => "$\\ell$".to_string(),
             Self::OctX => "".to_string(),
             Self::OctY => "".to_string(),
-            Self::EpsMean(percent, negative) => {
+            Self::EpsS(percent, negative) => {
                 let n = if *negative { "-" } else { "" };
                 let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("${}\\varepsilon_{{mean}}{}$", n, p)
+                format!("${}\\varepsilon_s{}$", n, p)
             }
-            Self::EpsDev(percent) => {
+            Self::EpsT(percent) => {
                 let p = if *percent { "\\;[\\%]" } else { "" };
-                format!("$\\varepsilon_{{dev}}{}$", p)
+                format!("$\\varepsilon_t{}$", p)
             }
             Self::Yield => "yield function".to_string(),
             Self::Time => "pseudo time".to_string(),
@@ -71,50 +71,50 @@ mod tests {
 
     #[test]
     fn derive_works() {
-        let axis = Axis::EpsDev(false).clone();
-        let axes = HashSet::from([Axis::EpsDev(false), Axis::EpsMean(false, true)]);
-        assert_eq!(axis, Axis::EpsDev(false));
-        assert_eq!(format!("{:?}", axis), "EpsDev(false)");
-        assert_eq!(axes.contains(&Axis::EpsDev(false)), true);
-        assert_eq!(axes.contains(&Axis::EpsMean(false, false)), false);
-        assert_eq!(axes.contains(&Axis::EpsMean(false, true)), true);
+        let axis = Axis::EpsT(false).clone();
+        let axes = HashSet::from([Axis::EpsT(false), Axis::EpsS(false, true)]);
+        assert_eq!(axis, Axis::EpsT(false));
+        assert_eq!(format!("{:?}", axis), "EpsT(false)");
+        assert_eq!(axes.contains(&Axis::EpsT(false)), true);
+        assert_eq!(axes.contains(&Axis::EpsS(false, false)), false);
+        assert_eq!(axes.contains(&Axis::EpsS(false, true)), true);
     }
 
     #[test]
     fn label_works() {
         // stress
 
-        let axis = Axis::SigM(false);
-        assert_eq!(axis.label(), "$\\sigma_m$");
+        let axis = Axis::SigS(false);
+        assert_eq!(axis.label(), "$\\sigma_s$");
 
-        let axis = Axis::SigM(true);
-        assert_eq!(axis.label(), "$-\\sigma_m$");
+        let axis = Axis::SigS(true);
+        assert_eq!(axis.label(), "$-\\sigma_s$");
 
-        let axis = Axis::SigD(false);
-        assert_eq!(axis.label(), "$\\sigma_d$");
+        let axis = Axis::SigT(false);
+        assert_eq!(axis.label(), "$\\sigma_t$");
 
-        let axis = Axis::SigD(true);
-        assert_eq!(axis.label(), "$\\sigma_d\\,/\\,|\\sigma_m|$");
+        let axis = Axis::SigT(true);
+        assert_eq!(axis.label(), "$\\sigma_t\\,/\\,|\\sigma_s|$");
 
         let axis = Axis::Lode;
         assert_eq!(axis.label(), "$\\ell$");
 
         // strain
 
-        let axis = Axis::EpsMean(false, false);
-        assert_eq!(axis.label(), "$\\varepsilon_{mean}$");
+        let axis = Axis::EpsS(false, false);
+        assert_eq!(axis.label(), "$\\varepsilon_s$");
 
-        let axis = Axis::EpsMean(true, false);
-        assert_eq!(axis.label(), "$\\varepsilon_{mean}\\;[\\%]$");
+        let axis = Axis::EpsS(true, false);
+        assert_eq!(axis.label(), "$\\varepsilon_s\\;[\\%]$");
 
-        let axis = Axis::EpsMean(true, true);
-        assert_eq!(axis.label(), "$-\\varepsilon_{mean}\\;[\\%]$");
+        let axis = Axis::EpsS(true, true);
+        assert_eq!(axis.label(), "$-\\varepsilon_s\\;[\\%]$");
 
-        let axis = Axis::EpsDev(false);
-        assert_eq!(axis.label(), "$\\varepsilon_{dev}$");
+        let axis = Axis::EpsT(false);
+        assert_eq!(axis.label(), "$\\varepsilon_t$");
 
-        let axis = Axis::EpsDev(true);
-        assert_eq!(axis.label(), "$\\varepsilon_{dev}\\;[\\%]$");
+        let axis = Axis::EpsT(true);
+        assert_eq!(axis.label(), "$\\varepsilon_t\\;[\\%]$");
 
         // others
 

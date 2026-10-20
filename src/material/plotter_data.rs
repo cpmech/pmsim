@@ -6,11 +6,11 @@ use russell_tensor::{eigen_octahedral, EigenValuesT2, Tensor2};
 /// Holds a stress-strain entry for Plotter
 #[derive(Clone, Copy)]
 pub struct PlotterEntry {
-    /// Holds the mean stress invariant
-    pub sig_m: f64,
+    /// Holds the isomorphic mean stress invariant
+    pub sig_s: f64,
 
-    /// Holds the deviatoric stress invariant
-    pub sig_d: f64,
+    /// Holds the isomorphic deviatoric stress invariant
+    pub sig_t: f64,
 
     /// Holds the Lode invariant associated with the stress tensor
     pub lode: f64,
@@ -22,10 +22,10 @@ pub struct PlotterEntry {
     pub oct_y: f64,
 
     /// Holds the isomorphic mean strain invariant
-    pub eps_mean: Option<f64>,
+    pub eps_s: Option<f64>,
 
     /// Holds the isomorphic deviatoric strain invariant
-    pub eps_dev: Option<f64>,
+    pub eps_t: Option<f64>,
 
     /// Holds the result of an yield function evaluation (plasticity models only)
     pub yield_value: Option<f64>,
@@ -87,19 +87,19 @@ impl PlotterData {
         let (oct_y, _, oct_x) = eigen_octahedral(&sig_princ);
 
         self.all.push(PlotterEntry {
-            sig_m: stress.invariant_p(),
-            sig_d: stress.invariant_q(),
+            sig_s: stress.invariant_d(),
+            sig_t: stress.invariant_r(),
             lode: match stress.invariant_lode() {
                 Some(l) => l,
                 None => f64::NAN,
             },
             oct_x,
             oct_y,
-            eps_mean: match strain.as_ref() {
+            eps_s: match strain.as_ref() {
                 Some(e) => Some(e.invariant_d()),
                 None => None,
             },
-            eps_dev: match strain.as_ref() {
+            eps_t: match strain.as_ref() {
                 Some(e) => Some(e.invariant_r()),
                 None => None,
             },
@@ -145,36 +145,36 @@ impl PlotterData {
     /// Generates an array with the values associated with a given Axis
     pub fn array(&self, axis: Axis) -> Result<Vec<f64>, StrError> {
         match axis {
-            Axis::SigM(negative) => {
+            Axis::SigS(negative) => {
                 let n = if negative { -1.0 } else { 1.0 };
-                self.all.iter().map(|s| Ok(n * s.sig_m)).collect()
+                self.all.iter().map(|s| Ok(n * s.sig_s)).collect()
             }
-            Axis::SigD(normalized) => {
+            Axis::SigT(normalized) => {
                 if normalized {
-                    self.all.iter().map(|s| Ok(s.sig_d / f64::abs(s.sig_m))).collect()
+                    self.all.iter().map(|s| Ok(s.sig_t / f64::abs(s.sig_s))).collect()
                 } else {
-                    self.all.iter().map(|s| Ok(s.sig_d)).collect()
+                    self.all.iter().map(|s| Ok(s.sig_t)).collect()
                 }
             }
             Axis::Lode => self.all.iter().map(|s| Ok(s.lode)).collect(),
             Axis::OctX => self.all.iter().map(|s| Ok(s.oct_x)).collect(),
             Axis::OctY => self.all.iter().map(|s| Ok(s.oct_y)).collect(),
-            Axis::EpsMean(percent, negative) => {
+            Axis::EpsS(percent, negative) => {
                 let n = if negative { -1.0 } else { 1.0 };
                 let p = if percent { 100.0 * n } else { 1.0 * n };
                 self.all
                     .iter()
-                    .map(|s| match s.eps_mean {
+                    .map(|s| match s.eps_s {
                         Some(x) => Ok(p * x),
                         None => Err("volumetric strain is not available"),
                     })
                     .collect()
             }
-            Axis::EpsDev(percent) => {
+            Axis::EpsT(percent) => {
                 let p = if percent { 100.0 } else { 1.0 };
                 self.all
                     .iter()
-                    .map(|s| match s.eps_dev {
+                    .map(|s| match s.eps_t {
                         Some(x) => Ok(p * x),
                         None => Err("deviatoric strain is not available"),
                     })
@@ -233,9 +233,8 @@ mod tests {
     use crate::material::testing::generate_states_von_mises;
     use crate::material::{Axis, LocalState};
     use crate::D2;
-    use russell_lab::math::SQRT_2;
     use russell_lab::{approx_eq, array_approx_eq, assert_alike};
-    use russell_tensor::{Tensor2, SQRT_3};
+    use russell_tensor::{Tensor2, SQRT_2, SQRT_2_BY_3, SQRT_3};
 
     #[test]
     fn push_works() {
@@ -244,19 +243,19 @@ mod tests {
         let strain = Tensor2::<D2>::from_std_matrix(&[[0.0, 0.0, 0.0], [0.0, -0.5, 0.0], [0.0, 0.0, 0.5]]).unwrap();
         data.push(&stress, Some(&strain), Some(-9.0), Some(0.5)).unwrap();
         assert_eq!(data.all.len(), 1);
-        let sig_m = 2.0 / 3.0;
-        let sig_d = 1.0;
-        // let r = sig_d * SQRT_2_BY_3;
+        let sig_s = 2.0 * SQRT_3 / 3.0;
+        let sig_t = SQRT_2_BY_3;
+        // let r = sig_t;
         let lode = -1.0;
         // let theta = f64::acos(lode) / 3.0;
         // let alpha = PI / 2.0 - theta;
-        approx_eq(data.all[0].sig_m, sig_m, 1e-15);
-        approx_eq(data.all[0].sig_d, sig_d, 1e-15);
+        approx_eq(data.all[0].sig_s, sig_s, 1e-15);
+        approx_eq(data.all[0].sig_t, sig_t, 1e-15);
         approx_eq(data.all[0].lode, lode, 1e-15);
         // approx_eq(data.all[0].oct_x, r * f64::cos(alpha), 1e-15); // cannot check this because the eigenvalues have been sorted
         // approx_eq(data.all[0].oct_y, r * f64::sin(alpha), 1e-15); // cannot check this because the eigenvalues have been sorted
-        approx_eq(data.all[0].eps_mean.unwrap(), 0.0, 1e-15);
-        approx_eq(data.all[0].eps_dev.unwrap(), 1.0 / SQRT_2, 1e-15);
+        approx_eq(data.all[0].eps_s.unwrap(), 0.0, 1e-15);
+        approx_eq(data.all[0].eps_t.unwrap(), 1.0 / SQRT_2, 1e-15);
         approx_eq(data.all[0].yield_value.unwrap(), -9.0, 1e-15);
         approx_eq(data.all[0].pseudo_time.unwrap(), 0.5, 1e-15);
     }
@@ -269,22 +268,22 @@ mod tests {
 
         // stress
 
-        let axis = Axis::SigM(false);
-        let sigm = data.array(axis).unwrap();
-        array_approx_eq(&sigm, &[0.0, 1.0, 2.0], 1e-14);
+        let axis = Axis::SigS(false);
+        let sig_s = data.array(axis).unwrap();
+        array_approx_eq(&sig_s, &[0.0, SQRT_3, 2.0 * SQRT_3], 1e-14);
 
-        let axis = Axis::SigM(true);
-        let sigm = data.array(axis).unwrap();
-        array_approx_eq(&sigm, &[0.0, -1.0, -2.0], 1e-14);
+        let axis = Axis::SigS(true);
+        let sig_s = data.array(axis).unwrap();
+        array_approx_eq(&sig_s, &[0.0, -1.0 * SQRT_3, -2.0 * SQRT_3], 1e-14);
 
-        let axis = Axis::SigD(false);
-        let sigd = data.array(axis).unwrap();
-        array_approx_eq(&sigd, &[0.0, 9.0, 18.0], 1e-14);
+        let axis = Axis::SigT(false);
+        let sig_t = data.array(axis).unwrap();
+        array_approx_eq(&sig_t, &[0.0, 9.0 * SQRT_2_BY_3, 18.0 * SQRT_2_BY_3], 1e-14);
 
-        let axis = Axis::SigD(true);
-        let sigd = data.array(axis).unwrap();
-        assert_alike(sigd[0], f64::NAN); // <<<<<<<<< note NAN
-        array_approx_eq(&sigd[1..], &[9.0, 9.0], 1e-14); // <<<<<<<<< note without NAN
+        let axis = Axis::SigT(true);
+        let sig_t = data.array(axis).unwrap();
+        assert_alike(sig_t[0], f64::NAN); // <<<<<<<<< note NAN
+        array_approx_eq(&sig_t[1..], &[9.0 * SQRT_2 / 3.0, 9.0 * SQRT_2 / 3.0], 1e-14); // <<<<<<<<< note without NAN
 
         let axis = Axis::Lode;
         let ell = data.array(axis).unwrap();
@@ -293,23 +292,23 @@ mod tests {
 
         // strain
 
-        let axis = Axis::EpsMean(false, false);
+        let axis = Axis::EpsS(false, false);
         let eps_mean = data.array(axis).unwrap();
         array_approx_eq(&eps_mean, &[0.0, 0.001 / SQRT_3, 0.002 / SQRT_3], 1e-15);
 
-        let axis = Axis::EpsMean(true, false);
+        let axis = Axis::EpsS(true, false);
         let eps_mean = data.array(axis).unwrap();
         array_approx_eq(&eps_mean, &[0.0, 0.1 / SQRT_3, 0.2 / SQRT_3], 1e-15);
 
-        let axis = Axis::EpsMean(true, true);
+        let axis = Axis::EpsS(true, true);
         let eps_mean = data.array(axis).unwrap();
         array_approx_eq(&eps_mean, &[0.0, -0.1 / SQRT_3, -0.2 / SQRT_3], 1e-15);
 
-        let axis = Axis::EpsDev(false);
+        let axis = Axis::EpsT(false);
         let eps_dev = data.array(axis).unwrap();
         array_approx_eq(&eps_dev, &[0.0, 0.005 * SQRT_3 / SQRT_2, 0.01 * SQRT_3 / SQRT_2], 1e-15);
 
-        let axis = Axis::EpsDev(true);
+        let axis = Axis::EpsT(true);
         let eps_dev = data.array(axis).unwrap();
         array_approx_eq(&eps_dev, &[0.0, 0.5 * SQRT_3 / SQRT_2, 1.0 * SQRT_3 / SQRT_2], 1e-15);
 
