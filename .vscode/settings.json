@@ -14,6 +14,7 @@
     "bord",
     "Chebyshev",
     "clippy",
+    "coaxiality",
     "conv",
     "cudss",
     "cylin",
@@ -72,6 +73,7 @@
     "Margetts",
     "mduᵢ",
     "mfac",
+    "mgsig",
     "Mises",
     "mmax",
     "mmin",
@@ -112,6 +114,7 @@
     "Polubarinova",
     "Prager",
     "presc",
+    "prestrain",
     "princ",
     "Raphson",
     "rdiff",
@@ -143,7 +146,8 @@
     "xrange",
     "yaxis",
     "yrange",
-    "Zhang"
+    "Zhang",
+    "Δε̄p"
   ],
   "rust-analyzer.cargo.features": "all"
 }

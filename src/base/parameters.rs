@@ -114,10 +114,10 @@ pub enum StressStrain {
     ///
     /// ```text
     /// ḃ = λ h_b(a),          h_b(a) = H + Q beta exp(-beta a)   (isotropic)
-    /// ċ = λ [C shat(chi) - D c]                                 (Armstrong-Frederick)
+    /// ċ = λ [C s_hat(chi) - D c]                                (Armstrong-Frederick)
     /// ```
     ///
-    /// where `shat(chi) = dev(chi) / ‖dev(chi)‖`, `D = 0` recovers the linear (Prager) kinematic
+    /// where `s_hat(chi) = dev(chi) / ‖dev(chi)‖`, `D = 0` recovers the linear (Prager) kinematic
     /// hardening model, and `Q = 0` recovers the book's linear isotropic law (`h_b = H`). The
     /// internal variables are `z = {a, b, c}`, i.e., `n_z = 2 + n_sigma`.
     ///

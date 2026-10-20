@@ -33,18 +33,18 @@ const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 /// and its gradients are
 ///
 /// ```text
-/// ∂f/∂σ = shat(chi),     ∂f/∂b = -1,     ∂f/∂c = -shat(chi)
+/// ∂f/∂σ = s_hat(chi),     ∂f/∂b = -1,     ∂f/∂c = -s_hat(chi)
 ///
-/// shat(chi) := dev(chi) / ‖dev(chi)‖
+/// s_hat(chi) := dev(chi) / ‖dev(chi)‖
 /// ```
 ///
 /// The flow rule is associative (g = f), so that
 ///
 /// ```text
-/// ε̇p = λ shat(chi)
+/// ε̇p = λ s_hat(chi)
 /// ```
 ///
-/// and, since ‖shat(chi)‖ = 1, the accumulated plastic strain a = ε̄p satisfies
+/// and, since ‖s_hat(chi)‖ = 1, the accumulated plastic strain a = ε̄p satisfies
 ///
 /// ```text
 /// ȧ = λ     =>     h_a = 1
@@ -55,7 +55,7 @@ const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 ///
 /// ```text
 /// ḃ = λ h_b(a)                            h_b(a) = H + Q beta exp(-beta a)
-/// ċ = λ [C shat(chi) - D c]     =>        h_c = C shat(chi) - D c
+/// ċ = λ [C s_hat(chi) - D c]     =>       h_c = C s_hat(chi) - D c
 /// ```
 ///
 /// Setting D = 0 recovers the linear (Prager) kinematic hardening model in the same code path. The
@@ -76,7 +76,7 @@ const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 /// For reference, the book's auxiliary variables for this model are
 ///
 /// ```text
-/// M_p = H + C - D shat(chi):c        N_p = M_p + 2 G
+/// M_p = H + C - D s_hat(chi):c        N_p = M_p + 2 G
 /// ```
 ///
 /// They define the *continuous* moduli of the book. This implementation does not need them: the
@@ -88,13 +88,13 @@ const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 /// The blocks of the book's implicit problem are implemented by the callbacks below:
 ///
 /// ```text
-/// gs        = shat(chi)
+/// gs        = s_hat(chi)
 /// G_sigma|1 = ∂²σt/∂σ²                      at chi        -> calc_ggs
 /// G_z|1     = [0, 0, -G_sigma|1]                            -> calc_ggz
 /// H_sigma|1 = [0; 0; C G_sigma|1]                           -> calc_hhs
 /// H_z|1     = [[0, 0, 0], [0, 0, 0], [0, 0, -C G_sigma|1 - D P_sym]]   -> calc_hhz
-/// f_sigma|1 = shat(chi)                                     -> calc_fs
-/// f_z|1     = [0, -1, -shat(chi)]                           -> calc_fz
+/// f_sigma|1 = s_hat(chi)                                     -> calc_fs
+/// f_z|1     = [0, -1, -s_hat(chi)]                           -> calc_fz
 /// ```
 ///
 /// The book remarks that the (b, a) entry of H_z|1 vanishes only because the isotropic hardening is
@@ -107,13 +107,13 @@ const PSD: &[[f64; 9]; 9] = &P_SYMDEV;
 /// For D = 0 (and linear isotropic hardening) the book derives the closed form
 ///
 /// ```text
-/// chi_tr      = σ_tr - c_0
-/// f_trial     = ‖chi_tr‖ - b_0
-/// lambda_1    = f_trial / N_p,     N_p = 2 G + H + C
-/// shat(chi_1) = shat(chi_tr)                       (coaxiality)
+/// chi_tr       = σ_tr - c_0
+/// f_trial      = ‖chi_tr‖ - b_0
+/// lambda_1     = f_trial / N_p,     N_p = 2 G + H + C
+/// s_hat(chi_1) = s_hat(chi_tr)      (coaxiality)
 ///
-/// σ_1 = σ_tr - 2 G lambda_1 shat(chi_tr)
-/// c_1 = c_0 + C lambda_1 shat(chi_tr)
+/// σ_1 = σ_tr - 2 G lambda_1 s_hat(chi_tr)
+/// c_1 = c_0 + C lambda_1 s_hat(chi_tr)
 /// b_1 = b_0 + H lambda_1
 /// ```
 ///
@@ -258,10 +258,10 @@ impl<const N: usize> VonMisesKinematic<N> {
         }
     }
 
-    /// Calculates the unit deviator shat(chi) = dev(chi) / ‖dev(chi)‖ and returns ‖dev(chi)‖
+    /// Calculates the unit deviator s_hat(chi) = dev(chi) / ‖dev(chi)‖ and returns ‖dev(chi)‖
     ///
     /// Returns an error when the relative stress vanishes (the unit deviator is not defined there);
-    /// note that only the gradients need shat(chi), whereas the yield function itself is well defined
+    /// note that only the gradients need s_hat(chi), whereas the yield function itself is well defined
     /// (f = -b) at the virgin state.
     fn calc_xi_hat(&self, xi_hat: &mut Tensor2<N>, state: &LocalState<N>) -> Result<f64, StrError> {
         self.calc_xi(xi_hat, state);
@@ -275,8 +275,8 @@ impl<const N: usize> VonMisesKinematic<N> {
         Ok(norm)
     }
 
-    /// Calculates the book's G_sigma|1 = ∂(gs)/∂σ = (P_sd - shat(chi) ⊗ shat(chi)) / ‖dev(chi)‖,
-    /// i.e., the derivative of shat(chi) with respect to the stress tensor
+    /// Calculates the book's G_sigma|1 = ∂(gs)/∂σ = (P_sd - s_hat(chi) ⊗ s_hat(chi)) / ‖dev(chi)‖,
+    /// i.e., the derivative of s_hat(chi) with respect to the stress tensor
     fn calc_mgsig(&self, mgsig: &mut Tensor4<N>, state: &LocalState<N>) -> Result<(), StrError> {
         let mut xi_hat = Tensor2::new();
         let norm = self.calc_xi_hat(&mut xi_hat, state)?;
@@ -371,10 +371,10 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// ```text
     /// h_a = 1                        (ȧ = λ)
     /// h_b = H + Q beta exp(-beta a)  (ḃ = λ h_b, with h_b = H for Q = 0, the book's law)
-    /// h_c = C shat(chi) - D c        (ċ = λ h_c)
+    /// h_c = C s_hat(chi) - D c        (ċ = λ h_c)
     /// ```
     fn calc_h(&self, h: &mut Vector, state: &LocalState<N>) -> Result<(), StrError> {
-        // z = {a, b, c}:  ȧ = λ,  ḃ = λ h_b(a),  ċ = λ [C shat(chi) - D c]
+        // z = {a, b, c}:  ȧ = λ,  ḃ = λ h_b(a),  ċ = λ [C s_hat(chi) - D c]
         let a = state.z_set[0];
         let mut xi_hat = Tensor2::new();
         self.calc_xi_hat(&mut xi_hat, state)?;
@@ -398,13 +398,13 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     ///
     /// ```text
     ///       ∂f
-    /// fs := ──  =  shat(chi)
+    /// fs := ──  =  s_hat(chi)
     ///       ∂σ
     /// ```
     ///
-    /// where shat(chi) = dev(chi) / ‖dev(chi)‖ (the book's f_sigma|1, evaluated at chi_1).
+    /// where s_hat(chi) = dev(chi) / ‖dev(chi)‖ (the book's f_sigma|1, evaluated at chi_1).
     fn calc_fs(&self, df_dsigma: &mut Tensor2<N>, state: &LocalState<N>) -> Result<(), StrError> {
-        // fs = ∂f/∂σ = ∂σt(chi)/∂σ = shat(chi)
+        // fs = ∂f/∂σ = ∂σt(chi)/∂σ = s_hat(chi)
         self.calc_xi_hat(df_dsigma, state)?;
         Ok(())
     }
@@ -424,7 +424,7 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     ///
     /// ```text
     ///         ∂f
-    /// fz_k := ───  =  [0, -1, -shat(chi)]
+    /// fz_k := ───  =  [0, -1, -s_hat(chi)]
     ///         ∂z_k
     /// ```
     ///
@@ -437,7 +437,7 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
         df_dz[0] = 0.0;
         df_dz[1] = -1.0;
 
-        // df/dc = -shat(chi)
+        // df/dc = -s_hat(chi)
         for i in 0..N {
             df_dz[NZ_VON_MISES_KINEMATIC_EXTRA + i] = -xi_hat.get(i);
         }
@@ -481,9 +481,9 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// ggz is (ncp x nz)
     /// ```
     ///
-    /// because gs = shat(chi) depends on chi = σ - c only through the c block.
+    /// because gs = s_hat(chi) depends on chi = σ - c only through the c block.
     fn calc_ggz(&self, ggz: &mut Matrix, state: &LocalState<N>) -> Result<(), StrError> {
-        // gs = shat(chi):  ∂(gs)/∂a = ∂(gs)/∂b = 0  and  ∂(gs)/∂c = -G_sigma|1
+        // gs = s_hat(chi):  ∂(gs)/∂a = ∂(gs)/∂b = 0  and  ∂(gs)/∂c = -G_sigma|1
         ggz.fill(0.0);
         let mut mgsig = Tensor4::new();
         self.calc_mgsig(&mut mgsig, state)?;
@@ -505,7 +505,7 @@ impl<const N: usize> TraitPlasticity<N> for VonMisesKinematic<N> {
     /// hhs is (nz x ncp)
     /// ```
     ///
-    /// because only h_c = C shat(chi) - D c depends on the stress tensor.
+    /// because only h_c = C s_hat(chi) - D c depends on the stress tensor.
     fn calc_hhs(&self, hhs: &mut Matrix, state: &LocalState<N>) -> Result<(), StrError> {
         // ∂h_a/∂σ = ∂h_b/∂σ = 0  and  ∂h_c/∂σ = C G_sigma|1
         hhs.fill(0.0);
